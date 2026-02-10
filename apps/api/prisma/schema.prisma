@@ -1,0 +1,380 @@
+// ============================================
+// Zyllen Gestão — Prisma Schema
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Identity & Access ────────────────────────
+
+model InternalUser {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  pin4Hash     String   @unique
+  roleId       String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  role                Role              @relation(fields: [roleId], references: [id])
+  stockMovements      StockMovement[]
+  approvalRequests    ApprovalRequest[] @relation("RequestedBy")
+  approvedRequests    ApprovalRequest[] @relation("ApprovedBy")
+  assignedTickets     Ticket[]
+  maintenanceOpened   MaintenanceOS[]   @relation("OpenedBy")
+  maintenanceClosed   MaintenanceOS[]   @relation("ClosedBy")
+  receivings          Receiving[]
+  labelPrintJobs      LabelPrintJob[]
+  auditLogs           AuditLog[]
+}
+
+model ExternalUser {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  companyId    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  tickets  Ticket[]
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       InternalUser[]
+  permissions RolePermission[]
+}
+
+model ScreenPermission {
+  id     String @id @default(uuid())
+  screen String
+  action String
+  createdAt DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@unique([screen, action])
+}
+
+model RolePermission {
+  id                 String @id @default(uuid())
+  roleId             String
+  screenPermissionId String
+
+  role             Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  screenPermission ScreenPermission @relation(fields: [screenPermissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, screenPermissionId])
+}
+
+// ─── Companies ────────────────────────────────
+
+model Company {
+  id      String  @id @default(uuid())
+  name    String
+  cnpj    String? @unique
+  address String?
+  phone   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  externalUsers ExternalUser[]
+  tickets       Ticket[]
+}
+
+// ─── Catalog & Assets ─────────────────────────
+
+model Category {
+  id   String @id @default(uuid())
+  name String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skuItems SkuItem[]
+}
+
+model SkuItem {
+  id         String  @id @default(uuid())
+  skuCode    String  @unique
+  name       String
+  brand      String?
+  barcode    String?
+  categoryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category        Category          @relation(fields: [categoryId], references: [id])
+  assets          Asset[]
+  stockBalances   StockBalance[]
+  stockMovements  StockMovement[]
+  purchaseItems   PurchaseOrderItem[]
+  receivingItems  ReceivingItem[]
+}
+
+model Asset {
+  id                String @id @default(uuid())
+  assetCode         String @unique
+  skuId             String
+  status            String @default("ATIVO")
+  currentLocationId String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  sku             SkuItem         @relation(fields: [skuId], references: [id])
+  currentLocation Location?       @relation(fields: [currentLocationId], references: [id])
+  stockMovements  StockMovement[]
+  maintenanceOrders MaintenanceOS[]
+  labelPrintJobs  LabelPrintJob[]
+}
+
+// ─── Inventory ────────────────────────────────
+
+model Location {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stockBalances     StockBalance[]
+  assets            Asset[]
+  movementsFrom     StockMovement[] @relation("FromLocation")
+  movementsTo       StockMovement[] @relation("ToLocation")
+}
+
+model StockBalance {
+  id         String @id @default(uuid())
+  skuId      String
+  locationId String
+  quantity   Int    @default(0)
+  updatedAt  DateTime @updatedAt
+
+  sku      SkuItem  @relation(fields: [skuId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@unique([skuId, locationId])
+}
+
+model StockMovement {
+  id                      String   @id @default(uuid())
+  typeId                  String
+  skuId                   String
+  assetId                 String?
+  fromLocationId          String?
+  toLocationId            String?
+  qty                     Int
+  createdByInternalUserId String
+  pinValidatedAt          DateTime?
+  reason                  String?
+  referenceType           String?
+  referenceId             String?
+  revertedByMovementId    String?
+  createdAt               DateTime @default(now())
+
+  type        MovementType  @relation(fields: [typeId], references: [id])
+  sku         SkuItem       @relation(fields: [skuId], references: [id])
+  asset       Asset?        @relation(fields: [assetId], references: [id])
+  fromLocation Location?    @relation("FromLocation", fields: [fromLocationId], references: [id])
+  toLocation   Location?    @relation("ToLocation", fields: [toLocationId], references: [id])
+  createdBy   InternalUser  @relation(fields: [createdByInternalUserId], references: [id])
+}
+
+model MovementType {
+  id                   String  @id @default(uuid())
+  name                 String  @unique
+  requiresApproval     Boolean @default(false)
+  isFinalWriteOff      Boolean @default(false)
+  setsAssetStatus      String?
+  defaultToLocationId  String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  stockMovements StockMovement[]
+}
+
+// ─── Approvals ────────────────────────────────
+
+model ApprovalRequest {
+  id            String   @id @default(uuid())
+  requestType   String
+  status        String   @default("PENDING")
+  requestedById String
+  approvedById  String?
+  payloadJson   String
+  reason        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  requestedBy InternalUser @relation("RequestedBy", fields: [requestedById], references: [id])
+  approvedBy  InternalUser? @relation("ApprovedBy", fields: [approvedById], references: [id])
+}
+
+// ─── Tickets ──────────────────────────────────
+
+model Ticket {
+  id                        String   @id @default(uuid())
+  title                     String
+  description               String
+  companyId                 String
+  externalUserId            String
+  assignedToInternalUserId  String?
+  status                    String   @default("OPEN")
+  priority                  String   @default("MEDIUM")
+  slaDueAt                  DateTime?
+  firstResponseAt           DateTime?
+  closedAt                  DateTime?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  externalUser ExternalUser  @relation(fields: [externalUserId], references: [id])
+  assignedTo   InternalUser? @relation(fields: [assignedToInternalUserId], references: [id])
+  messages     TicketMessage[]
+  attachments  TicketAttachment[]
+}
+
+model TicketMessage {
+  id         String   @id @default(uuid())
+  ticketId   String
+  authorId   String
+  authorType String
+  content    String
+  createdAt  DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model TicketAttachment {
+  id           String   @id @default(uuid())
+  ticketId     String
+  fileName     String
+  filePath     String
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+// ─── Maintenance ──────────────────────────────
+
+model MaintenanceOS {
+  id         String    @id @default(uuid())
+  assetId    String
+  status     String    @default("OPEN")
+  openedById String
+  closedById String?
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  asset    Asset        @relation(fields: [assetId], references: [id])
+  openedBy InternalUser @relation("OpenedBy", fields: [openedById], references: [id])
+  closedBy InternalUser? @relation("ClosedBy", fields: [closedById], references: [id])
+}
+
+// ─── Purchases ────────────────────────────────
+
+model Supplier {
+  id      String  @id @default(uuid())
+  name    String
+  cnpj    String? @unique
+  contact String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id         String   @id @default(uuid())
+  supplierId String
+  status     String   @default("DRAFT")
+  number     String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  supplier  Supplier            @relation(fields: [supplierId], references: [id])
+  items     PurchaseOrderItem[]
+  receivings Receiving[]
+}
+
+model PurchaseOrderItem {
+  id              String @id @default(uuid())
+  purchaseOrderId String
+  skuId           String
+  qtyOrdered      Int
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  sku           SkuItem       @relation(fields: [skuId], references: [id])
+}
+
+model Receiving {
+  id              String   @id @default(uuid())
+  purchaseOrderId String
+  receivedAt      DateTime @default(now())
+  receivedById    String
+
+  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
+  receivedBy    InternalUser   @relation(fields: [receivedById], references: [id])
+  items         ReceivingItem[]
+}
+
+model ReceivingItem {
+  id             String  @id @default(uuid())
+  receivingId    String
+  skuId          String
+  qtyReceived    Int
+  divergenceNote String?
+
+  receiving Receiving @relation(fields: [receivingId], references: [id], onDelete: Cascade)
+  sku       SkuItem   @relation(fields: [skuId], references: [id])
+}
+
+// ─── Labels ───────────────────────────────────
+
+model LabelTemplate {
+  id     String @id @default(uuid())
+  name   String @unique
+  layout String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LabelPrintJob {
+  id          String   @id @default(uuid())
+  assetId     String
+  printedById String
+  printedAt   DateTime @default(now())
+
+  asset     Asset        @relation(fields: [assetId], references: [id])
+  printedBy InternalUser @relation(fields: [printedById], references: [id])
+}
+
+// ─── Audit ────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  action     String
+  entityType String
+  entityId   String
+  userId     String
+  details    String?
+  createdAt  DateTime @default(now())
+
+  user InternalUser @relation(fields: [userId], references: [id])
+}

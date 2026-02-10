@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - '3001:3001'
+    environment:
+      - DATABASE_URL=file:./dev.db
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - API_PORT=3001
+      - NODE_ENV=production
+    volumes:
+      - api-data:/app/apps/api/prisma
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:3001
+      - NODE_ENV=production
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  api-data:

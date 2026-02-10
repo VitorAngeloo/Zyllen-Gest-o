@@ -1,0 +1,20 @@
+{
+  "name": "zyllen-gestao",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zyllen Gestão — Sistema de gestão de estoque, patrimônio e chamados",
+  "scripts": {
+    "dev:api": "pnpm --filter @zyllen/api dev",
+    "dev:web": "pnpm --filter @zyllen/web dev",
+    "dev": "pnpm run dev:api & pnpm run dev:web",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "db:migrate": "pnpm --filter @zyllen/api prisma:migrate",
+    "db:seed": "pnpm --filter @zyllen/api prisma:seed",
+    "db:studio": "pnpm --filter @zyllen/api prisma:studio"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
