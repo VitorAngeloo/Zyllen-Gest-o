@@ -1,6 +1,11 @@
 # Zyllen Gestão — Progresso do Desenvolvimento
 
-> Documento de acompanhamento de progresso. Atualizado em: **11/02/2026 01:13**
+> Documento de acompanhamento de progresso. Atualizado em: **11/02/2026 16:01**
+
+## Versão Atual
+
+> **Commit:** `404e346`
+> **Mensagem:** `feat: Complete Backend & Frontend Foundation (Passos 1-13)`
 
 ---
 
@@ -98,7 +103,7 @@
 
 ---
 
-## Verificação (11/02/2026 01:13)
+## Verificação (11/02/2026 16:01)
 
 | Check | Resultado |
 |---|---|
@@ -244,6 +249,7 @@ lib/api-client.ts, auth-context.tsx, providers.tsx, theme-tokens.ts, utils.ts
 | Administrador | `admin@zyllen.com` | `admin123` | `0000` | Admin |
 | Carlos Técnico | `carlos@zyllen.com` | `senha123` | `5980` | Técnico |
 | João Cliente | `joao@techcorp.com` | `senha123` | — | Externo |
+| Teste (Externo) | `teste@zyllen.com` | `senha123` | `6741` | Técnico |
 
 ## Como Rodar
 
