@@ -51,7 +51,7 @@ export class AuthService {
             type: 'internal',
         };
 
-        return {
+        const result: TokenResponse = {
             accessToken: this.jwtService.sign(payload),
             refreshToken: this.jwtService.sign(payload, { expiresIn: '7d' }),
             user: {
@@ -61,6 +61,19 @@ export class AuthService {
                 role: user.role.name,
             },
         };
+
+        // AuditLog — LOGIN
+        await this.prisma.auditLog.create({
+            data: {
+                action: 'LOGIN',
+                entityType: 'InternalUser',
+                entityId: user.id,
+                userId: user.id,
+                details: JSON.stringify({ email: user.email, role: user.role.name }),
+            },
+        });
+
+        return result;
     }
 
     // ── Refresh Token ──
@@ -109,6 +122,14 @@ export class AuthService {
             throw new ConflictException('Email já cadastrado');
         }
 
+        // Check if role exists
+        const role = await this.prisma.role.findUnique({
+            where: { id: data.roleId },
+        });
+        if (!role) {
+            throw new ConflictException('Role não encontrada');
+        }
+
         const passwordHash = await bcrypt.hash(data.password, 10);
 
         // Generate unique PIN with retry
@@ -124,6 +145,21 @@ export class AuthService {
             },
         });
 
+        // AuditLog — USER_CREATED
+        await this.prisma.auditLog.create({
+            data: {
+                action: 'USER_CREATED',
+                entityType: 'InternalUser',
+                entityId: user.id,
+                userId: user.id,
+                details: JSON.stringify({
+                    name: user.name,
+                    email: user.email,
+                    role: role.name,
+                }),
+            },
+        });
+
         return {
             user: {
                 id: user.id,
@@ -132,6 +168,23 @@ export class AuthService {
             },
             pin, // Return plain PIN to show once to the user
         };
+    }
+
+    // ── List Internal Users ──
+    async findAllInternalUsers() {
+        return this.prisma.internalUser.findMany({
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                isActive: true,
+                createdAt: true,
+                role: {
+                    select: { id: true, name: true },
+                },
+            },
+            orderBy: { name: 'asc' },
+        });
     }
 
     // ── Generate Unique 4-digit PIN ──
@@ -143,10 +196,7 @@ export class AuthService {
             const pinHash = await bcrypt.hash(pin, 10);
 
             // Check if any user already has this PIN
-            // Since PIN is stored as hash, we need to check against all existing PINs
-            // However, we use UNIQUE constraint on pin4Hash as a safety net
-            // We can't compare hashes directly, so we use a different approach:
-            // Generate and try to insert — if UNIQUE violation, retry
+            // Since PIN is stored as hash, we need to compare against all existing PINs
             const allUsers = await this.prisma.internalUser.findMany({
                 select: { pin4Hash: true },
             });

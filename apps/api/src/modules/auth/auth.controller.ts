@@ -13,10 +13,15 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { LoginDto } from './dto/login.dto';
 import { CreateInternalUserDto } from './dto/create-internal-user.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ValidatePinDto } from './dto/validate-pin.dto';
+import { AccessService } from '../access/access.service';
 
 @Controller('auth')
 export class AuthController {
-    constructor(private readonly authService: AuthService) { }
+    constructor(
+        private readonly authService: AuthService,
+        private readonly accessService: AccessService,
+    ) { }
 
     @Post('login')
     @HttpCode(HttpStatus.OK)
@@ -46,9 +51,31 @@ export class AuthController {
         };
     }
 
+    @Get('users')
+    @UseGuards(JwtAuthGuard)
+    async listUsers() {
+        const data = await this.authService.findAllInternalUsers();
+        return { data };
+    }
+
     @Get('me')
     @UseGuards(JwtAuthGuard)
     async me(@Request() req: any) {
         return { data: req.user };
+    }
+
+    @Get('me/permissions')
+    @UseGuards(JwtAuthGuard)
+    async myPermissions(@Request() req: any) {
+        const permissions = await this.accessService.getUserPermissions(req.user.id);
+        return { data: permissions };
+    }
+
+    @Post('validate-pin')
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(HttpStatus.OK)
+    async validatePin(@Request() req: any, @Body() dto: ValidatePinDto) {
+        const valid = await this.authService.validatePin(req.user.id, dto.pin);
+        return { valid };
     }
 }

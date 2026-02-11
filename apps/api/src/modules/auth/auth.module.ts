@@ -1,10 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { AccessModule } from '../access/access.module';
 
 @Module({
     imports: [
@@ -15,6 +16,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
                 expiresIn: '1d',
             },
         }),
+        forwardRef(() => AccessModule),
     ],
     controllers: [AuthController],
     providers: [AuthService, JwtStrategy, JwtAuthGuard],

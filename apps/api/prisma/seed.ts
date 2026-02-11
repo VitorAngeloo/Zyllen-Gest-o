@@ -126,6 +126,59 @@ async function main() {
     }
     console.log('  ✅ All permissions assigned to Admin role');
 
+    // ── 3b. Assign permissions to Técnico ─────
+    const tecnicoScreens = [
+        'dashboard.view',
+        'inventory.view', 'inventory.bipar_entrada', 'inventory.bipar_saida', 'inventory.historico',
+        'assets.view', 'assets.lookup',
+        'catalog.view',
+        'locations.view',
+        'tickets.view',
+        'maintenance.view', 'maintenance.open', 'maintenance.execute', 'maintenance.close',
+        'labels.view', 'labels.print',
+    ];
+    for (const key of tecnicoScreens) {
+        const [screen, action] = key.split('.');
+        const sp = createdPermissions.find((p) => p.screen === screen && p.action === action);
+        if (sp) {
+            await prisma.rolePermission.upsert({
+                where: { roleId_screenPermissionId: { roleId: tecnicoRole.id, screenPermissionId: sp.id } },
+                update: {},
+                create: { roleId: tecnicoRole.id, screenPermissionId: sp.id },
+            });
+        }
+    }
+    console.log(`  ✅ ${tecnicoScreens.length} permissions assigned to Técnico role`);
+
+    // ── 3c. Assign permissions to Gestor ──────
+    const gestorScreens = [
+        'dashboard.view',
+        'inventory.view', 'inventory.bipar_entrada', 'inventory.bipar_saida', 'inventory.historico',
+        'assets.view', 'assets.create', 'assets.lookup',
+        'catalog.view', 'catalog.create', 'catalog.update', 'catalog.delete',
+        'locations.view', 'locations.create', 'locations.update', 'locations.delete',
+        'suppliers.view', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
+        'purchases.view', 'purchases.create', 'purchases.approve', 'purchases.receive',
+        'tickets.view', 'tickets.triage', 'tickets.assign', 'tickets.close',
+        'maintenance.view', 'maintenance.open', 'maintenance.execute', 'maintenance.close',
+        'approvals.view', 'approvals.approve', 'approvals.reject',
+        'labels.view', 'labels.print',
+        'audit.view',
+        'settings.view',
+    ];
+    for (const key of gestorScreens) {
+        const [screen, action] = key.split('.');
+        const sp = createdPermissions.find((p) => p.screen === screen && p.action === action);
+        if (sp) {
+            await prisma.rolePermission.upsert({
+                where: { roleId_screenPermissionId: { roleId: gestorRole.id, screenPermissionId: sp.id } },
+                update: {},
+                create: { roleId: gestorRole.id, screenPermissionId: sp.id },
+            });
+        }
+    }
+    console.log(`  ✅ ${gestorScreens.length} permissions assigned to Gestor role`);
+
     // ── 4. Create Admin User ────────────────────
     const adminPasswordHash = await bcrypt.hash('admin123', 10);
     const adminPinHash = await bcrypt.hash('0000', 10);

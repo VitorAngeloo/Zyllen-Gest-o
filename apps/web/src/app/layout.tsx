@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { Providers } from "@web/lib/providers";
 import "./globals.css";
 
 const inter = Inter({
@@ -14,21 +15,16 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Zyllen Gestão",
-  description:
-    "Sistema de gestão de estoque, patrimônio e chamados — Zyllen",
+  description: "Sistema de gestão de estoque, patrimônio e chamados — Zyllen",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
-      <body
-        className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
-      >
-        {children}
+    <html lang="pt-BR" className="dark">
+      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
