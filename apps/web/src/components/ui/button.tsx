@@ -14,7 +14,9 @@ const buttonVariants = cva(
                 secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
                 ghost: "hover:bg-accent hover:text-accent-foreground",
                 link: "text-primary underline-offset-4 hover:underline",
-                highlight: "bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg)] font-semibold hover:brightness-110 shadow-md",
+                highlight: "bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg-dark)] font-semibold hover:brightness-110 shadow-md shadow-[var(--zyllen-highlight)]/15",
+                "highlight-outline": "border border-[var(--zyllen-highlight)] text-[var(--zyllen-highlight)] bg-transparent hover:bg-[var(--zyllen-highlight)]/10 font-medium",
+                "highlight-ghost": "text-[var(--zyllen-highlight)] hover:bg-[var(--zyllen-highlight)]/10 font-medium",
             },
             size: {
                 default: "h-9 px-4 py-2 has-[>svg]:px-3",

@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsUUID } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsUUID, IsOptional, Length, Matches } from 'class-validator';
 
 export class CreateInternalUserDto {
     @IsString()
@@ -14,4 +14,18 @@ export class CreateInternalUserDto {
 
     @IsUUID('4', { message: 'Role ID inválido' })
     roleId!: string;
+
+    @IsOptional()
+    @IsString()
+    sector?: string;
+
+    @IsOptional()
+    @IsString()
+    description?: string;
+
+    @IsOptional()
+    @IsString()
+    @Length(4, 4, { message: 'PIN deve ter exatamente 4 dígitos' })
+    @Matches(/^\d{4}$/, { message: 'PIN deve conter apenas números' })
+    pin?: string;
 }

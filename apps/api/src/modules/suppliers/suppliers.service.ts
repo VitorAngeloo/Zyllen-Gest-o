@@ -9,11 +9,16 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class SuppliersService {
     constructor(private readonly prisma: PrismaService) { }
 
-    async findAll() {
-        return this.prisma.supplier.findMany({
-            include: { _count: { select: { purchaseOrders: true } } },
-            orderBy: { name: 'asc' },
-        });
+    async findAll(pagination?: { skip?: number; take?: number }) {
+        const [data, total] = await Promise.all([
+            this.prisma.supplier.findMany({
+                include: { _count: { select: { purchaseOrders: true } } },
+                orderBy: { name: 'asc' },
+                ...(pagination ? { skip: pagination.skip, take: pagination.take } : {}),
+            }),
+            this.prisma.supplier.count(),
+        ]);
+        return { data, total };
     }
 
     async findById(id: string) {

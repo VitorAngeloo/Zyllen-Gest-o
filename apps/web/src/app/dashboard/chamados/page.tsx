@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
 import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
@@ -10,6 +10,8 @@ import { Label } from "@web/components/ui/label";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
 import { Headset, Plus, MessageSquare, Clock, Send } from "lucide-react";
+import { Skeleton } from "@web/components/ui/skeleton";
+import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
 export default function ChamadosPage() {
     const fetchOpts = useAuthedFetch();
@@ -19,8 +21,9 @@ export default function ChamadosPage() {
     const [newMsg, setNewMsg] = useState("");
     const [showCreate, setShowCreate] = useState(false);
     const [form, setForm] = useState({ title: "", description: "", priority: "MEDIUM", companyId: "", externalUserId: "" });
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const { data: tickets } = useQuery({
+    const { data: tickets, isLoading: loadingTickets } = useQuery({
         queryKey: ["tickets"],
         queryFn: () => apiClient.get<{ data: any[] }>("/tickets", fetchOpts),
     });
@@ -31,15 +34,31 @@ export default function ChamadosPage() {
         enabled: !!selected?.id,
     });
 
+    // Auto-scroll to bottom when messages change
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [detail?.data?.messages]);
+
     const { data: companies } = useQuery({
         queryKey: ["companies"],
         queryFn: () => apiClient.get<{ data: any[] }>("/clients/companies", fetchOpts),
         enabled: showCreate,
     });
 
+    const { data: extUsers } = useQuery({
+        queryKey: ["extUsers", form.companyId],
+        queryFn: () => apiClient.get<{ data: any[] }>(`/clients/external-users?companyId=${form.companyId}`, fetchOpts),
+        enabled: showCreate && !!form.companyId,
+    });
+
     const createTicket = useMutation({
-        mutationFn: (data: any) => apiClient.post("/tickets", data, fetchOpts),
-        onSuccess: () => { toast.success("Chamado criado!"); qc.invalidateQueries({ queryKey: ["tickets"] }); setShowCreate(false); setForm({ title: "", description: "", priority: "MEDIUM", companyId: "", externalUserId: "" }); },
+        mutationFn: (data: any) => {
+            const payload = { ...data };
+            if (!payload.externalUserId) delete payload.externalUserId;
+            if (!payload.companyId) delete payload.companyId;
+            return apiClient.post("/tickets", payload, fetchOpts);
+        },
+        onSuccess: () => { toast.success(TOASTS.ticketCreated); qc.invalidateQueries({ queryKey: ["tickets"] }); setShowCreate(false); setForm({ title: "", description: "", priority: "MEDIUM", companyId: "", externalUserId: "" }); },
         onError: (e: any) => toast.error(e.message),
     });
 
@@ -51,18 +70,18 @@ export default function ChamadosPage() {
 
     const assignTicket = useMutation({
         mutationFn: (ticketId: string) => apiClient.put(`/tickets/${ticketId}/assign`, { assignedToId: user?.id }, fetchOpts),
-        onSuccess: () => { toast.success("Chamado atribuído!"); qc.invalidateQueries({ queryKey: ["tickets"] }); qc.invalidateQueries({ queryKey: ["ticket", selected?.id] }); },
+        onSuccess: () => { toast.success(TOASTS.ticketAssigned); qc.invalidateQueries({ queryKey: ["tickets"] }); qc.invalidateQueries({ queryKey: ["ticket", selected?.id] }); },
         onError: (e: any) => toast.error(e.message),
     });
 
     const updateStatus = useMutation({
         mutationFn: (data: { ticketId: string; status: string }) => apiClient.put(`/tickets/${data.ticketId}/status`, { status: data.status }, fetchOpts),
-        onSuccess: () => { toast.success("Status atualizado!"); qc.invalidateQueries({ queryKey: ["tickets"] }); qc.invalidateQueries({ queryKey: ["ticket", selected?.id] }); },
+        onSuccess: () => { toast.success(TOASTS.ticketStatusUpdated); qc.invalidateQueries({ queryKey: ["tickets"] }); qc.invalidateQueries({ queryKey: ["ticket", selected?.id] }); },
         onError: (e: any) => toast.error(e.message),
     });
 
     const priorityColor: Record<string, "destructive" | "warning" | "default"> = {
-        HIGH: "destructive", MEDIUM: "warning", LOW: "default",
+        CRITICAL: "destructive", HIGH: "destructive", MEDIUM: "warning", LOW: "default",
     };
     const statusColor: Record<string, "success" | "warning" | "destructive" | "default" | "secondary"> = {
         OPEN: "warning", IN_PROGRESS: "default", WAITING_CLIENT: "secondary", RESOLVED: "success", CLOSED: "success",
@@ -74,6 +93,7 @@ export default function ChamadosPage() {
                 <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Headset className="text-[var(--zyllen-highlight)]" /> Chamados
                 </h1>
+                <p className="text-sm text-[var(--zyllen-muted)] mt-1">{PAGE_DESCRIPTIONS.chamados}</p>
                 <Button variant="highlight" onClick={() => setShowCreate(!showCreate)}>
                     <Plus size={16} /> Novo Chamado
                 </Button>
@@ -99,16 +119,26 @@ export default function ChamadosPage() {
                                         <option value="LOW">Baixa</option>
                                         <option value="MEDIUM">Média</option>
                                         <option value="HIGH">Alta</option>
+                                        <option value="CRITICAL">Crítica</option>
                                     </select>
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[var(--zyllen-muted)]">Empresa</Label>
-                                    <select value={form.companyId} onChange={(e) => setForm({ ...form, companyId: e.target.value })} className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
+                                    <select value={form.companyId} onChange={(e) => setForm({ ...form, companyId: e.target.value, externalUserId: "" })} className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
                                         <option value="">Selecione...</option>
                                         {companies?.data?.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 </div>
                             </div>
+                            {form.companyId && (
+                                <div className="space-y-2">
+                                    <Label className="text-[var(--zyllen-muted)]">Usuário Externo (opcional)</Label>
+                                    <select value={form.externalUserId} onChange={(e) => setForm({ ...form, externalUserId: e.target.value })} className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
+                                        <option value="">Nenhum</option>
+                                        {extUsers?.data?.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
+                                    </select>
+                                </div>
+                            )}
                             <Button type="submit" variant="highlight" className="w-full" disabled={createTicket.isPending}>Criar Chamado</Button>
                         </form>
                     </CardContent>
@@ -120,7 +150,13 @@ export default function ChamadosPage() {
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] lg:col-span-1">
                     <CardHeader><CardTitle className="text-white text-sm">Fila de Chamados</CardTitle></CardHeader>
                     <CardContent className="space-y-2 max-h-[600px] overflow-y-auto">
-                        {tickets?.data?.map((t: any) => (
+                        {loadingTickets ? (
+                            <div className="space-y-2">
+                                {[...Array(5)].map((_, i) => (
+                                    <Skeleton key={i} className="h-20 w-full rounded-lg" />
+                                ))}
+                            </div>
+                        ) : tickets?.data?.map((t: any) => (
                             <div
                                 key={t.id}
                                 onClick={() => setSelected(t)}
@@ -136,8 +172,14 @@ export default function ChamadosPage() {
                                 </div>
                                 <p className="text-[10px] text-[var(--zyllen-muted)] mt-1">{t.company?.name}</p>
                             </div>
-                        ))}
-                        {!tickets?.data?.length && <p className="text-[var(--zyllen-muted)] text-center py-4 text-sm">Nenhum chamado</p>}
+                        ))
+                        }
+                        {!loadingTickets && !tickets?.data?.length && (
+                            <div className="text-center py-8">
+                                <Headset size={36} className="mx-auto mb-3 text-[var(--zyllen-muted)]/50" />
+                                <p className="text-[var(--zyllen-muted)] text-sm">{EMPTY_STATES.ticketsList}</p>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -189,6 +231,7 @@ export default function ChamadosPage() {
                                             <p className="text-sm text-white">{m.content}</p>
                                         </div>
                                     ))}
+                                    <div ref={messagesEndRef} />
                                 </div>
                                 <form
                                     onSubmit={(e) => { e.preventDefault(); if (newMsg.trim()) sendMessage.mutate({ ticketId: detail.data.id, content: newMsg }); }}
@@ -209,7 +252,7 @@ export default function ChamadosPage() {
                     </Card>
                 ) : (
                     <div className="lg:col-span-2 flex items-center justify-center text-[var(--zyllen-muted)] text-sm">
-                        Selecione um chamado para ver os detalhes
+                        {EMPTY_STATES.ticketDetail}
                     </div>
                 )}
             </div>

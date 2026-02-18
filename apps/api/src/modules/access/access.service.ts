@@ -99,6 +99,9 @@ export class AccessService {
     }
 
     async deletePermission(id: string) {
+        const perm = await this.prisma.screenPermission.findUnique({ where: { id } });
+        if (!perm) throw new NotFoundException('Permissão não encontrada');
+
         await this.prisma.rolePermission.deleteMany({
             where: { screenPermissionId: id },
         });

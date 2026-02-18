@@ -85,11 +85,14 @@ async function main() {
         { screen: 'approvals', action: 'reject' },
         // Access (roles/permissions management)
         { screen: 'access', action: 'view' },
+        { screen: 'access', action: 'manage' },
         { screen: 'access', action: 'manage_roles' },
         { screen: 'access', action: 'manage_permissions' },
         // Labels
         { screen: 'labels', action: 'view' },
         { screen: 'labels', action: 'print' },
+        // Product Exits
+        { screen: 'inventory', action: 'exit' },
         // Audit
         { screen: 'audit', action: 'view' },
         // Settings
@@ -129,7 +132,7 @@ async function main() {
     // ── 3b. Assign permissions to Técnico ─────
     const tecnicoScreens = [
         'dashboard.view',
-        'inventory.view', 'inventory.bipar_entrada', 'inventory.bipar_saida', 'inventory.historico',
+        'inventory.view', 'inventory.bipar_entrada', 'inventory.bipar_saida', 'inventory.historico', 'inventory.exit',
         'assets.view', 'assets.lookup',
         'catalog.view',
         'locations.view',
@@ -153,7 +156,7 @@ async function main() {
     // ── 3c. Assign permissions to Gestor ──────
     const gestorScreens = [
         'dashboard.view',
-        'inventory.view', 'inventory.bipar_entrada', 'inventory.bipar_saida', 'inventory.historico',
+        'inventory.view', 'inventory.bipar_entrada', 'inventory.bipar_saida', 'inventory.historico', 'inventory.exit',
         'assets.view', 'assets.create', 'assets.lookup',
         'catalog.view', 'catalog.create', 'catalog.update', 'catalog.delete',
         'locations.view', 'locations.create', 'locations.update', 'locations.delete',

@@ -41,18 +41,24 @@ export class PurchasesService {
     }
 
     // ── List POs ──
-    async findAll(params?: { status?: string; supplierId?: string }) {
-        return this.prisma.purchaseOrder.findMany({
-            where: {
-                ...(params?.status ? { status: params.status } : {}),
-                ...(params?.supplierId ? { supplierId: params.supplierId } : {}),
-            },
-            include: {
-                supplier: { select: { name: true } },
-                _count: { select: { items: true, receivings: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
+    async findAll(params?: { status?: string; supplierId?: string; skip?: number; take?: number }) {
+        const where = {
+            ...(params?.status ? { status: params.status } : {}),
+            ...(params?.supplierId ? { supplierId: params.supplierId } : {}),
+        };
+        const [data, total] = await Promise.all([
+            this.prisma.purchaseOrder.findMany({
+                where,
+                include: {
+                    supplier: { select: { name: true } },
+                    _count: { select: { items: true, receivings: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+                ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
+            }),
+            this.prisma.purchaseOrder.count({ where }),
+        ]);
+        return { data, total };
     }
 
     // ── Find PO by ID ──
@@ -117,12 +123,28 @@ export class PurchasesService {
                 },
             });
 
-            // Update stock balances for each received item
+            // Update stock balances and create stock movements for each received item
             for (const item of data.items) {
                 await tx.stockBalance.upsert({
                     where: { skuId_locationId: { skuId: item.skuId, locationId: data.locationId } },
                     update: { quantity: { increment: item.qtyReceived } },
                     create: { skuId: item.skuId, locationId: data.locationId, quantity: item.qtyReceived },
+                });
+
+                // Create StockMovement for audit trail
+                const entryType = await tx.movementType.findFirst({ where: { name: 'Entrada' } })
+                    ?? await tx.movementType.findFirst();
+                if (!entryType) throw new NotFoundException('Tipo de movimentação "Entrada" não configurado. Execute o seed.');
+                await tx.stockMovement.create({
+                    data: {
+                        typeId: entryType.id,
+                        skuId: item.skuId,
+                        toLocationId: data.locationId,
+                        qty: item.qtyReceived,
+                        reason: `Recebimento PO ${po.number}`,
+                        createdByInternalUserId: data.receivedById,
+                        pinValidatedAt: new Date(),
+                    },
                 });
             }
 

@@ -10,6 +10,8 @@ import { Label } from "@web/components/ui/label";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
 import { ShoppingCart, Plus, Package, TruckIcon } from "lucide-react";
+import { Skeleton } from "@web/components/ui/skeleton";
+import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
 export default function ComprasPage() {
     const fetchOpts = useAuthedFetch();
@@ -17,9 +19,9 @@ export default function ComprasPage() {
     const [showCreate, setShowCreate] = useState(false);
     const [selectedPO, setSelectedPO] = useState<any>(null);
     const [form, setForm] = useState({ supplierId: "", skuId: "", qtyOrdered: 1 });
-    const [recvForm, setRecvForm] = useState({ locationId: "", items: [{ skuId: "", qtyReceived: 1 }] });
+    const [recvForm, setRecvForm] = useState<{ locationId: string; items: Record<string, number> }>({ locationId: "", items: {} });
 
-    const { data: pos } = useQuery({
+    const { data: pos, isLoading: loadingPOs } = useQuery({
         queryKey: ["purchases"],
         queryFn: () => apiClient.get<{ data: any[] }>("/purchases", fetchOpts),
     });
@@ -44,13 +46,13 @@ export default function ComprasPage() {
 
     const createPO = useMutation({
         mutationFn: (data: any) => apiClient.post("/purchases", data, fetchOpts),
-        onSuccess: () => { toast.success("Pedido criado!"); qc.invalidateQueries({ queryKey: ["purchases"] }); setShowCreate(false); },
+        onSuccess: () => { toast.success(TOASTS.orderCreated); qc.invalidateQueries({ queryKey: ["purchases"] }); setShowCreate(false); },
         onError: (e: any) => toast.error(e.message),
     });
 
     const receivePO = useMutation({
         mutationFn: (data: any) => apiClient.post(`/purchases/${selectedPO.id}/receive`, data, fetchOpts),
-        onSuccess: () => { toast.success("Recebimento registrado!"); qc.invalidateQueries({ queryKey: ["purchases"] }); qc.invalidateQueries({ queryKey: ["purchase", selectedPO?.id] }); },
+        onSuccess: () => { toast.success(TOASTS.receiptConfirmed); qc.invalidateQueries({ queryKey: ["purchases"] }); qc.invalidateQueries({ queryKey: ["purchase", selectedPO?.id] }); },
         onError: (e: any) => toast.error(e.message),
     });
 
@@ -64,6 +66,7 @@ export default function ComprasPage() {
                 <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                     <ShoppingCart className="text-[var(--zyllen-highlight)]" /> Compras
                 </h1>
+                <p className="text-sm text-[var(--zyllen-muted)] mt-1">{PAGE_DESCRIPTIONS.compras}</p>
                 <Button variant="highlight" onClick={() => setShowCreate(!showCreate)}>
                     <Plus size={16} /> Novo Pedido
                 </Button>
@@ -103,7 +106,13 @@ export default function ComprasPage() {
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] lg:col-span-1">
                     <CardHeader><CardTitle className="text-white text-sm">Pedidos de Compra</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
-                        {pos?.data?.map((po: any) => (
+                        {loadingPOs ? (
+                            <div className="space-y-2">
+                                {[...Array(4)].map((_, i) => (
+                                    <Skeleton key={i} className="h-16 w-full rounded-lg" />
+                                ))}
+                            </div>
+                        ) : pos?.data?.map((po: any) => (
                             <div
                                 key={po.id}
                                 onClick={() => setSelectedPO(po)}
@@ -118,8 +127,14 @@ export default function ComprasPage() {
                                     <Badge variant={statusColor[po.status] ?? "default"} className="text-[10px]">{po.status}</Badge>
                                 </div>
                             </div>
-                        ))}
-                        {!pos?.data?.length && <p className="text-[var(--zyllen-muted)] text-center py-4 text-sm">Nenhum pedido</p>}
+                        ))
+                        }
+                        {!loadingPOs && !pos?.data?.length && (
+                            <div className="text-center py-8">
+                                <ShoppingCart size={36} className="mx-auto mb-3 text-[var(--zyllen-muted)]/50" />
+                                <p className="text-[var(--zyllen-muted)] text-sm">{EMPTY_STATES.purchases}</p>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -176,10 +191,10 @@ export default function ComprasPage() {
                                     <form
                                         onSubmit={(e) => {
                                             e.preventDefault();
-                                            const items = detail.data.items.map((item: any) => ({
-                                                skuId: item.skuId,
-                                                qtyReceived: +(document.getElementById(`recv-${item.skuId}`) as HTMLInputElement)?.value || 0,
-                                            })).filter((i: any) => i.qtyReceived > 0);
+                                            const items = Object.entries(recvForm.items)
+                                                .filter(([, qty]) => qty > 0)
+                                                .map(([skuId, qtyReceived]) => ({ skuId, qtyReceived }));
+                                            if (!items.length) { toast.error("Informe ao menos 1 item"); return; }
                                             receivePO.mutate({ locationId: recvForm.locationId, items });
                                         }}
                                         className="space-y-3"
@@ -195,10 +210,10 @@ export default function ComprasPage() {
                                             <div key={item.skuId} className="flex items-center gap-3">
                                                 <span className="text-sm text-white flex-1">{item.sku?.name}</span>
                                                 <Input
-                                                    id={`recv-${item.skuId}`}
                                                     type="number"
                                                     min={0}
-                                                    defaultValue={0}
+                                                    value={recvForm.items[item.skuId] ?? 0}
+                                                    onChange={(e) => setRecvForm({ ...recvForm, items: { ...recvForm.items, [item.skuId]: +e.target.value } })}
                                                     className="w-24 bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center"
                                                 />
                                             </div>
@@ -211,7 +226,7 @@ export default function ComprasPage() {
                     </Card>
                 ) : (
                     <div className="lg:col-span-2 flex items-center justify-center text-[var(--zyllen-muted)] text-sm">
-                        Selecione um pedido para ver os detalhes
+                        {EMPTY_STATES.purchaseDetail}
                     </div>
                 )}
             </div>

@@ -22,7 +22,7 @@ export enum ApprovalStatus {
 export enum TicketStatus {
     OPEN = 'OPEN',
     IN_PROGRESS = 'IN_PROGRESS',
-    WAITING_CUSTOMER = 'WAITING_CUSTOMER',
+    WAITING_CLIENT = 'WAITING_CLIENT',
     RESOLVED = 'RESOLVED',
     CLOSED = 'CLOSED',
 }
@@ -39,7 +39,7 @@ export enum TicketPriority {
 export enum MaintenanceStatus {
     OPEN = 'OPEN',
     IN_PROGRESS = 'IN_PROGRESS',
-    DONE = 'DONE',
+    CLOSED = 'CLOSED',
 }
 
 // ── Purchase Order Status ──

@@ -21,6 +21,7 @@
         "@nestjs/passport": "^11.0.5",
         "@nestjs/platform-express": "^10.4.0",
         "@nestjs/serve-static": "^4.0.2",
+        "@nestjs/throttler": "^6.5.0",
         "@prisma/client": "^6.3.0",
         "@zyllen/shared": "workspace:*",
         "bcrypt": "^5.1.1",

@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -6,15 +7,18 @@ import { JwtPayload } from './auth.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-    constructor(private readonly prisma: PrismaService) {
+    constructor(
+        private readonly prisma: PrismaService,
+        configService: ConfigService,
+    ) {
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: process.env.JWT_SECRET || 'change-me-in-production',
+            secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),
         });
     }
 
-    async validate(payload: JwtPayload) {
+    async validate(payload: JwtPayload & { companyId?: string; name?: string }) {
         if (payload.type === 'internal') {
             const user = await this.prisma.internalUser.findUnique({
                 where: { id: payload.sub },
@@ -29,9 +33,46 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
                 id: user.id,
                 email: user.email,
                 name: user.name,
-                role: user.role.name,
+                role: { id: user.role.id, name: user.role.name },
                 roleId: user.roleId,
                 type: 'internal',
+            };
+        }
+
+        if (payload.type === 'external') {
+            const user = await this.prisma.externalUser.findUnique({
+                where: { id: payload.sub },
+                include: { company: { select: { id: true, name: true } } },
+            });
+
+            if (!user || !user.isActive) {
+                throw new UnauthorizedException('Usuário externo não encontrado ou inativo');
+            }
+
+            return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                companyId: user.companyId,
+                company: user.company,
+                type: 'external',
+            };
+        }
+
+        if (payload.type === 'contractor') {
+            const user = await this.prisma.contractorUser.findUnique({
+                where: { id: payload.sub },
+            });
+
+            if (!user || !user.isActive) {
+                throw new UnauthorizedException('Terceirizado não encontrado ou inativo');
+            }
+
+            return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                type: 'contractor',
             };
         }
 

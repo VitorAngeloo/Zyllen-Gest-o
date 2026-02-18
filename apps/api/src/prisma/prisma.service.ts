@@ -9,7 +9,11 @@ export class PrismaService
         await this.$connect();
 
         // Enable WAL mode for better read performance (SQLite)
-        await this.$queryRawUnsafe('PRAGMA journal_mode = WAL;');
+        try {
+            await this.$queryRaw`PRAGMA journal_mode = WAL`;
+        } catch {
+            // Ignore if not SQLite (e.g. PostgreSQL)
+        }
     }
 
     async onModuleDestroy() {

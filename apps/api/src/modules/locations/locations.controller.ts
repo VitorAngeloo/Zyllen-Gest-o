@@ -6,12 +6,15 @@ import {
     Delete,
     Body,
     Param,
+    Query,
     UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { LocationsService } from './locations.service';
+import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { createLocationSchema, updateLocationSchema } from '@zyllen/shared';
 
 @Controller('locations')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -20,9 +23,14 @@ export class LocationsController {
 
     @Get()
     @RequirePermission('locations.view')
-    async findAll() {
-        const data = await this.locationsService.findAll();
-        return { data };
+    async findAll(
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+    ) {
+        const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
+        const l = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10) || 20));
+        const result = await this.locationsService.findAll({ skip: (p - 1) * l, take: l });
+        return { data: result.data, total: result.total, page: p, limit: l };
     }
 
     @Get(':id')
@@ -34,14 +42,14 @@ export class LocationsController {
 
     @Post()
     @RequirePermission('locations.create')
-    async create(@Body() body: { name: string; description?: string }) {
+    async create(@Body(new ZodValidationPipe(createLocationSchema)) body: { name: string; description?: string }) {
         const data = await this.locationsService.create(body);
         return { data, message: 'Local criado com sucesso' };
     }
 
     @Put(':id')
     @RequirePermission('locations.update')
-    async update(@Param('id') id: string, @Body() body: { name?: string; description?: string }) {
+    async update(@Param('id') id: string, @Body(new ZodValidationPipe(updateLocationSchema)) body: { name?: string; description?: string }) {
         const data = await this.locationsService.update(id, body);
         return { data, message: 'Local atualizado com sucesso' };
     }

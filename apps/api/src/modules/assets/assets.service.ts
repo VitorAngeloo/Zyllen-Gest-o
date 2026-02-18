@@ -10,25 +10,31 @@ export class AssetsService {
     constructor(private readonly prisma: PrismaService) { }
 
     // ── List all assets ──
-    async findAll(params?: { skuId?: string; status?: string; locationId?: string; search?: string }) {
-        return this.prisma.asset.findMany({
-            where: {
-                ...(params?.skuId ? { skuId: params.skuId } : {}),
-                ...(params?.status ? { status: params.status } : {}),
-                ...(params?.locationId ? { currentLocationId: params.locationId } : {}),
-                ...(params?.search ? {
-                    OR: [
-                        { assetCode: { contains: params.search } },
-                        { sku: { name: { contains: params.search } } },
-                    ],
-                } : {}),
-            },
-            include: {
-                sku: { select: { id: true, skuCode: true, name: true, brand: true, category: { select: { name: true } } } },
-                currentLocation: { select: { id: true, name: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
+    async findAll(params?: { skuId?: string; status?: string; locationId?: string; search?: string; skip?: number; take?: number }) {
+        const where = {
+            ...(params?.skuId ? { skuId: params.skuId } : {}),
+            ...(params?.status ? { status: params.status } : {}),
+            ...(params?.locationId ? { currentLocationId: params.locationId } : {}),
+            ...(params?.search ? {
+                OR: [
+                    { assetCode: { contains: params.search } },
+                    { sku: { name: { contains: params.search } } },
+                ],
+            } : {}),
+        };
+        const [data, total] = await Promise.all([
+            this.prisma.asset.findMany({
+                where,
+                include: {
+                    sku: { select: { id: true, skuCode: true, name: true, brand: true, category: { select: { name: true } } } },
+                    currentLocation: { select: { id: true, name: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+                ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
+            }),
+            this.prisma.asset.count({ where }),
+        ]);
+        return { data, total };
     }
 
     // ── Find by ID ──
@@ -76,6 +82,7 @@ export class AssetsService {
                 where: { assetId },
                 include: {
                     openedBy: { select: { name: true } },
+                    openedByContractor: { select: { name: true } },
                     closedBy: { select: { name: true } },
                 },
                 orderBy: { createdAt: 'desc' },
@@ -102,7 +109,7 @@ export class AssetsService {
                 type: 'MAINTENANCE' as const,
                 date: os.createdAt,
                 description: `OS ${os.status}${os.notes ? ` — ${os.notes}` : ''}`,
-                actor: os.openedBy.name,
+                actor: os.openedBy?.name ?? os.openedByContractor?.name ?? 'Desconhecido',
                 details: os,
             })),
             ...labels.map((l) => ({
@@ -145,6 +152,130 @@ export class AssetsService {
         });
     }
 
+    // ── Bulk Equipment Registration ──
+    // Creates SkuItem + N Assets + StockBalance in a single transaction
+    async bulkRegister(data: {
+        name: string;
+        description?: string;
+        brand?: string;
+        barcode?: string;
+        categoryId: string;
+        locationId: string;
+        quantity: number;
+    }) {
+        // Verify category exists
+        const category = await this.prisma.category.findUnique({ where: { id: data.categoryId } });
+        if (!category) throw new NotFoundException('Categoria não encontrada');
+
+        // Verify location exists
+        const location = await this.prisma.location.findUnique({ where: { id: data.locationId } });
+        if (!location) throw new NotFoundException('Local não encontrado');
+
+        // Generate unique SKU code
+        const skuCode = await this.generateUniqueSkuCode();
+
+        // Generate all asset codes in advance
+        const assetCodes: string[] = [];
+        for (let i = 0; i < data.quantity; i++) {
+            assetCodes.push(await this.generateUniqueAssetCode());
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Create SkuItem
+            const skuItem = await tx.skuItem.create({
+                data: {
+                    skuCode,
+                    name: data.name,
+                    description: data.description,
+                    brand: data.brand,
+                    barcode: data.barcode,
+                    categoryId: data.categoryId,
+                },
+                include: { category: { select: { id: true, name: true } } },
+            });
+
+            // 2. Create N Assets
+            const assets = await Promise.all(
+                assetCodes.map((code) =>
+                    tx.asset.create({
+                        data: {
+                            assetCode: code,
+                            skuId: skuItem.id,
+                            currentLocationId: data.locationId,
+                            status: 'ATIVO',
+                        },
+                    }),
+                ),
+            );
+
+            // 3. Create StockBalance
+            await tx.stockBalance.upsert({
+                where: { skuId_locationId: { skuId: skuItem.id, locationId: data.locationId } },
+                update: { quantity: { increment: data.quantity } },
+                create: { skuId: skuItem.id, locationId: data.locationId, quantity: data.quantity },
+            });
+
+            return {
+                sku: skuItem,
+                assetsCreated: assets.length,
+                assetCodes: assets.map((a) => a.assetCode),
+                location: location.name,
+            };
+        });
+    }
+
+    // ── Equipment Summary (grouped by SKU with location distribution) ──
+    async getEquipmentSummary(params?: { search?: string; categoryId?: string; skip?: number; take?: number }) {
+        const where = {
+            ...(params?.categoryId ? { categoryId: params.categoryId } : {}),
+            ...(params?.search ? {
+                OR: [
+                    { name: { contains: params.search } },
+                    { skuCode: { contains: params.search } },
+                    { description: { contains: params.search } },
+                    { barcode: { contains: params.search } },
+                ],
+            } : {}),
+        };
+
+        const [skus, total] = await Promise.all([
+            this.prisma.skuItem.findMany({
+                where,
+                include: {
+                    category: { select: { id: true, name: true } },
+                    _count: { select: { assets: true } },
+                    stockBalances: {
+                        include: { location: { select: { id: true, name: true } } },
+                        where: { quantity: { gt: 0 } },
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+                ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
+            }),
+            this.prisma.skuItem.count({ where }),
+        ]);
+
+        const data = skus.map((sku) => ({
+            id: sku.id,
+            skuCode: sku.skuCode,
+            name: sku.name,
+            description: sku.description,
+            brand: sku.brand,
+            barcode: sku.barcode,
+            category: sku.category,
+            totalAssets: sku._count.assets,
+            totalStock: sku.stockBalances.reduce((sum, b) => sum + b.quantity, 0),
+            locations: sku.stockBalances.map((b) => ({
+                locationId: b.location.id,
+                locationName: b.location.name,
+                quantity: b.quantity,
+            })),
+            createdAt: sku.createdAt,
+        }));
+
+        return { data, total };
+    }
+
     // ── Update asset status ──
     async updateStatus(id: string, status: string) {
         await this.findById(id);
@@ -181,5 +312,16 @@ export class AssetsService {
             if (!existing) return code;
         }
         throw new ConflictException('Não foi possível gerar um código de patrimônio único.');
+    }
+
+    // ── Generate Unique 6-digit SKU Code ──
+    private async generateUniqueSkuCode(): Promise<string> {
+        const MAX_RETRIES = 100;
+        for (let i = 0; i < MAX_RETRIES; i++) {
+            const code = String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0');
+            const existing = await this.prisma.skuItem.findUnique({ where: { skuCode: code } });
+            if (!existing) return code;
+        }
+        throw new ConflictException('Não foi possível gerar um SKU único.');
     }
 }

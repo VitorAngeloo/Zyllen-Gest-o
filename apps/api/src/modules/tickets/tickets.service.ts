@@ -35,21 +35,27 @@ export class TicketsService {
     }
 
     // ── List tickets ──
-    async findAll(params?: { status?: string; companyId?: string; assignedToId?: string; externalUserId?: string }) {
-        return this.prisma.ticket.findMany({
-            where: {
-                ...(params?.status ? { status: params.status } : {}),
-                ...(params?.companyId ? { companyId: params.companyId } : {}),
-                ...(params?.assignedToId ? { assignedToInternalUserId: params.assignedToId } : {}),
-                ...(params?.externalUserId ? { externalUserId: params.externalUserId } : {}),
-            },
-            include: {
-                company: { select: { name: true } },
-                externalUser: { select: { name: true } },
-                assignedTo: { select: { name: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
+    async findAll(params?: { status?: string; companyId?: string; assignedToId?: string; externalUserId?: string; skip?: number; take?: number }) {
+        const where = {
+            ...(params?.status ? { status: params.status } : {}),
+            ...(params?.companyId ? { companyId: params.companyId } : {}),
+            ...(params?.assignedToId ? { assignedToInternalUserId: params.assignedToId } : {}),
+            ...(params?.externalUserId ? { externalUserId: params.externalUserId } : {}),
+        };
+        const [data, total] = await Promise.all([
+            this.prisma.ticket.findMany({
+                where,
+                include: {
+                    company: { select: { name: true } },
+                    externalUser: { select: { name: true } },
+                    assignedTo: { select: { name: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+                ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
+            }),
+            this.prisma.ticket.count({ where }),
+        ]);
+        return { data, total };
     }
 
     // ── Find by ID ──

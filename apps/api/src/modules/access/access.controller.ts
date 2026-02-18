@@ -12,6 +12,13 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from './permissions.guard';
 import { RequirePermission } from './permissions.decorator';
 import { AccessService } from './access.service';
+import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import {
+    createRoleSchema,
+    updateRoleSchema,
+    createPermissionSchema,
+    assignPermissionsSchema,
+} from '@zyllen/shared';
 
 
 @Controller('access')
@@ -39,7 +46,7 @@ export class AccessController {
 
     @Post('roles')
     @RequirePermission('access.manage_roles')
-    async createRole(@Body() body: { name: string; description?: string }) {
+    async createRole(@Body(new ZodValidationPipe(createRoleSchema)) body: { name: string; description?: string }) {
         const data = await this.accessService.createRole(body);
         return { data, message: 'Role criada com sucesso' };
     }
@@ -48,7 +55,7 @@ export class AccessController {
     @RequirePermission('access.manage_roles')
     async updateRole(
         @Param('id') id: string,
-        @Body() body: { name?: string; description?: string },
+        @Body(new ZodValidationPipe(updateRoleSchema)) body: { name?: string; description?: string },
     ) {
         const data = await this.accessService.updateRole(id, body);
         return { data, message: 'Role atualizada com sucesso' };
@@ -74,7 +81,7 @@ export class AccessController {
 
     @Post('permissions')
     @RequirePermission('access.manage_permissions')
-    async createPermission(@Body() body: { screen: string; action: string }) {
+    async createPermission(@Body(new ZodValidationPipe(createPermissionSchema)) body: { screen: string; action: string }) {
         const data = await this.accessService.createPermission(body);
         return { data, message: 'Permissão criada com sucesso' };
     }
@@ -94,7 +101,7 @@ export class AccessController {
     @RequirePermission('access.manage_permissions')
     async assignPermissions(
         @Param('id') roleId: string,
-        @Body() body: { permissionIds: string[] },
+        @Body(new ZodValidationPipe(assignPermissionsSchema)) body: { permissionIds: string[] },
     ) {
         const data = await this.accessService.assignPermissionsToRole(
             roleId,

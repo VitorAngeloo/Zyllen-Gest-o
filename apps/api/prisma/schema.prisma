@@ -20,6 +20,8 @@ model InternalUser {
   passwordHash String
   pin4Hash     String   @unique
   roleId       String
+  sector       String?  // Nome do setor
+  description  String?  // Descrição do usuário
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -34,6 +36,7 @@ model InternalUser {
   receivings          Receiving[]
   labelPrintJobs      LabelPrintJob[]
   auditLogs           AuditLog[]
+  productExits        ProductExit[]
 }
 
 model ExternalUser {
@@ -41,12 +44,33 @@ model ExternalUser {
   name         String
   email        String   @unique
   passwordHash String
-  companyId    String
+  phone        String?  // Telefone
+  city         String?  // Cidade
+  state        String?  // Estado (UF)
+  position     String?  // Cargo/Função
+  companyId    String?
+  isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id])
+  company  Company?  @relation(fields: [companyId], references: [id])
   tickets  Ticket[]
+}
+
+model ContractorUser {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  cpf          String?  @unique // CPF do terceirizado
+  phone        String?  // Telefone
+  city         String?  // Cidade
+  state        String?  // Estado (UF)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  maintenanceOrders MaintenanceOS[] @relation("OpenedByContractor")
 }
 
 model Role {
@@ -109,14 +133,15 @@ model Category {
 }
 
 model SkuItem {
-  id         String  @id @default(uuid())
-  skuCode    String  @unique
-  name       String
-  brand      String?
-  barcode    String?
-  categoryId String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String  @id @default(uuid())
+  skuCode     String  @unique
+  name        String
+  description String?
+  brand       String?
+  barcode     String?
+  categoryId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   category        Category          @relation(fields: [categoryId], references: [id])
   assets          Asset[]
@@ -124,6 +149,7 @@ model SkuItem {
   stockMovements  StockMovement[]
   purchaseItems   PurchaseOrderItem[]
   receivingItems  ReceivingItem[]
+  productExits    ProductExit[]
 }
 
 model Asset {
@@ -155,6 +181,7 @@ model Location {
   assets            Asset[]
   movementsFrom     StockMovement[] @relation("FromLocation")
   movementsTo       StockMovement[] @relation("ToLocation")
+  productExits      ProductExit[]
 }
 
 model StockBalance {
@@ -273,18 +300,34 @@ model TicketAttachment {
 // ─── Maintenance ──────────────────────────────
 
 model MaintenanceOS {
-  id         String    @id @default(uuid())
-  assetId    String
-  status     String    @default("OPEN")
-  openedById String
-  closedById String?
-  notes      String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                    String    @id @default(uuid())
+  osNumber              String    @unique @default(uuid()) // Human-readable OS number
+  formType              String    @default("TERCEIRIZADO")  // TERCEIRIZADO | INSTALACAO_SALA | INSTALACAO_TELA | DESINSTALACAO | SUPORTE_REMOTO | MANUTENCAO_TELA_SALA
+  assetId               String?   // Optional — some form types don't require an asset
+  status                String    @default("OPEN")
+  openedById            String?   // Internal user who opened
+  openedByContractorId  String?   // Contractor who opened
+  closedById            String?
+  notes                 String?
+  formData              String?   // JSON blob with form-specific fields
+  clientName            String?   // Client name
+  clientCity            String?   // Client city
+  clientState           String?   // Client state (UF)
+  location              String?   // Maps location / address
+  contactName           String?   // Contact person at location
+  contactPhone          String?   // Contact phone number
+  contactRole           String?   // Contact person's role
+  scheduledDate         DateTime? // Scheduled date for the service
+  startedAt             DateTime? // When the work actually started
+  endedAt               DateTime? // When the work actually ended
+  completedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  asset    Asset        @relation(fields: [assetId], references: [id])
-  openedBy InternalUser @relation("OpenedBy", fields: [openedById], references: [id])
-  closedBy InternalUser? @relation("ClosedBy", fields: [closedById], references: [id])
+  asset              Asset?          @relation(fields: [assetId], references: [id])
+  openedBy           InternalUser?   @relation("OpenedBy", fields: [openedById], references: [id])
+  openedByContractor ContractorUser? @relation("OpenedByContractor", fields: [openedByContractorId], references: [id])
+  closedBy           InternalUser?   @relation("ClosedBy", fields: [closedById], references: [id])
 }
 
 // ─── Purchases ────────────────────────────────
@@ -377,4 +420,20 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   user InternalUser @relation(fields: [userId], references: [id])
+}
+
+// ─── Product Exits ────────────────────────────
+
+model ProductExit {
+  id           String   @id @default(uuid())
+  skuId        String
+  locationId   String
+  quantity     Int
+  reason       String?
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  sku       SkuItem      @relation(fields: [skuId], references: [id])
+  location  Location     @relation(fields: [locationId], references: [id])
+  createdBy InternalUser @relation(fields: [createdById], references: [id])
 }

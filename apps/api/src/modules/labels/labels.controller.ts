@@ -5,6 +5,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { LabelsService } from './labels.service';
+import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { printLabelSchema, createLabelTemplateSchema, updateLabelTemplateSchema } from '@zyllen/shared';
 
 @Controller('labels')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -13,7 +15,7 @@ export class LabelsController {
 
     @Post('print')
     @RequirePermission('labels.print')
-    async registerPrint(@Request() req: any, @Body() body: { assetId: string }) {
+    async registerPrint(@Request() req: any, @Body(new ZodValidationPipe(printLabelSchema)) body: { assetId: string }) {
         const data = await this.labelsService.registerPrint({ assetId: body.assetId, printedById: req.user.id });
         return { data, message: 'Impressão registrada' };
     }
@@ -41,21 +43,21 @@ export class LabelsController {
     }
 
     @Post('templates')
-    @RequirePermission('settings.view')
-    async createTemplate(@Body() body: { name: string; layout: string }) {
+    @RequirePermission('settings.manage')
+    async createTemplate(@Body(new ZodValidationPipe(createLabelTemplateSchema)) body: { name: string; layout: string }) {
         const data = await this.labelsService.createTemplate(body);
         return { data, message: 'Template criado' };
     }
 
     @Put('templates/:id')
-    @RequirePermission('settings.view')
-    async updateTemplate(@Param('id') id: string, @Body() body: { name?: string; layout?: string }) {
+    @RequirePermission('settings.manage')
+    async updateTemplate(@Param('id') id: string, @Body(new ZodValidationPipe(updateLabelTemplateSchema)) body: { name?: string; layout?: string }) {
         const data = await this.labelsService.updateTemplate(id, body);
         return { data, message: 'Template atualizado' };
     }
 
     @Delete('templates/:id')
-    @RequirePermission('settings.view')
+    @RequirePermission('settings.manage')
     async deleteTemplate(@Param('id') id: string) {
         await this.labelsService.deleteTemplate(id);
         return { message: 'Template excluído' };

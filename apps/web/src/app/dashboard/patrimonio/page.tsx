@@ -8,13 +8,15 @@ import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
 import { ScanBarcode, Search, Clock, MapPin, Tag, ArrowRight } from "lucide-react";
+import { Skeleton } from "@web/components/ui/skeleton";
+import { EMPTY_STATES, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
 export default function PatrimonioPage() {
     const fetchOpts = useAuthedFetch();
     const [searchCode, setSearchCode] = useState("");
     const [selectedAsset, setSelectedAsset] = useState<any>(null);
 
-    const { data: assets } = useQuery({
+    const { data: assets, isLoading: loadingAssets } = useQuery({
         queryKey: ["assets"],
         queryFn: () => apiClient.get<{ data: any[] }>("/assets", fetchOpts),
     });
@@ -46,6 +48,7 @@ export default function PatrimonioPage() {
             <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                 <ScanBarcode className="text-[var(--zyllen-highlight)]" /> Patrimônio
             </h1>
+            <p className="text-sm text-[var(--zyllen-muted)] mt-1">{PAGE_DESCRIPTIONS.patrimonio}</p>
 
             {/* Bipagem Search */}
             <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
@@ -106,7 +109,14 @@ export default function PatrimonioPage() {
                         </CardHeader>
                         <CardContent>
                             {loadingTimeline ? (
-                                <p className="text-[var(--zyllen-muted)] text-center py-4">Carregando...</p>
+                                <div className="space-y-3">
+                                    {[...Array(3)].map((_, i) => (
+                                        <div key={i} className="flex gap-4">
+                                            <Skeleton className="size-2 rounded-full mt-2" />
+                                            <Skeleton className="h-16 flex-1 rounded-lg" />
+                                        </div>
+                                    ))}
+                                </div>
                             ) : timeline?.data?.length ? (
                                 <div className="space-y-3 relative">
                                     <div className="absolute left-4 top-0 bottom-0 w-px bg-[var(--zyllen-border)]" />
@@ -128,7 +138,7 @@ export default function PatrimonioPage() {
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-[var(--zyllen-muted)] text-center py-4">Sem eventos</p>
+                                <p className="text-[var(--zyllen-muted)] text-center py-4">{EMPTY_STATES.assetTimeline}</p>
                             )}
                         </CardContent>
                     </Card>
@@ -141,7 +151,18 @@ export default function PatrimonioPage() {
                     <CardTitle className="text-white">Todos os Patrimônios</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {assets?.data?.length ? (
+                    {loadingAssets ? (
+                        <div className="space-y-3">
+                            {[...Array(5)].map((_, i) => (
+                                <div key={i} className="flex items-center gap-4">
+                                    <Skeleton className="h-4 w-24" />
+                                    <Skeleton className="h-4 w-32" />
+                                    <Skeleton className="h-6 w-16" />
+                                    <Skeleton className="h-4 w-20" />
+                                </div>
+                            ))}
+                        </div>
+                    ) : assets?.data?.length ? (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
@@ -169,7 +190,10 @@ export default function PatrimonioPage() {
                             </table>
                         </div>
                     ) : (
-                        <p className="text-[var(--zyllen-muted)] text-center py-8">Nenhum patrimônio</p>
+                        <div className="text-center py-12">
+                            <ScanBarcode size={36} className="mx-auto mb-3 text-[var(--zyllen-muted)]/50" />
+                            <p className="text-[var(--zyllen-muted)]">{EMPTY_STATES.assets}</p>
+                        </div>
                     )}
                 </CardContent>
             </Card>

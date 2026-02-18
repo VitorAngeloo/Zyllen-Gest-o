@@ -13,11 +13,16 @@ export class CatalogService {
     // CATEGORIES
     // ═══════════════════════════════════════════
 
-    async findAllCategories() {
-        return this.prisma.category.findMany({
-            include: { _count: { select: { skuItems: true } } },
-            orderBy: { name: 'asc' },
-        });
+    async findAllCategories(pagination?: { skip?: number; take?: number }) {
+        const [data, total] = await Promise.all([
+            this.prisma.category.findMany({
+                include: { _count: { select: { skuItems: true } } },
+                orderBy: { name: 'asc' },
+                ...(pagination ? { skip: pagination.skip, take: pagination.take } : {}),
+            }),
+            this.prisma.category.count(),
+        ]);
+        return { data, total };
     }
 
     async findCategoryById(id: string) {
@@ -58,24 +63,30 @@ export class CatalogService {
     // SKU ITEMS
     // ═══════════════════════════════════════════
 
-    async findAllSkuItems(params?: { categoryId?: string; search?: string }) {
-        return this.prisma.skuItem.findMany({
-            where: {
-                ...(params?.categoryId ? { categoryId: params.categoryId } : {}),
-                ...(params?.search ? {
-                    OR: [
-                        { name: { contains: params.search } },
-                        { skuCode: { contains: params.search } },
-                        { barcode: { contains: params.search } },
-                    ],
-                } : {}),
-            },
-            include: {
-                category: { select: { id: true, name: true } },
-                _count: { select: { assets: true } },
-            },
-            orderBy: { name: 'asc' },
-        });
+    async findAllSkuItems(params?: { categoryId?: string; search?: string; skip?: number; take?: number }) {
+        const where = {
+            ...(params?.categoryId ? { categoryId: params.categoryId } : {}),
+            ...(params?.search ? {
+                OR: [
+                    { name: { contains: params.search } },
+                    { skuCode: { contains: params.search } },
+                    { barcode: { contains: params.search } },
+                ],
+            } : {}),
+        };
+        const [data, total] = await Promise.all([
+            this.prisma.skuItem.findMany({
+                where,
+                include: {
+                    category: { select: { id: true, name: true } },
+                    _count: { select: { assets: true } },
+                },
+                orderBy: { name: 'asc' },
+                ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
+            }),
+            this.prisma.skuItem.count({ where }),
+        ]);
+        return { data, total };
     }
 
     async findSkuById(id: string) {
@@ -90,7 +101,7 @@ export class CatalogService {
         return sku;
     }
 
-    async createSkuItem(data: { name: string; brand?: string; barcode?: string; categoryId: string }) {
+    async createSkuItem(data: { name: string; description?: string; brand?: string; barcode?: string; categoryId: string }) {
         // Verify category exists
         const category = await this.prisma.category.findUnique({ where: { id: data.categoryId } });
         if (!category) throw new NotFoundException('Categoria não encontrada');
@@ -104,7 +115,7 @@ export class CatalogService {
         });
     }
 
-    async updateSkuItem(id: string, data: { name?: string; brand?: string; barcode?: string; categoryId?: string }) {
+    async updateSkuItem(id: string, data: { name?: string; description?: string; brand?: string; barcode?: string; categoryId?: string }) {
         await this.findSkuById(id);
         if (data.categoryId) {
             const category = await this.prisma.category.findUnique({ where: { id: data.categoryId } });

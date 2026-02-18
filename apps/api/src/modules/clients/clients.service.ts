@@ -4,12 +4,16 @@ import {
     ConflictException,
     UnauthorizedException,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class ClientsService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly jwtService: JwtService,
+    ) { }
 
     // ═══════════════════════════════════════════
     // COMPANIES
@@ -54,7 +58,83 @@ export class ClientsService {
     async deleteCompany(id: string) {
         const company = await this.findCompanyById(id);
         if (company.externalUsers.length > 0) throw new ConflictException('Empresa com usuários vinculados');
+        const ticketCount = await this.prisma.ticket.count({ where: { companyId: id } });
+        if (ticketCount > 0) throw new ConflictException('Empresa com chamados vinculados');
         return this.prisma.company.delete({ where: { id } });
+    }
+
+    // ═══════════════════════════════════════════
+    // CONTRACTORS
+    // ═══════════════════════════════════════════
+
+    async findAllContractors() {
+        return this.prisma.contractorUser.findMany({
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                city: true,
+                state: true,
+                cpf: true,
+                isActive: true,
+                createdAt: true,
+                _count: { select: { maintenanceOrders: true } },
+            },
+            orderBy: { name: 'asc' },
+        });
+    }
+
+    // ── Update Contractor (toggle active, etc.) ──
+    async updateContractor(id: string, data: { isActive?: boolean }) {
+        const contractor = await this.prisma.contractorUser.findUnique({ where: { id } });
+        if (!contractor) throw new NotFoundException('Terceirizado não encontrado');
+
+        const updateData: any = {};
+        if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
+        return this.prisma.contractorUser.update({
+            where: { id },
+            data: updateData,
+            select: {
+                id: true, name: true, email: true, phone: true,
+                city: true, state: true, cpf: true, isActive: true,
+                createdAt: true, _count: { select: { maintenanceOrders: true } },
+            },
+        });
+    }
+
+    // ── Delete Contractor ──
+    async deleteContractor(id: string) {
+        const contractor = await this.prisma.contractorUser.findUnique({ where: { id } });
+        if (!contractor) throw new NotFoundException('Terceirizado não encontrado');
+
+        const osCount = await this.prisma.maintenanceOS.count({ where: { openedByContractorId: id } });
+        if (osCount > 0) {
+            throw new ConflictException(
+                'Este terceirizado possui OS vinculadas. Desative-o ao invés de excluir.',
+            );
+        }
+
+        return this.prisma.contractorUser.delete({ where: { id } });
+    }
+
+    // ═══════════════════════════════════════════
+    // COMPANIES (Public search for registration)
+    // ═══════════════════════════════════════════
+
+    async searchCompanies(query?: string) {
+        return this.prisma.company.findMany({
+            where: query ? {
+                OR: [
+                    { name: { contains: query } },
+                    ...(query.length >= 3 ? [{ cnpj: { contains: query } }] : []),
+                ],
+            } : {},
+            select: { id: true, name: true, cnpj: true },
+            orderBy: { name: 'asc' },
+            take: 20,
+        });
     }
 
     // ═══════════════════════════════════════════
@@ -89,12 +169,25 @@ export class ClientsService {
             where: { email },
             include: { company: { select: { id: true, name: true } } },
         });
-        if (!user) throw new UnauthorizedException('Credenciais inválidas');
+        if (!user || !user.isActive) throw new UnauthorizedException('Credenciais inválidas');
 
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) throw new UnauthorizedException('Credenciais inválidas');
 
+        const payload = {
+            sub: user.id,
+            email: user.email,
+            name: user.name,
+            companyId: user.companyId,
+            type: 'external' as const,
+        };
+
+        const accessToken = this.jwtService.sign(payload, { expiresIn: '1d' });
+        const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+
         return {
+            accessToken,
+            refreshToken,
             user: {
                 id: user.id,
                 name: user.name,
