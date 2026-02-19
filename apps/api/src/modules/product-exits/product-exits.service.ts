@@ -69,13 +69,13 @@ export class ProductExitsService {
                     entityType: 'ProductExit',
                     entityId: exit.id,
                     userId: data.createdById,
-                    details: JSON.stringify({
+                    details: {
                         sku: sku.skuCode,
                         skuName: sku.name,
                         location: location.name,
                         qty: data.quantity,
                         reason: data.reason,
-                    }),
+                    },
                 },
             });
 
@@ -99,9 +99,9 @@ export class ProductExitsService {
         if (params?.locationId) where.locationId = params.locationId;
         if (params?.search) {
             where.OR = [
-                { sku: { name: { contains: params.search } } },
-                { sku: { skuCode: { contains: params.search } } },
-                { reason: { contains: params.search } },
+                { sku: { name: { contains: params.search, mode: 'insensitive' as const } } },
+                { sku: { skuCode: { contains: params.search, mode: 'insensitive' as const } } },
+                { reason: { contains: params.search, mode: 'insensitive' as const } },
             ];
         }
 

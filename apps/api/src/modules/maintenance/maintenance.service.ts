@@ -4,6 +4,7 @@ import {
     BadRequestException,
     ConflictException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -80,7 +81,7 @@ export class MaintenanceService {
                 startedAt: data.startedAt ? new Date(data.startedAt) : null,
                 endedAt: data.endedAt ? new Date(data.endedAt) : null,
                 scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
-                formData: data.formData ? JSON.stringify(data.formData) : null,
+                formData: data.formData ? (data.formData as Prisma.InputJsonValue) : Prisma.JsonNull,
                 status: 'OPEN',
             },
             include: {
@@ -106,7 +107,7 @@ export class MaintenanceService {
                     entityType: 'MaintenanceOS',
                     entityId: os.id,
                     userId: data.openedById,
-                    details: JSON.stringify({ osNumber, formType, asset: asset?.assetCode }),
+                    details: { osNumber, formType, asset: asset?.assetCode },
                 },
             });
         }
@@ -140,7 +141,6 @@ export class MaintenanceService {
         // Parse formData JSON for each record
         const parsed = data.map((os) => ({
             ...os,
-            formData: os.formData ? JSON.parse(os.formData) : null,
         }));
         return { data: parsed, total };
     }
@@ -157,10 +157,7 @@ export class MaintenanceService {
             },
         });
         if (!os) throw new NotFoundException('OS não encontrada');
-        return {
-            ...os,
-            formData: os.formData ? JSON.parse(os.formData) : null,
-        };
+        return os;
     }
 
     // ── Update status ──
@@ -211,7 +208,7 @@ export class MaintenanceService {
                     entityType: 'MaintenanceOS',
                     entityId: id,
                     userId,
-                    details: JSON.stringify({ status, asset: os.asset?.assetCode }),
+                    details: { status, asset: os.asset?.assetCode },
                 },
             });
         }
@@ -242,7 +239,7 @@ export class MaintenanceService {
         }
 
         const updateData: any = {
-            formData: JSON.stringify(data.formData),
+            formData: data.formData,
         };
         if (data.notes !== undefined) updateData.notes = data.notes;
         if (data.clientName !== undefined) updateData.clientName = data.clientName;
@@ -265,10 +262,7 @@ export class MaintenanceService {
             },
         });
 
-        return {
-            ...updated,
-            formData: updated.formData ? JSON.parse(updated.formData) : null,
-        };
+        return updated;
     }
 
     // ── Find all contractors ──

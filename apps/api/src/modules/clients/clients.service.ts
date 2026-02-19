@@ -127,8 +127,8 @@ export class ClientsService {
         return this.prisma.company.findMany({
             where: query ? {
                 OR: [
-                    { name: { contains: query } },
-                    ...(query.length >= 3 ? [{ cnpj: { contains: query } }] : []),
+                    { name: { contains: query, mode: 'insensitive' as const } },
+                    ...(query.length >= 3 ? [{ cnpj: { contains: query, mode: 'insensitive' as const } }] : []),
                 ],
             } : {},
             select: { id: true, name: true, cnpj: true },

@@ -68,9 +68,9 @@ export class CatalogService {
             ...(params?.categoryId ? { categoryId: params.categoryId } : {}),
             ...(params?.search ? {
                 OR: [
-                    { name: { contains: params.search } },
-                    { skuCode: { contains: params.search } },
-                    { barcode: { contains: params.search } },
+                    { name: { contains: params.search, mode: 'insensitive' as const } },
+                    { skuCode: { contains: params.search, mode: 'insensitive' as const } },
+                    { barcode: { contains: params.search, mode: 'insensitive' as const } },
                 ],
             } : {}),
         };

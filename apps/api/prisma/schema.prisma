@@ -7,8 +7,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Identity & Access ────────────────────────
@@ -242,7 +243,7 @@ model ApprovalRequest {
   status        String   @default("PENDING")
   requestedById String
   approvedById  String?
-  payloadJson   String
+  payloadJson   Json
   reason        String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -309,7 +310,7 @@ model MaintenanceOS {
   openedByContractorId  String?   // Contractor who opened
   closedById            String?
   notes                 String?
-  formData              String?   // JSON blob with form-specific fields
+  formData              Json?     // JSON blob with form-specific fields
   clientName            String?   // Client name
   clientCity            String?   // Client city
   clientState           String?   // Client state (UF)
@@ -393,7 +394,7 @@ model ReceivingItem {
 model LabelTemplate {
   id     String @id @default(uuid())
   name   String @unique
-  layout String
+  layout Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -416,7 +417,7 @@ model AuditLog {
   entityType String
   entityId   String
   userId     String
-  details    String?
+  details    Json?
   createdAt  DateTime @default(now())
 
   user InternalUser @relation(fields: [userId], references: [id])

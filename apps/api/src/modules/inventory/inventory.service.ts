@@ -77,7 +77,7 @@ export class InventoryService {
                     entityType: 'StockMovement',
                     entityId: movement.id,
                     userId: data.userId,
-                    details: JSON.stringify({ sku: sku.skuCode, location: location.name, qty: data.qty, type: moveType.name }),
+                    details: { sku: sku.skuCode, location: location.name, qty: data.qty, type: moveType.name },
                 },
             });
 
@@ -124,14 +124,14 @@ export class InventoryService {
                     requestType: 'EXIT_APPROVAL',
                     status: 'PENDING',
                     requestedById: data.userId,
-                    payloadJson: JSON.stringify({
+                    payloadJson: {
                         skuId: data.skuId,
                         fromLocationId: data.fromLocationId,
                         qty: data.qty,
                         movementTypeId: data.movementTypeId,
                         reason: data.reason,
                         assetId: data.assetId,
-                    }),
+                    },
                 },
             });
 
@@ -141,7 +141,7 @@ export class InventoryService {
                     entityType: 'ApprovalRequest',
                     entityId: request.id,
                     userId: data.userId,
-                    details: JSON.stringify({ sku: sku.skuCode, location: location.name, qty: data.qty }),
+                    details: { sku: sku.skuCode, location: location.name, qty: data.qty },
                 },
             });
 
@@ -186,7 +186,7 @@ export class InventoryService {
                     entityType: 'StockMovement',
                     entityId: movement.id,
                     userId: data.userId,
-                    details: JSON.stringify({ sku: sku.skuCode, location: location.name, qty: data.qty, type: moveType.name }),
+                    details: { sku: sku.skuCode, location: location.name, qty: data.qty, type: moveType.name },
                 },
             });
 
@@ -204,7 +204,7 @@ export class InventoryService {
         if (request.requestType !== 'EXIT_APPROVAL') throw new BadRequestException('Tipo inválido');
         if (request.requestedById === approverId) throw new BadRequestException('Você não pode aprovar sua própria solicitação');
 
-        const payload = JSON.parse(request.payloadJson);
+        const payload = request.payloadJson as any;
         const sku = await this.prisma.skuItem.findUnique({ where: { id: payload.skuId } });
         if (!sku) throw new NotFoundException('SKU referenciado não existe mais');
         const location = await this.prisma.location.findUnique({ where: { id: payload.fromLocationId } });
@@ -235,7 +235,7 @@ export class InventoryService {
                 entityType: 'ApprovalRequest',
                 entityId: approvalRequestId,
                 userId: approverId,
-                details: JSON.stringify({ sku: sku?.skuCode, qty: payload.qty }),
+                details: { sku: sku?.skuCode, qty: payload.qty },
             },
         });
 
@@ -282,7 +282,7 @@ export class InventoryService {
                 status: 'PENDING',
                 requestedById: userId,
                 reason: reasonText,
-                payloadJson: JSON.stringify({ movementId }),
+                payloadJson: { movementId },
             },
         });
 
@@ -292,7 +292,7 @@ export class InventoryService {
                 entityType: 'StockMovement',
                 entityId: movementId,
                 userId,
-                details: JSON.stringify({ reason: reasonText }),
+                details: { reason: reasonText },
             },
         });
 
@@ -309,7 +309,7 @@ export class InventoryService {
         if (request.requestType !== 'REVERSAL') throw new BadRequestException('Tipo inválido');
         if (request.requestedById === approverId) throw new BadRequestException('Você não pode aprovar sua própria solicitação');
 
-        const payload = JSON.parse(request.payloadJson);
+        const payload = request.payloadJson as any;
         const original = await this.prisma.stockMovement.findUnique({
             where: { id: payload.movementId },
             include: { type: true },
@@ -374,7 +374,7 @@ export class InventoryService {
                     entityType: 'StockMovement',
                     entityId: reverse.id,
                     userId: approverId,
-                    details: JSON.stringify({ originalId: original.id, reason: request.reason }),
+                    details: { originalId: original.id, reason: request.reason },
                 },
             });
 

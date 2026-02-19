@@ -17,7 +17,7 @@ export class PurchasesService {
         // Generate order number (PO-YYYYMMDD-NNN)
         const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const count = await this.prisma.purchaseOrder.count({
-            where: { number: { startsWith: `PO-${today}` } },
+            where: { number: { startsWith: `PO-${today}`, mode: 'insensitive' as const } },
         });
         const number = `PO-${today}-${String(count + 1).padStart(3, '0')}`;
 
@@ -181,11 +181,11 @@ export class PurchasesService {
                     entityType: 'Receiving',
                     entityId: receiving.id,
                     userId: data.receivedById,
-                    details: JSON.stringify({
+                    details: {
                         po: po.number,
                         items: data.items.map((i) => ({ skuId: i.skuId, qty: i.qtyReceived })),
                         newStatus,
-                    }),
+                    },
                 },
             });
 

@@ -36,7 +36,7 @@ export class LabelsService {
                 entityType: 'LabelPrintJob',
                 entityId: printJob.id,
                 userId: data.printedById,
-                details: JSON.stringify({ assetCode: asset.assetCode, sku: asset.sku.skuCode }),
+                details: { assetCode: asset.assetCode, sku: asset.sku.skuCode },
             },
         });
 

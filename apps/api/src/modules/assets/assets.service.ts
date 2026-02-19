@@ -17,8 +17,8 @@ export class AssetsService {
             ...(params?.locationId ? { currentLocationId: params.locationId } : {}),
             ...(params?.search ? {
                 OR: [
-                    { assetCode: { contains: params.search } },
-                    { sku: { name: { contains: params.search } } },
+                    { assetCode: { contains: params.search, mode: 'insensitive' as const } },
+                    { sku: { name: { contains: params.search, mode: 'insensitive' as const } } },
                 ],
             } : {}),
         };
@@ -230,10 +230,10 @@ export class AssetsService {
             ...(params?.categoryId ? { categoryId: params.categoryId } : {}),
             ...(params?.search ? {
                 OR: [
-                    { name: { contains: params.search } },
-                    { skuCode: { contains: params.search } },
-                    { description: { contains: params.search } },
-                    { barcode: { contains: params.search } },
+                    { name: { contains: params.search, mode: 'insensitive' as const } },
+                    { skuCode: { contains: params.search, mode: 'insensitive' as const } },
+                    { description: { contains: params.search, mode: 'insensitive' as const } },
+                    { barcode: { contains: params.search, mode: 'insensitive' as const } },
                 ],
             } : {}),
         };

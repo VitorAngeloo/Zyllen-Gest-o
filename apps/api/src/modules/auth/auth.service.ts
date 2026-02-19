@@ -71,7 +71,7 @@ export class AuthService {
                 entityType: 'InternalUser',
                 entityId: user.id,
                 userId: user.id,
-                details: JSON.stringify({ email: user.email, role: user.role.name }),
+                details: { email: user.email, role: user.role.name },
             },
         });
 
@@ -220,11 +220,11 @@ export class AuthService {
                 entityType: 'InternalUser',
                 entityId: user.id,
                 userId: user.id,
-                details: JSON.stringify({
+                details: {
                     name: user.name,
                     email: user.email,
                     role: role.name,
-                }),
+                },
             },
         });
 
