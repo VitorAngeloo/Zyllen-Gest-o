@@ -5,25 +5,27 @@ import { useAuth } from "@web/lib/auth-context";
 import {
     LayoutDashboard, Package, ScanBarcode, ShoppingCart,
     Headset, Wrench, Database, ShieldCheck, LogOut, ChevronLeft, Menu,
-    Tag, Building2, Users, UserCircle, Key, X, FileText, HardHat
+    Tag, Building2, Users, UserCircle, Key, X, FileText, HardHat, MessageSquareText
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@web/lib/utils";
 import { Breadcrumb } from "@web/components/ui/breadcrumb";
 import { ZyllenIcon, ZyllenTextLogo } from "@web/components/brand/zyllen-logo";
 
-const NAV_ITEMS = [
+const NAV_ITEMS: { label: string; href: string; icon: any; perm?: string }[] = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, perm: "dashboard.view" },
-
+    { label: "Meus Chamados TI", href: "/dashboard/chamados-ti", icon: MessageSquareText },
+    { label: "Chamados", href: "/dashboard/chamados", icon: Headset, perm: "tickets.view" },
     { label: "Minhas OS", href: "/dashboard/minhas-os", icon: FileText, perm: "maintenance.view" },
+    { label: "Manutenção", href: "/dashboard/manutencao", icon: Wrench, perm: "maintenance.view" },
+
     { label: "Estoque", href: "/dashboard/estoque", icon: Package, perm: "inventory.view" },
     { label: "Patrimônio", href: "/dashboard/patrimonio", icon: ScanBarcode, perm: "assets.view" },
     { label: "Compras", href: "/dashboard/compras", icon: ShoppingCart, perm: "purchases.view" },
-    { label: "Chamados", href: "/dashboard/chamados", icon: Headset, perm: "tickets.view" },
-    { label: "Manutenção", href: "/dashboard/manutencao", icon: Wrench, perm: "maintenance.view" },
     { label: "Etiquetas", href: "/dashboard/etiquetas", icon: Tag, perm: "labels.view" },
-    { label: "Terceirizados", href: "/dashboard/terceirizados", icon: HardHat, perm: "settings.view" },
+
     { label: "Clientes", href: "/dashboard/clientes", icon: Building2, perm: "settings.view" },
+    { label: "Terceirizados", href: "/dashboard/terceirizados", icon: HardHat, perm: "settings.view" },
     { label: "Colaboradores", href: "/dashboard/colaboradores", icon: Users, perm: "access.view" },
     { label: "Permissões", href: "/dashboard/permissoes", icon: Key, perm: "access.manage" },
     { label: "Cadastros", href: "/dashboard/cadastros", icon: Database, perm: "catalog.view" },
@@ -36,7 +38,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
 
-    const visibleItems = NAV_ITEMS.filter((item) => hasPermission(item.perm));
+    const isInternos = user?.type === "internal" && "role" in (user ?? {}) && (user as any).role?.name === "Internos";
+    const visibleItems = NAV_ITEMS.filter((item) => {
+        // Hide Dashboard for Internos role
+        if (isInternos && item.href === "/dashboard" && item.perm === "dashboard.view") return false;
+        return !item.perm || hasPermission(item.perm);
+    });
 
     // Close mobile sidebar on route change
     useEffect(() => {
@@ -74,7 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Nav */}
             <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
                 {visibleItems.map((item) => {
-                    const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                    const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
                     return (
                         <Link
                             key={item.href}
@@ -180,7 +187,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                 <main className="flex-1 overflow-auto">
                     <div className="p-4 sm:p-6 lg:p-8 animate-in fade-in duration-300">
-                        <Breadcrumb />
                         {children}
                     </div>
                 </main>

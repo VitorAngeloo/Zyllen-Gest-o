@@ -16,6 +16,8 @@ import {
     SuporteRemotoFormFields,
     ManutencaoTelaSalaFormFields,
 } from "./os-form-fields";
+import type { MediaAttachment } from "./media-uploader";
+import { apiClient } from "@web/lib/api-client";
 
 // Map form type to its field component
 const FORM_FIELD_COMPONENTS: Record<OsFormType, React.ComponentType<any>> = {
@@ -116,6 +118,23 @@ export function OsFormWizard({
 
     // Form-specific data
     const [formData, setFormData] = useState<Record<string, unknown>>(initialData?.formData || {});
+
+    // Attachments (photos/videos)
+    const [attachments, setAttachments] = useState<MediaAttachment[]>([]);
+    const osId = initialData?.id;
+    const apiBasePath = userContext === "contractor" ? "/contractor/maintenance" : "/maintenance";
+
+    const fetchAttachments = useCallback(async () => {
+        if (!osId) return;
+        try {
+            const res = await apiClient.get<{ data: MediaAttachment[] }>(`${apiBasePath}/${osId}/attachments`);
+            setAttachments(res.data || []);
+        } catch { /* ignore — OS may not have attachments */ }
+    }, [osId, apiBasePath]);
+
+    useEffect(() => {
+        if (osId) fetchAttachments();
+    }, [osId, fetchAttachments]);
 
     // Cascade: cities loaded from IBGE API based on selected state
     const [cities, setCities] = useState<string[]>([]);
@@ -443,6 +462,10 @@ export function OsFormWizard({
                                 formData={formData}
                                 onChange={setFormData}
                                 readOnly={readOnly}
+                                osId={osId}
+                                attachments={attachments}
+                                onRefreshAttachments={fetchAttachments}
+                                apiBasePath={apiBasePath}
                             />
                         )}
                     </CardContent>

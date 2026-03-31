@@ -1,15 +1,17 @@
 "use client";
 import { useState, useEffect, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { useAuth } from "@web/lib/auth-context";
-import { useAuthedFetch } from "@web/lib/auth-context";
+import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
 import { apiClient } from "@web/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Input } from "@web/components/ui/input";
 import { Button } from "@web/components/ui/button";
 import { Label } from "@web/components/ui/label";
 import { toast } from "sonner";
-import { Plus, MessageSquare, Clock, CheckCircle2, AlertCircle, Send, ArrowLeft } from "lucide-react";
+import {
+    Plus, MessageSquare, Clock, CheckCircle2, AlertCircle,
+    ArrowLeft, Paperclip, X, ImageIcon, VideoIcon, FileText,
+} from "lucide-react";
 
 interface Ticket {
     id: string;
@@ -18,9 +20,12 @@ interface Ticket {
     status: string;
     priority: string;
     createdAt: string;
+    resolutionNotes?: string;
     company?: { name: string };
+    externalUser?: { name: string; email: string; phone?: string; position?: string; company?: { name: string }; project?: { name: string } };
     assignedTo?: { name: string };
     messages?: { id: string; content: string; authorType: string; createdAt: string }[];
+    attachments?: { id: string; fileName: string; filePath: string }[];
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof Clock }> = {
@@ -37,6 +42,15 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
     HIGH: { label: "Alta", color: "var(--zyllen-error)" },
 };
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+function isImageFile(name: string) {
+    return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(name);
+}
+function isVideoFile(name: string) {
+    return /\.(mp4|webm|mov|avi)$/i.test(name);
+}
+
 function ClientChamadosInner() {
     const { token } = useAuth();
     const authFetch = useAuthedFetch();
@@ -45,46 +59,72 @@ function ClientChamadosInner() {
     const [loading, setLoading] = useState(true);
     const [showNewForm, setShowNewForm] = useState(searchParams.get("new") === "1");
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-    const [newMessage, setNewMessage] = useState("");
-    const [formData, setFormData] = useState({ title: "", description: "", priority: "MEDIUM" });
     const [submitting, setSubmitting] = useState(false);
-    const chatEndRef = useRef<HTMLDivElement>(null);
-
-    // Auto-scroll to latest message
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [selectedTicket?.messages]);
+    const [description, setDescription] = useState("");
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchTickets = useCallback(async () => {
         if (!token) return;
         try {
             const statusFilter = searchParams.get("status");
             const query = statusFilter ? `?status=${statusFilter.toUpperCase()}` : "";
-            const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-            const res = await apiClient.get<{ data: Ticket[] }>(`/client/tickets${query}`, { headers });
+            const res = await apiClient.get<{ data: Ticket[] }>(`/client/tickets${query}`, authFetch);
             setTickets(res.data);
         } catch {
             toast.error("Erro ao carregar chamados");
         } finally {
             setLoading(false);
         }
-    }, [token, searchParams]);
+    }, [token, searchParams, authFetch]);
 
     useEffect(() => {
         fetchTickets();
     }, [fetchTickets]);
 
+    // ── File handling ──
+    const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        const validFiles = files.filter((f) => {
+            if (f.size > 20 * 1024 * 1024) {
+                toast.error(`${f.name} excede o limite de 20 MB`);
+                return false;
+            }
+            if (!/^(image|video)\//.test(f.type)) {
+                toast.error(`${f.name}: apenas fotos e vídeos são permitidos`);
+                return false;
+            }
+            return true;
+        });
+        setSelectedFiles((prev) => [...prev, ...validFiles]);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    const removeFile = (index: number) => {
+        setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    // ── Create ticket with upload ──
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.title.trim() || !formData.description.trim()) {
-            toast.error("Preencha título e descrição");
+        if (description.trim().length < 10) {
+            toast.error("Descreva o problema com pelo menos 10 caracteres");
+            return;
+        }
+        if (selectedFiles.length === 0) {
+            toast.error("Anexe pelo menos uma foto ou vídeo do problema");
             return;
         }
         setSubmitting(true);
         try {
-            await apiClient.post("/client/tickets", formData, authFetch);
+            const formData = new FormData();
+            formData.append("description", description.trim());
+            selectedFiles.forEach((f) => formData.append("files", f));
+
+            await apiClient.upload("/client/tickets", formData);
             toast.success("Chamado criado com sucesso!");
-            setFormData({ title: "", description: "", priority: "MEDIUM" });
+            setDescription("");
+            setSelectedFiles([]);
             setShowNewForm(false);
             fetchTickets();
         } catch (err: any) {
@@ -94,24 +134,9 @@ function ClientChamadosInner() {
         }
     };
 
-    const handleSendMessage = async () => {
-        if (!selectedTicket || !newMessage.trim()) return;
-        setSubmitting(true);
-        try {
-            await apiClient.post(`/client/tickets/${selectedTicket.id}/messages`, { content: newMessage }, authFetch);
-            toast.success("Mensagem enviada");
-            setNewMessage("");
-            // Reload ticket detail
-            const res = await apiClient.get<{ data: Ticket }>(`/client/tickets/${selectedTicket.id}`, authFetch);
-            setSelectedTicket(res.data);
-        } catch (err: any) {
-            toast.error(err.message || "Erro ao enviar mensagem");
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    // ── Ticket Detail View ──
+    // ══════════════════════════════════════════
+    // TICKET DETAIL VIEW
+    // ══════════════════════════════════════════
     if (selectedTicket) {
         const statusCfg = STATUS_CONFIG[selectedTicket.status] || STATUS_CONFIG.OPEN;
         return (
@@ -141,70 +166,64 @@ function ClientChamadosInner() {
                     <CardContent className="space-y-4">
                         <p className="text-sm text-[var(--zyllen-muted)]">{selectedTicket.description}</p>
 
-                        <div className="flex gap-4 text-xs text-[var(--zyllen-muted)]">
+                        <div className="flex flex-wrap gap-4 text-xs text-[var(--zyllen-muted)]">
                             <span>Criado: {new Date(selectedTicket.createdAt).toLocaleDateString("pt-BR")}</span>
                             {selectedTicket.assignedTo && (
-                                <span>Atendente: {selectedTicket.assignedTo.name}</span>
+                                <span>Atendente: <span className="text-white">{selectedTicket.assignedTo.name}</span></span>
                             )}
                         </div>
 
-                        {/* Messages */}
-                        <div className="border-t border-[var(--zyllen-border)] pt-4 space-y-3 max-h-[400px] overflow-y-auto">
-                            <h3 className="text-sm font-medium text-white">Mensagens</h3>
-                            {selectedTicket.messages && selectedTicket.messages.length > 0 ? (
-                                selectedTicket.messages.map((msg) => (
-                                    <div
-                                        key={msg.id}
-                                        className={`p-3 rounded-lg text-sm ${
-                                            msg.authorType === "external"
-                                                ? "bg-[var(--zyllen-highlight)]/10 border border-[var(--zyllen-highlight)]/20 ml-8"
-                                                : "bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] mr-8"
-                                        }`}
-                                    >
-                                        <div className="flex justify-between mb-1">
-                                            <span className="text-xs font-medium text-[var(--zyllen-muted)]">
-                                                {msg.authorType === "external" ? "Você" : "Atendente"}
-                                            </span>
-                                            <span className="text-xs text-[var(--zyllen-muted)]">
-                                                {new Date(msg.createdAt).toLocaleString("pt-BR")}
-                                            </span>
-                                        </div>
-                                        <p className="text-white">{msg.content}</p>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-sm text-[var(--zyllen-muted)]">Nenhuma mensagem ainda.</p>
-                            )}
-                            <div ref={chatEndRef} />
-
-                            {/* Send message */}
-                            {selectedTicket.status !== "CLOSED" && (
-                                <div className="flex gap-2 pt-2">
-                                    <Input
-                                        placeholder="Escreva uma mensagem..."
-                                        value={newMessage}
-                                        onChange={(e) => setNewMessage(e.target.value)}
-                                        className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white placeholder:text-[var(--zyllen-muted)]/50"
-                                        onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
-                                    />
-                                    <Button
-                                        variant="highlight"
-                                        size="sm"
-                                        onClick={handleSendMessage}
-                                        disabled={submitting || !newMessage.trim()}
-                                    >
-                                        <Send size={16} />
-                                    </Button>
+                        {/* Attachments */}
+                        {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-medium text-[var(--zyllen-muted)] uppercase tracking-wider">Anexos</h4>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {selectedTicket.attachments.map((att) => (
+                                        <a
+                                            key={att.id}
+                                            href={`${API_BASE}${att.filePath}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block rounded-lg border border-[var(--zyllen-border)] overflow-hidden hover:border-[var(--zyllen-highlight)]/30 transition-colors"
+                                        >
+                                            {isImageFile(att.fileName) ? (
+                                                <img
+                                                    src={`${API_BASE}${att.filePath}`}
+                                                    alt={att.fileName}
+                                                    className="w-full h-24 object-cover"
+                                                />
+                                            ) : isVideoFile(att.fileName) ? (
+                                                <div className="w-full h-24 flex items-center justify-center bg-[var(--zyllen-bg-dark)]">
+                                                    <VideoIcon size={32} className="text-[var(--zyllen-muted)]" />
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-24 flex items-center justify-center bg-[var(--zyllen-bg-dark)]">
+                                                    <FileText size={32} className="text-[var(--zyllen-muted)]" />
+                                                </div>
+                                            )}
+                                            <p className="text-xs text-[var(--zyllen-muted)] px-2 py-1 truncate">{att.fileName}</p>
+                                        </a>
+                                    ))}
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
+
+                        {/* Resolution Notes */}
+                        {selectedTicket.resolutionNotes && (
+                            <div className="p-3 rounded-lg border border-[var(--zyllen-success)]/20 bg-[var(--zyllen-success)]/5">
+                                <h4 className="text-xs font-medium text-[var(--zyllen-success)] uppercase tracking-wider mb-1">Descrição do Atendimento</h4>
+                                <p className="text-sm text-white whitespace-pre-wrap">{selectedTicket.resolutionNotes}</p>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>
         );
     }
 
-    // ── New Ticket Form ──
+    // ══════════════════════════════════════════
+    // NEW TICKET FORM
+    // ══════════════════════════════════════════
     if (showNewForm) {
         return (
             <div className="space-y-6">
@@ -217,52 +236,115 @@ function ClientChamadosInner() {
 
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
                     <CardHeader>
-                        <CardTitle className="text-white">Novo Chamado</CardTitle>
+                        <CardTitle className="text-white flex items-center gap-2">
+                            <Paperclip size={18} className="text-[var(--zyllen-highlight)]" />
+                            Abrir Chamado
+                        </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleCreate} className="space-y-4">
+                        <form onSubmit={handleCreate} className="space-y-5">
+                            {/* Description */}
                             <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Título</Label>
-                                <Input
-                                    placeholder="Descreva brevemente o problema"
-                                    value={formData.title}
-                                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                    required
-                                    className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white placeholder:text-[var(--zyllen-muted)]/50"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Descrição</Label>
+                                <Label className="text-[var(--zyllen-muted)]">Descreva o problema *</Label>
+                                <p className="text-xs text-[var(--zyllen-muted)]/70">
+                                    Explique com detalhes o que está acontecendo. Quanto mais informação, mais rápido poderemos ajudar.
+                                </p>
                                 <textarea
-                                    placeholder="Detalhe o problema ou solicitação..."
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    placeholder="Ex: O computador não liga desde ontem. Já tentei trocar a tomada e verificar os cabos, mas continua sem funcionar..."
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
                                     required
-                                    rows={5}
-                                    className="w-full rounded-md bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] text-white placeholder:text-[var(--zyllen-muted)]/50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--zyllen-highlight)]/30 focus:border-[var(--zyllen-highlight)]"
+                                    minLength={10}
+                                    rows={6}
+                                    className="w-full rounded-md bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] text-white placeholder:text-[var(--zyllen-muted)]/40 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--zyllen-highlight)]/30 focus:border-[var(--zyllen-highlight)] resize-none"
                                 />
                             </div>
+
+                            {/* File Upload */}
                             <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Prioridade</Label>
-                                <div className="flex gap-2">
-                                    {Object.entries(PRIORITY_CONFIG).map(([key, cfg]) => (
-                                        <button
-                                            key={key}
-                                            type="button"
-                                            onClick={() => setFormData({ ...formData, priority: key })}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                                                formData.priority === key
-                                                    ? "border-[var(--zyllen-highlight)] text-[var(--zyllen-highlight)] bg-[var(--zyllen-highlight)]/10"
-                                                    : "border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:border-[var(--zyllen-highlight)]/30"
-                                            }`}
-                                        >
-                                            {cfg.label}
-                                        </button>
-                                    ))}
-                                </div>
+                                <Label className="text-[var(--zyllen-muted)]">Fotos e Vídeos do problema *</Label>
+                                <p className="text-xs text-[var(--zyllen-muted)]/70">
+                                    Tire fotos ou grave vídeos mostrando o problema. Isso ajuda muito na análise.
+                                </p>
+
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    multiple
+                                    accept="image/*,video/*"
+                                    onChange={handleFilesSelected}
+                                    className="hidden"
+                                />
+
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-full border-2 border-dashed border-[var(--zyllen-border)] rounded-lg p-6 flex flex-col items-center gap-2 hover:border-[var(--zyllen-highlight)]/40 transition-colors cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <ImageIcon size={24} className="text-[var(--zyllen-muted)]" />
+                                        <VideoIcon size={24} className="text-[var(--zyllen-muted)]" />
+                                    </div>
+                                    <span className="text-sm text-[var(--zyllen-muted)]">
+                                        Clique para selecionar fotos e vídeos
+                                    </span>
+                                    <span className="text-xs text-[var(--zyllen-muted)]/50">
+                                        Máximo 20 MB por arquivo · JPG, PNG, GIF, MP4, WebM
+                                    </span>
+                                </button>
+
+                                {/* File previews */}
+                                {selectedFiles.length > 0 && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
+                                        {selectedFiles.map((file, i) => (
+                                            <div
+                                                key={`${file.name}-${i}`}
+                                                className="relative rounded-lg border border-[var(--zyllen-border)] overflow-hidden group"
+                                            >
+                                                {file.type.startsWith("image/") ? (
+                                                    <img
+                                                        src={URL.createObjectURL(file)}
+                                                        alt={file.name}
+                                                        className="w-full h-24 object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-24 flex items-center justify-center bg-[var(--zyllen-bg-dark)]">
+                                                        <VideoIcon size={32} className="text-[var(--zyllen-muted)]" />
+                                                    </div>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeFile(i)}
+                                                    className="absolute top-1 right-1 size-6 rounded-full bg-red-500/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X size={14} className="text-white" />
+                                                </button>
+                                                <p className="text-[10px] text-[var(--zyllen-muted)] px-2 py-1 truncate">
+                                                    {file.name}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                            <Button type="submit" variant="highlight" disabled={submitting} className="w-full">
-                                {submitting ? "Criando..." : "Criar Chamado"}
+
+                            <Button
+                                type="submit"
+                                variant="highlight"
+                                disabled={submitting}
+                                className="w-full h-11 text-base"
+                            >
+                                {submitting ? (
+                                    <span className="flex items-center gap-2">
+                                        <span className="size-4 border-2 border-[var(--zyllen-bg)] border-t-transparent rounded-full animate-spin" />
+                                        Enviando chamado...
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-2">
+                                        <Plus size={18} />
+                                        Abrir Chamado
+                                    </span>
+                                )}
                             </Button>
                         </form>
                     </CardContent>
@@ -271,7 +353,9 @@ function ClientChamadosInner() {
         );
     }
 
-    // ── Ticket List ──
+    // ══════════════════════════════════════════
+    // TICKET LIST
+    // ══════════════════════════════════════════
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -323,6 +407,7 @@ function ClientChamadosInner() {
                                                 <p className="text-sm font-medium text-white truncate">{ticket.title}</p>
                                                 <p className="text-xs text-[var(--zyllen-muted)]">
                                                     {new Date(ticket.createdAt).toLocaleDateString("pt-BR")} · {statusCfg.label}
+                                                    {ticket.assignedTo && ` · ${ticket.assignedTo.name}`}
                                                 </p>
                                             </div>
                                         </div>

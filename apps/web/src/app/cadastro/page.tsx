@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, Suspense, useCallback } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@web/lib/api-client";
@@ -7,17 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/
 import { Input } from "@web/components/ui/input";
 import { Button } from "@web/components/ui/button";
 import { Label } from "@web/components/ui/label";
+import { Select, SelectOption } from "@web/components/ui/select";
+import { StateCitySelector } from "@web/components/ui/state-city-selector";
 import { toast } from "sonner";
-import { UserPlus, Building2, Wrench, ArrowLeft, Search, Plus } from "lucide-react";
+import { UserPlus, Building2, Wrench, ArrowLeft } from "lucide-react";
 
 type Tab = "client" | "contractor";
 interface CompanyOption { id: string; name: string; cnpj: string | null }
-
-const BRAZILIAN_STATES = [
-    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
-    "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
-    "RS", "RO", "RR", "SC", "SP", "SE", "TO",
-];
+interface ProjectOption { id: string; name: string }
 
 function CadastroPageInner() {
     const router = useRouter();
@@ -30,50 +27,36 @@ function CadastroPageInner() {
         if (tabParam === "contractor") setTab("contractor");
     }, [searchParams]);
 
+    // ── Companies & Projects loaded from API ──
+    const [companies, setCompanies] = useState<CompanyOption[]>([]);
+    const [projects, setProjects] = useState<ProjectOption[]>([]);
+
+    useEffect(() => {
+        apiClient.get<{ data: CompanyOption[] }>("/clients/companies/search")
+            .then((res) => setCompanies(res.data))
+            .catch(() => {});
+    }, []);
+
     // ── Client form ──
     const [clientForm, setClientForm] = useState({
         name: "", email: "", password: "", confirmPassword: "",
         phone: "", city: "", state: "", position: "", cpf: "",
-        companyName: "", companyCnpj: "", companyId: "",
+        companyId: "", projectId: "", companyName: "", companyCnpj: "",
     });
 
-    // Company search state
-    const [companySearch, setCompanySearch] = useState("");
-    const [companyResults, setCompanyResults] = useState<CompanyOption[]>([]);
-    const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
-    const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
-    const [isNewCompany, setIsNewCompany] = useState(false);
+    const isNewCompany = clientForm.companyId === "__new__";
 
-    const searchCompanies = useCallback(async (q: string) => {
-        if (q.length < 2) { setCompanyResults([]); return; }
-        try {
-            const res = await apiClient.get<{ data: CompanyOption[] }>(`/clients/companies/search?q=${encodeURIComponent(q)}`);
-            setCompanyResults(res.data);
-            setShowCompanyDropdown(true);
-        } catch {
-            setCompanyResults([]);
-        }
-    }, []);
-
+    // Load projects when company changes
     useEffect(() => {
-        const timer = setTimeout(() => searchCompanies(companySearch), 300);
-        return () => clearTimeout(timer);
-    }, [companySearch, searchCompanies]);
-
-    const selectCompany = (company: CompanyOption) => {
-        setSelectedCompany(company);
-        setClientForm({ ...clientForm, companyId: company.id, companyName: company.name, companyCnpj: company.cnpj || "" });
-        setCompanySearch(company.name);
-        setShowCompanyDropdown(false);
-        setIsNewCompany(false);
-    };
-
-    const startNewCompany = () => {
-        setSelectedCompany(null);
-        setIsNewCompany(true);
-        setShowCompanyDropdown(false);
-        setClientForm({ ...clientForm, companyId: "", companyName: companySearch, companyCnpj: "" });
-    };
+        if (clientForm.companyId && clientForm.companyId !== "__new__") {
+            apiClient.get<{ data: ProjectOption[] }>(`/clients/companies/${clientForm.companyId}/projects-public`)
+                .then((res) => setProjects(res.data))
+                .catch(() => setProjects([]));
+        } else {
+            setProjects([]);
+        }
+        setClientForm((prev) => ({ ...prev, projectId: "" }));
+    }, [clientForm.companyId]);
 
     // ── Contractor form ──
     const [contractorForm, setContractorForm] = useState({
@@ -89,10 +72,10 @@ function CadastroPageInner() {
         setLoading(true);
         try {
             const { confirmPassword, ...data } = clientForm;
-            // Strip empty strings
+            // Strip empty strings and special values
             const payload: Record<string, any> = {};
             for (const [k, v] of Object.entries(data)) {
-                if (v) payload[k] = v;
+                if (v && v !== "__new__") payload[k] = v;
             }
             await apiClient.post("/register/client", payload);
             toast.success("Cadastro realizado com sucesso! Faça login para acessar.");
@@ -127,7 +110,6 @@ function CadastroPageInner() {
     };
 
     const inputClass = "bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white placeholder:text-[var(--zyllen-muted)]/50 focus-visible:ring-[var(--zyllen-highlight)]/30 focus-visible:border-[var(--zyllen-highlight)]";
-    const selectClass = "w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm focus:ring-[var(--zyllen-highlight)]/30 focus:border-[var(--zyllen-highlight)]";
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[var(--zyllen-bg-dark)] p-4">
@@ -211,64 +193,31 @@ function CadastroPageInner() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-2">
-                                        <Label className="text-[var(--zyllen-muted)]">Cidade</Label>
-                                        <Input value={clientForm.city} onChange={(e) => setClientForm({ ...clientForm, city: e.target.value })} placeholder="Sua cidade" className={inputClass} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-[var(--zyllen-muted)]">Estado (UF)</Label>
-                                        <select value={clientForm.state} onChange={(e) => setClientForm({ ...clientForm, state: e.target.value })} className={selectClass}>
-                                            <option value="">Selecione...</option>
-                                            {BRAZILIAN_STATES.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
+                                <StateCitySelector
+                                    state={clientForm.state}
+                                    city={clientForm.city}
+                                    onStateChange={(uf) => setClientForm(prev => ({ ...prev, state: uf, city: "" }))}
+                                    onCityChange={(c) => setClientForm(prev => ({ ...prev, city: c }))}
+                                />
 
-                                {/* Company search */}
+                                {/* Empresa */}
                                 <div className="space-y-2">
                                     <Label className="text-[var(--zyllen-muted)]">Empresa</Label>
-                                    <div className="relative">
-                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]/50" />
-                                        <Input
-                                            value={companySearch}
-                                            onChange={(e) => {
-                                                setCompanySearch(e.target.value);
-                                                if (selectedCompany) {
-                                                    setSelectedCompany(null);
-                                                    setClientForm({ ...clientForm, companyId: "", companyName: "", companyCnpj: "" });
-                                                }
-                                            }}
-                                            onFocus={() => companyResults.length > 0 && setShowCompanyDropdown(true)}
-                                            placeholder="Pesquisar empresa pelo nome ou CNPJ..."
-                                            className={`${inputClass} pl-9`}
-                                        />
-                                        {showCompanyDropdown && (
-                                            <div className="absolute z-50 w-full mt-1 rounded-lg border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] shadow-xl max-h-48 overflow-y-auto">
-                                                {companyResults.map((c) => (
-                                                    <button
-                                                        key={c.id}
-                                                        type="button"
-                                                        onClick={() => selectCompany(c)}
-                                                        className="w-full px-3 py-2 text-left text-sm hover:bg-white/5 transition-colors flex items-center justify-between"
-                                                    >
-                                                        <span className="text-white">{c.name}</span>
-                                                        {c.cnpj && <span className="text-[var(--zyllen-muted)] text-xs">{c.cnpj}</span>}
-                                                    </button>
-                                                ))}
-                                                <button
-                                                    type="button"
-                                                    onClick={startNewCompany}
-                                                    className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--zyllen-highlight)]/10 transition-colors flex items-center gap-2 text-[var(--zyllen-highlight)] border-t border-[var(--zyllen-border)]"
-                                                >
-                                                    <Plus size={14} /> Cadastrar nova empresa
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    {selectedCompany && (
-                                        <p className="text-xs text-[var(--zyllen-highlight)]">Empresa selecionada: {selectedCompany.name}</p>
-                                    )}
+                                    <Select
+                                        value={clientForm.companyId}
+                                        onValueChange={(v) => setClientForm({ ...clientForm, companyId: v, projectId: "" })}
+                                        placeholder="Selecione a empresa..."
+                                        className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
+                                    >
+                                        {companies.map((c) => (
+                                            <SelectOption key={c.id} value={c.id}>
+                                                {c.name}{c.cnpj ? ` — ${c.cnpj}` : ""}
+                                            </SelectOption>
+                                        ))}
+                                        <SelectOption value="__new__">
+                                            + Cadastrar nova empresa
+                                        </SelectOption>
+                                    </Select>
                                 </div>
 
                                 {/* New company fields */}
@@ -282,6 +231,25 @@ function CadastroPageInner() {
                                             <Label className="text-[var(--zyllen-muted)]">CNPJ</Label>
                                             <Input value={clientForm.companyCnpj} onChange={(e) => setClientForm({ ...clientForm, companyCnpj: e.target.value })} placeholder="00.000.000/0000-00" className={inputClass} />
                                         </div>
+                                    </div>
+                                )}
+
+                                {/* Projeto */}
+                                {clientForm.companyId && !isNewCompany && projects.length > 0 && (
+                                    <div className="space-y-2">
+                                        <Label className="text-[var(--zyllen-muted)]">Projeto</Label>
+                                        <Select
+                                            value={clientForm.projectId}
+                                            onValueChange={(v) => setClientForm({ ...clientForm, projectId: v })}
+                                            placeholder="Selecione o projeto..."
+                                            className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
+                                        >
+                                            {projects.map((p) => (
+                                                <SelectOption key={p.id} value={p.id}>
+                                                    {p.name}
+                                                </SelectOption>
+                                            ))}
+                                        </Select>
                                     </div>
                                 )}
 
@@ -331,24 +299,17 @@ function CadastroPageInner() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-2">
-                                        <Label className="text-[var(--zyllen-muted)]">Telefone</Label>
-                                        <Input value={contractorForm.phone} onChange={(e) => setContractorForm({ ...contractorForm, phone: e.target.value })} placeholder="(00) 00000-0000" className={inputClass} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-[var(--zyllen-muted)]">Cidade</Label>
-                                        <Input value={contractorForm.city} onChange={(e) => setContractorForm({ ...contractorForm, city: e.target.value })} placeholder="Sua cidade" className={inputClass} />
-                                    </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[var(--zyllen-muted)]">Telefone</Label>
+                                    <Input value={contractorForm.phone} onChange={(e) => setContractorForm({ ...contractorForm, phone: e.target.value })} placeholder="(00) 00000-0000" className={inputClass} />
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label className="text-[var(--zyllen-muted)]">Estado (UF)</Label>
-                                    <select value={contractorForm.state} onChange={(e) => setContractorForm({ ...contractorForm, state: e.target.value })} className={selectClass}>
-                                        <option value="">Selecione...</option>
-                                        {BRAZILIAN_STATES.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
-                                    </select>
-                                </div>
+                                <StateCitySelector
+                                    state={contractorForm.state}
+                                    city={contractorForm.city}
+                                    onStateChange={(uf) => setContractorForm(prev => ({ ...prev, state: uf, city: "" }))}
+                                    onCityChange={(c) => setContractorForm(prev => ({ ...prev, city: c }))}
+                                />
 
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-2">

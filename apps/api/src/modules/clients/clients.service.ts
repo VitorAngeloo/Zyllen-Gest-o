@@ -21,7 +21,7 @@ export class ClientsService {
 
     async findAllCompanies() {
         return this.prisma.company.findMany({
-            include: { _count: { select: { externalUsers: true, tickets: true } } },
+            include: { _count: { select: { externalUsers: true, tickets: true, projects: true } } },
             orderBy: { name: 'asc' },
         });
     }
@@ -31,6 +31,7 @@ export class ClientsService {
             where: { id },
             include: {
                 externalUsers: { select: { id: true, name: true, email: true } },
+                projects: { orderBy: { name: 'asc' } },
                 _count: { select: { tickets: true } },
             },
         });
@@ -38,7 +39,7 @@ export class ClientsService {
         return company;
     }
 
-    async createCompany(data: { name: string; cnpj?: string; address?: string; phone?: string }) {
+    async createCompany(data: { name: string; cnpj?: string }) {
         if (data.cnpj) {
             const existing = await this.prisma.company.findUnique({ where: { cnpj: data.cnpj } });
             if (existing) throw new ConflictException('CNPJ já cadastrado');
@@ -46,7 +47,7 @@ export class ClientsService {
         return this.prisma.company.create({ data });
     }
 
-    async updateCompany(id: string, data: { name?: string; cnpj?: string; address?: string; phone?: string }) {
+    async updateCompany(id: string, data: { name?: string; cnpj?: string }) {
         await this.findCompanyById(id);
         if (data.cnpj) {
             const existing = await this.prisma.company.findFirst({ where: { cnpj: data.cnpj, NOT: { id } } });
@@ -61,6 +62,40 @@ export class ClientsService {
         const ticketCount = await this.prisma.ticket.count({ where: { companyId: id } });
         if (ticketCount > 0) throw new ConflictException('Empresa com chamados vinculados');
         return this.prisma.company.delete({ where: { id } });
+    }
+
+    // ═══════════════════════════════════════════
+    // PROJECTS
+    // ═══════════════════════════════════════════
+
+    async findProjectsByCompany(companyId: string) {
+        await this.findCompanyById(companyId);
+        return this.prisma.project.findMany({
+            where: { companyId },
+            include: { _count: { select: { externalUsers: true } } },
+            orderBy: { name: 'asc' },
+        });
+    }
+
+    async createProject(companyId: string, data: { name: string; description?: string; phone?: string; address?: string; city?: string; state?: string }) {
+        await this.findCompanyById(companyId);
+        return this.prisma.project.create({
+            data: { ...data, companyId },
+        });
+    }
+
+    async updateProject(projectId: string, data: { name?: string; description?: string; phone?: string; address?: string; city?: string; state?: string }) {
+        const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+        if (!project) throw new NotFoundException('Projeto não encontrado');
+        return this.prisma.project.update({ where: { id: projectId }, data });
+    }
+
+    async deleteProject(projectId: string) {
+        const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+        if (!project) throw new NotFoundException('Projeto não encontrado');
+        const userCount = await this.prisma.externalUser.count({ where: { projectId } });
+        if (userCount > 0) throw new ConflictException('Projeto com usuários vinculados');
+        return this.prisma.project.delete({ where: { id: projectId } });
     }
 
     // ═══════════════════════════════════════════
@@ -133,7 +168,15 @@ export class ClientsService {
             } : {},
             select: { id: true, name: true, cnpj: true },
             orderBy: { name: 'asc' },
-            take: 20,
+            take: 50,
+        });
+    }
+
+    async findProjectsPublic(companyId: string) {
+        return this.prisma.project.findMany({
+            where: { companyId },
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' },
         });
     }
 
@@ -144,22 +187,54 @@ export class ClientsService {
     async findAllExternalUsers(companyId?: string) {
         return this.prisma.externalUser.findMany({
             where: companyId ? { companyId } : {},
-            include: { company: { select: { id: true, name: true } } },
-            orderBy: { name: 'asc' },
+            include: {
+                company: { select: { id: true, name: true } },
+                project: { select: { id: true, name: true } },
+            },
+            orderBy: [{ company: { name: 'asc' } }, { name: 'asc' }],
         });
     }
 
-    async createExternalUser(data: { name: string; email: string; password: string; companyId: string }) {
+    async createExternalUser(data: {
+        name: string;
+        email: string;
+        password: string;
+        cpf?: string;
+        phone?: string;
+        position?: string;
+        city?: string;
+        state?: string;
+        companyId: string;
+        projectId?: string;
+    }) {
         const company = await this.prisma.company.findUnique({ where: { id: data.companyId } });
         if (!company) throw new NotFoundException('Empresa não encontrada');
+
+        if (data.projectId) {
+            const project = await this.prisma.project.findFirst({
+                where: { id: data.projectId, companyId: data.companyId },
+            });
+            if (!project) throw new NotFoundException('Projeto não encontrado ou não pertence à empresa');
+        }
 
         const existing = await this.prisma.externalUser.findUnique({ where: { email: data.email } });
         if (existing) throw new ConflictException('Email já cadastrado');
 
-        const passwordHash = await bcrypt.hash(data.password, 10);
+        if (data.cpf) {
+            const existingCpf = await this.prisma.externalUser.findUnique({ where: { cpf: data.cpf } });
+            if (existingCpf) throw new ConflictException('CPF já cadastrado');
+        }
+
+        const { password, ...rest } = data;
+        const passwordHash = await bcrypt.hash(password, 10);
         return this.prisma.externalUser.create({
-            data: { name: data.name, email: data.email, passwordHash, companyId: data.companyId },
-            select: { id: true, name: true, email: true, company: { select: { name: true } } },
+            data: { ...rest, passwordHash },
+            select: {
+                id: true, name: true, email: true, cpf: true, phone: true,
+                position: true, city: true, state: true,
+                company: { select: { id: true, name: true } },
+                project: { select: { id: true, name: true } },
+            },
         });
     }
 

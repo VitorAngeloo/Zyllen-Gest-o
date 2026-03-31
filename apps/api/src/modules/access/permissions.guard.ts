@@ -33,6 +33,11 @@ export class PermissionsGuard implements CanActivate {
             throw new ForbiddenException('Acesso negado');
         }
 
+        // Administrador has full access — bypass permission checks
+        if (user.role?.name === 'Administrador') {
+            return true;
+        }
+
         const [screen, action] = requiredPermission.split('.');
         const hasPermission = await this.accessService.userHasPermission(
             user.id,

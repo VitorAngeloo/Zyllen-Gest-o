@@ -12,8 +12,8 @@ import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
 import {
     ArrowLeft, UserCircle, Mail, Building, Calendar, ShieldCheck,
-    Pencil, RotateCw, Headset, Wrench, FileText, Clock,
-    CheckCircle2, AlertCircle, XCircle, Save, X, Trash2,
+    Pencil, Headset, Wrench, FileText, Clock,
+    CheckCircle2, AlertCircle, XCircle, Save, X, Trash2, Power,
 } from "lucide-react";
 import { EMPTY_STATES } from "@web/lib/brand-voice";
 
@@ -79,6 +79,17 @@ export default function ColaboradorDetailPage() {
         onError: (err: any) => toast.error(err.message || "Erro ao atualizar"),
     });
 
+    const toggleActive = useMutation({
+        mutationFn: (isActive: boolean) =>
+            apiClient.put(`/auth/users/${id}`, { isActive }, fetchOpts),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["user-detail", id] });
+            qc.invalidateQueries({ queryKey: ["internal-users"] });
+            toast.success("Status atualizado");
+        },
+        onError: (err: any) => toast.error(err.message || "Erro ao atualizar"),
+    });
+
     const resetPin = useMutation({
         mutationFn: () => apiClient.post(`/auth/users/${id}/reset-pin`, {}, fetchOpts),
         onSuccess: (res: any) => toast.success(`Novo PIN: ${res?.data?.pin ?? "—"}`, { duration: 10000 }),
@@ -130,9 +141,7 @@ export default function ColaboradorDetailPage() {
             sector: user.sector ?? "",
             description: user.description ?? "",
             roleId: user.role.id,
-            isActive: user.isActive,
             password: "",
-            pin: "",
         });
         setEditing(true);
     };
@@ -144,9 +153,7 @@ export default function ColaboradorDetailPage() {
         if (editForm.sector !== (user.sector ?? "")) payload.sector = editForm.sector;
         if (editForm.description !== (user.description ?? "")) payload.description = editForm.description;
         if (editForm.roleId !== user.role.id) payload.roleId = editForm.roleId;
-        if (editForm.isActive !== user.isActive) payload.isActive = editForm.isActive;
         if (editForm.password) payload.password = editForm.password;
-        if (editForm.pin) payload.pin = editForm.pin;
 
         if (Object.keys(payload).length === 0) {
             setEditing(false);
@@ -198,8 +205,17 @@ export default function ColaboradorDetailPage() {
                                 <Button variant="outline" size="sm" onClick={startEdit}>
                                     <Pencil size={14} className="mr-1" /> Editar
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => { if (confirm("Resetar PIN?")) resetPin.mutate(); }}>
-                                    <RotateCw size={14} className="mr-1" /> Reset PIN
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className={user.isActive ? "border-red-500/30 text-red-400 hover:bg-red-500/10" : "border-green-500/30 text-green-400 hover:bg-green-500/10"}
+                                    onClick={() => {
+                                        if (confirm(`${user.isActive ? "Desativar" : "Ativar"} ${user.name}?`)) {
+                                            toggleActive.mutate(!user.isActive);
+                                        }
+                                    }}
+                                >
+                                    <Power size={14} className="mr-1" /> {user.isActive ? "Desativar" : "Ativar"}
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -256,10 +272,6 @@ export default function ColaboradorDetailPage() {
                                         <Input className={inputCls} type="password" placeholder="Deixe vazio para manter" value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-[var(--zyllen-muted)]">Novo PIN (4 dígitos)</Label>
-                                        <Input className={inputCls} placeholder="Deixe vazio para manter" value={editForm.pin} onChange={(e) => setEditForm({ ...editForm, pin: e.target.value.replace(/\D/g, "").slice(0, 4) })} maxLength={4} />
-                                    </div>
-                                    <div className="space-y-2">
                                         <Label className="text-[var(--zyllen-muted)]">Role</Label>
                                         <select className={`w-full h-10 rounded-md px-3 text-sm ${inputCls}`} value={editForm.roleId} onChange={(e) => setEditForm({ ...editForm, roleId: e.target.value })}>
                                             {roles.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -276,12 +288,6 @@ export default function ColaboradorDetailPage() {
                                             value={editForm.description}
                                             onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                                         />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="flex items-center gap-2 text-sm text-white cursor-pointer">
-                                            <input type="checkbox" checked={editForm.isActive} onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })} className="rounded" />
-                                            Usuário Ativo
-                                        </label>
                                     </div>
                                     <div className="md:col-span-2 flex gap-3">
                                         <Button variant="highlight" onClick={saveEdit} disabled={updateUser.isPending}>

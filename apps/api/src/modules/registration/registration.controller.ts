@@ -31,6 +31,7 @@ export class RegistrationController {
             companyName?: string;
             companyId?: string;
             companyCnpj?: string;
+            projectId?: string;
         },
     ) {
         return this.registrationService.registerClient(body);

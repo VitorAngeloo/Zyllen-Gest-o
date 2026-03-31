@@ -8,10 +8,10 @@ async function main() {
 
     // ── 1. Create Roles ─────────────────────────
     const adminRole = await prisma.role.upsert({
-        where: { name: 'Admin' },
-        update: {},
+        where: { name: 'Administrador' },
+        update: { description: 'Administrador com acesso total ao sistema' },
         create: {
-            name: 'Admin',
+            name: 'Administrador',
             description: 'Administrador com acesso total ao sistema',
         },
     });
@@ -34,7 +34,16 @@ async function main() {
         },
     });
 
-    console.log('  ✅ Roles created:', adminRole.name, tecnicoRole.name, gestorRole.name);
+    const internosRole = await prisma.role.upsert({
+        where: { name: 'Internos' },
+        update: { description: 'Colaborador interno — acesso apenas a chamados TI próprios' },
+        create: {
+            name: 'Internos',
+            description: 'Colaborador interno — acesso apenas a chamados TI próprios',
+        },
+    });
+
+    console.log('  ✅ Roles created:', adminRole.name, tecnicoRole.name, gestorRole.name, internosRole.name);
 
     // ── 2. Create Screen Permissions ────────────
     const permissions = [
@@ -182,6 +191,22 @@ async function main() {
     }
     console.log(`  ✅ ${gestorScreens.length} permissions assigned to Gestor role`);
 
+    // ── 3d. Assign permissions to Internos ────
+    const internosScreens: string[] = [
+    ];
+    for (const key of internosScreens) {
+        const [screen, action] = key.split('.');
+        const sp = createdPermissions.find((p) => p.screen === screen && p.action === action);
+        if (sp) {
+            await prisma.rolePermission.upsert({
+                where: { roleId_screenPermissionId: { roleId: internosRole.id, screenPermissionId: sp.id } },
+                update: {},
+                create: { roleId: internosRole.id, screenPermissionId: sp.id },
+            });
+        }
+    }
+    console.log(`  ✅ ${internosScreens.length} permissions assigned to Internos role`);
+
     // ── 4. Create Admin User ────────────────────
     const adminPasswordHash = await bcrypt.hash('admin123', 10);
     const adminPinHash = await bcrypt.hash('0000', 10);
@@ -266,7 +291,7 @@ async function main() {
     console.log('📋 Summary:');
     console.log('   Admin login: admin@zyllen.com / admin123');
     console.log('   Admin PIN: 0000');
-    console.log('   Roles: Admin, Técnico, Gestor');
+    console.log('   Roles: Admin, Técnico, Gestor, Internos');
     console.log(`   Permissions: ${createdPermissions.length} screen permissions`);
     console.log('   Location: Almoxarifado Central');
     console.log('   Movement Types: Entrada, Saída, Transferência, Baixa');

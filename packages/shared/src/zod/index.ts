@@ -38,6 +38,9 @@ export const updateInternalUserSchema = z.object({
     email: z.string().email().optional(),
     roleId: z.string().uuid().optional(),
     isActive: z.boolean().optional(),
+    sector: z.string().optional(),
+    description: z.string().optional(),
+    password: z.string().min(6).optional(),
 });
 
 export const changePasswordSchema = z.object({
@@ -54,7 +57,17 @@ export const createExternalUserSchema = z.object({
     name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
     email: z.string().email('Email inválido'),
     password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+    confirmPassword: z.string().min(6, 'Confirmação de senha é obrigatória'),
+    cpf: z.string().min(11, 'CPF inválido').optional(),
+    phone: z.string().min(8, 'Telefone inválido').optional(),
+    position: z.string().min(2, 'Cargo/função é obrigatório').optional(),
+    city: z.string().min(2, 'Cidade é obrigatória').optional(),
+    state: z.string().length(2, 'Estado deve ser a sigla (UF)').optional(),
     companyId: z.string().uuid('Company ID inválido'),
+    projectId: z.string().uuid('Project ID inválido').optional(),
+}).refine((data) => data.password === data.confirmPassword, {
+    message: 'As senhas não coincidem',
+    path: ['confirmPassword'],
 });
 
 // ── Registration: Client (self-service) ──
@@ -70,6 +83,7 @@ export const registerClientSchema = z.object({
     companyId: z.string().uuid('Company ID inválido').optional(),
     companyName: z.string().min(2, 'Nome da empresa é obrigatório').optional(),
     companyCnpj: z.string().optional(),
+    projectId: z.string().uuid('Project ID inválido').optional(),
 });
 
 // ── Registration: Contractor (self-service) ──
@@ -91,17 +105,32 @@ export const loginContractorSchema = z.object({
 
 // ── Company ──
 export const createCompanySchema = z.object({
-    name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
+    name: z.string().min(2, 'Razão Social deve ter no mínimo 2 caracteres'),
     cnpj: z.string().optional(),
-    address: z.string().optional(),
-    phone: z.string().optional(),
 });
 
 export const updateCompanySchema = z.object({
     name: z.string().min(2).optional(),
     cnpj: z.string().optional(),
-    address: z.string().optional(),
+});
+
+// ── Project ──
+export const createProjectSchema = z.object({
+    name: z.string().min(2, 'Nome do projeto/estande deve ter no mínimo 2 caracteres'),
+    description: z.string().optional(),
     phone: z.string().optional(),
+    address: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().length(2, 'Estado deve ser a sigla (UF)').optional(),
+});
+
+export const updateProjectSchema = z.object({
+    name: z.string().min(2, 'Nome do projeto/estande deve ter no mínimo 2 caracteres').optional(),
+    description: z.string().optional(),
+    phone: z.string().optional(),
+    address: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().length(2, 'Estado deve ser a sigla (UF)').optional(),
 });
 
 // ── Category ──
@@ -191,11 +220,33 @@ export const createTicketSchema = z.object({
     title: z.string().min(1, 'Título é obrigatório'),
     description: z.string().min(1, 'Descrição é obrigatória'),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).default('MEDIUM'),
-    companyId: z.string().uuid('Company ID inválido'),
-    externalUserId: z.string().uuid('External User ID inválido'),
+    companyId: z.string().uuid('Company ID inválido').optional(),
+    externalUserId: z.string().uuid('External User ID inválido').optional(),
+});
+
+// Chamado interno (colaborador → TI)
+export const createInternalTicketSchema = z.object({
+    title: z.string().min(1, 'Título é obrigatório'),
+    description: z.string().min(10, 'Descreva o problema com pelo menos 10 caracteres'),
+    priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).default('MEDIUM'),
 });
 
 export const assignTicketSchema = z.object({
+    assignedToId: z.string().uuid('User ID inválido'),
+});
+
+export const assignTicketWithPinSchema = z.object({
+    pin: z.string().length(4, 'PIN deve ter 4 dígitos'),
+    assignedToId: z.string().uuid('User ID inválido').optional(),
+});
+
+export const closeTicketWithPinSchema = z.object({
+    pin: z.string().length(4, 'PIN deve ter 4 dígitos'),
+    resolutionNotes: z.string().min(10, 'Descrição do atendimento deve ter pelo menos 10 caracteres'),
+});
+
+export const reassignTicketSchema = z.object({
+    pin: z.string().length(4, 'PIN deve ter 4 dígitos'),
     assignedToId: z.string().uuid('User ID inválido'),
 });
 

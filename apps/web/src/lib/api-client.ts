@@ -160,6 +160,49 @@ class ApiClient {
     async delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
         return this.request<T>(endpoint, { ...options, method: 'DELETE' });
     }
+
+    /** Upload files using FormData (multipart/form-data) */
+    async upload<T>(
+        endpoint: string,
+        formData: FormData,
+        options?: Omit<RequestOptions, 'body'>,
+    ): Promise<T> {
+        const { headers, _retry, ...rest } = options || {};
+
+        const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+
+        const config: RequestInit = {
+            method: 'POST',
+            body: formData,
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                ...headers,
+            },
+            ...rest,
+        };
+        // Do NOT set Content-Type — browser will set multipart boundary automatically
+
+        const response = await fetch(`${this.baseUrl}${endpoint}`, config);
+
+        if (response.status === 401 && !_retry) {
+            const newToken = await this.tryRefresh();
+            if (newToken) {
+                return this.upload<T>(endpoint, formData, {
+                    ...options,
+                    _retry: true,
+                    headers: { ...headers, Authorization: `Bearer ${newToken}` },
+                });
+            }
+            this.forceLogout();
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new ApiError(response.status, errorData.message || response.statusText, errorData);
+        }
+
+        return response.json();
+    }
 }
 
 export class ApiError extends Error {

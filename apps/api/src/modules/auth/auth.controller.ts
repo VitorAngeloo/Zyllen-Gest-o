@@ -13,7 +13,7 @@ import {
     BadRequestException,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
-import { AuthService, TokenResponse } from './auth.service';
+import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { LoginDto } from './dto/login.dto';
 import { CreateInternalUserDto } from './dto/create-internal-user.dto';
@@ -36,7 +36,7 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     @UseGuards(ThrottlerGuard)
     @Throttle({ auth: { ttl: 60000, limit: 5 } })
-    async login(@Body() dto: LoginDto): Promise<TokenResponse> {
+    async login(@Body() dto: LoginDto) {
         return this.authService.loginInternal(dto.email, dto.password);
     }
 
@@ -59,13 +59,28 @@ export class AuthController {
             roleId: dto.roleId,
             sector: dto.sector,
             description: dto.description,
-            pin: dto.pin,
         });
 
         return {
-            message: 'Usuário criado com sucesso. O PIN será exibido apenas uma vez.',
+            message: 'Usuário criado com sucesso. O colaborador definirá o PIN no primeiro acesso.',
             data: result,
         };
+    }
+
+    @Post('setup-pin')
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(HttpStatus.OK)
+    async setupPin(@Request() req: any, @Body() body: { pin: string }) {
+        await this.authService.setupPin(req.user.id, body.pin);
+        return { message: 'PIN definido com sucesso' };
+    }
+
+    @Get('has-pin')
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(HttpStatus.OK)
+    async hasPin(@Request() req: any) {
+        const hasPin = await this.authService.hasPin(req.user.id);
+        return { hasPin };
     }
 
     @Get('users')
@@ -91,7 +106,7 @@ export class AuthController {
         @Param('id') id: string,
         @Body(new ZodValidationPipe(updateInternalUserSchema)) body: {
             name?: string; email?: string; roleId?: string; isActive?: boolean;
-            sector?: string; description?: string; password?: string; pin?: string;
+            sector?: string; description?: string; password?: string;
         },
     ) {
         const data = await this.authService.updateInternalUser(id, body);
@@ -104,15 +119,6 @@ export class AuthController {
     async deleteUser(@Param('id') id: string, @Request() req: any) {
         await this.authService.deleteInternalUser(id, req.user.id);
         return { message: 'Usuário excluído com sucesso' };
-    }
-
-    @Post('users/:id/reset-pin')
-    @UseGuards(JwtAuthGuard, PermissionsGuard)
-    @RequirePermission('access.manage')
-    @HttpCode(HttpStatus.OK)
-    async resetPin(@Param('id') id: string) {
-        const data = await this.authService.resetPin(id);
-        return { data, message: 'PIN resetado. O novo PIN será exibido apenas uma vez.' };
     }
 
     @Get('me')
@@ -137,23 +143,20 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     async updateMyProfile(
         @Request() req: any,
-        @Body() body: { name?: string; currentPassword?: string; password?: string; pin?: string },
+        @Body() body: { name?: string; currentPassword?: string; password?: string },
     ) {
-        // Require current password when changing password or PIN
-        if ((body.password || body.pin) && !body.currentPassword) {
+        if (body.password && !body.currentPassword) {
             throw new BadRequestException(
-                'Senha atual é obrigatória para alterar senha ou PIN',
+                'Senha atual é obrigatória para alterar senha',
             );
         }
         if (body.currentPassword) {
             await this.authService.verifyCurrentPassword(req.user.id, body.currentPassword);
         }
 
-        // Users can only update their own name, password, and PIN
         const allowed: any = {};
         if (body.name) allowed.name = body.name;
         if (body.password) allowed.password = body.password;
-        if (body.pin) allowed.pin = body.pin;
         const data = await this.authService.updateInternalUser(req.user.id, allowed);
         return { data, message: 'Perfil atualizado' };
     }

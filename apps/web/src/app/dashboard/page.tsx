@@ -1,4 +1,6 @@
 "use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
@@ -15,6 +17,14 @@ export default function DashboardPage() {
     const { user, hasPermission } = useAuth();
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
+    const router = useRouter();
+
+    // Internos role cannot access dashboard — redirect to chamados-ti
+    useEffect(() => {
+        if (user && user.type === "internal" && "role" in user && (user as any).role?.name === "Internos") {
+            router.replace("/dashboard/chamados-ti");
+        }
+    }, [user, router]);
 
     const canViewInventory = hasPermission("inventory.view");
     const canViewAssets = hasPermission("assets.view");

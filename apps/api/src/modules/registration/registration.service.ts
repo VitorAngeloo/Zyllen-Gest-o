@@ -31,6 +31,7 @@ export class RegistrationService {
         companyName?: string;
         companyId?: string;
         companyCnpj?: string;
+        projectId?: string;
     }) {
         // Check if email already exists
         const existingUser = await this.prisma.externalUser.findUnique({
@@ -71,6 +72,7 @@ export class RegistrationService {
                 state: data.state,
                 position: data.position,
                 companyId: company?.id || null,
+                projectId: data.projectId || null,
             },
             select: {
                 id: true,

@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import {
     Users, Plus, Search, UserCircle, Building, Mail,
-    Calendar, ShieldCheck, ChevronRight, ArrowLeft,
+    Calendar, ShieldCheck, ChevronRight, ArrowLeft, Power,
 } from "lucide-react";
 import { EMPTY_STATES, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
@@ -46,21 +46,30 @@ export default function ColaboradoresPage() {
         queryFn: () => apiClient.get<{ data: any[] }>("/access/roles", fetchOpts),
     });
 
-    // ── Create form ──
     const [form, setForm] = useState({
         name: "", email: "", password: "", roleId: "",
-        sector: "", description: "", pin: "",
+        sector: "", description: "",
     });
 
     const createUser = useMutation({
         mutationFn: (data: any) => apiClient.post("/auth/users", data, fetchOpts),
-        onSuccess: (res: any) => {
+        onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["internal-users"] });
             setShowCreate(false);
-            setForm({ name: "", email: "", password: "", roleId: "", sector: "", description: "", pin: "" });
-            toast.success(`Colaborador criado! PIN: ${res?.data?.pin ?? "—"}`, { duration: 10000 });
+            setForm({ name: "", email: "", password: "", roleId: "", sector: "", description: "" });
+            toast.success("Colaborador criado! O PIN será definido no primeiro acesso.", { duration: 6000 });
         },
         onError: (err: any) => toast.error(err.message || "Erro ao criar colaborador"),
+    });
+
+    const toggleActive = useMutation({
+        mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+            apiClient.put(`/auth/users/${id}`, { isActive }, fetchOpts),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["internal-users"] });
+            toast.success("Status atualizado");
+        },
+        onError: (err: any) => toast.error(err.message || "Erro ao atualizar status"),
     });
 
     const users = usersRes?.data ?? [];
@@ -114,7 +123,6 @@ export default function ColaboradoresPage() {
                                 const payload: any = { ...form };
                                 if (!payload.sector) delete payload.sector;
                                 if (!payload.description) delete payload.description;
-                                if (!payload.pin) delete payload.pin;
                                 createUser.mutate(payload);
                             }}
                             className="grid grid-cols-1 md:grid-cols-2 gap-4"
@@ -130,11 +138,6 @@ export default function ColaboradoresPage() {
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Senha *</Label>
                                 <Input className={inputCls} type="password" placeholder="Mínimo 6 caracteres" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={6} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">PIN (4 dígitos)</Label>
-                                <Input className={inputCls} placeholder="Ex: 1234 (opcional, gerado auto)" value={form.pin} onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "").slice(0, 4) })} maxLength={4} pattern="\d{4}" />
-                                <p className="text-xs text-[var(--zyllen-muted)]">Se não informado, será gerado automaticamente</p>
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Role *</Label>
@@ -202,38 +205,55 @@ export default function ColaboradoresPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filtered.map((user) => (
-                        <Link key={user.id} href={`/dashboard/colaboradores/${user.id}`}>
-                            <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] hover:border-[var(--zyllen-highlight)]/30 transition-all cursor-pointer group h-full">
-                                <CardContent className="py-4">
-                                    <div className="flex items-start gap-3">
-                                        <div className="flex items-center justify-center size-10 rounded-full bg-[var(--zyllen-highlight)]/20 text-[var(--zyllen-highlight)] font-bold text-sm shrink-0">
-                                            {user.name.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-sm font-medium text-white truncate group-hover:text-[var(--zyllen-highlight)] transition-colors">
-                                                    {user.name}
-                                                </p>
-                                                <ChevronRight size={14} className="text-[var(--zyllen-muted)] group-hover:text-[var(--zyllen-highlight)] transition-colors shrink-0" />
-                                            </div>
-                                            <p className="text-xs text-[var(--zyllen-muted)] truncate flex items-center gap-1">
-                                                <Mail size={10} /> {user.email}
+                        <Card key={user.id} className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] hover:border-[var(--zyllen-highlight)]/30 transition-all group h-full">
+                            <CardContent className="py-4">
+                                <div className="flex items-start gap-3">
+                                    <Link href={`/dashboard/colaboradores/${user.id}`} className="flex items-center justify-center size-10 rounded-full bg-[var(--zyllen-highlight)]/20 text-[var(--zyllen-highlight)] font-bold text-sm shrink-0">
+                                        {user.name.charAt(0).toUpperCase()}
+                                    </Link>
+                                    <Link href={`/dashboard/colaboradores/${user.id}`} className="flex-1 min-w-0 cursor-pointer">
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-sm font-medium text-white truncate group-hover:text-[var(--zyllen-highlight)] transition-colors">
+                                                {user.name}
                                             </p>
-                                            <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                                <Badge variant={user.isActive ? "outline" : "destructive"} className="text-[10px]">
-                                                    {user.isActive ? user.role.name : "Inativo"}
-                                                </Badge>
-                                                {user.sector && (
-                                                    <Badge variant="outline" className="text-[10px] text-[var(--zyllen-muted)] border-[var(--zyllen-border)]">
-                                                        <Building size={8} className="mr-1" /> {user.sector}
-                                                    </Badge>
-                                                )}
-                                            </div>
+                                            <ChevronRight size={14} className="text-[var(--zyllen-muted)] group-hover:text-[var(--zyllen-highlight)] transition-colors shrink-0" />
                                         </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </Link>
+                                        <p className="text-xs text-[var(--zyllen-muted)] truncate flex items-center gap-1">
+                                            <Mail size={10} /> {user.email}
+                                        </p>
+                                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                            <Badge variant={user.isActive ? "outline" : "destructive"} className="text-[10px]">
+                                                {user.isActive ? user.role.name : "Inativo"}
+                                            </Badge>
+                                            {user.sector && (
+                                                <Badge variant="outline" className="text-[10px] text-[var(--zyllen-muted)] border-[var(--zyllen-border)]">
+                                                    <Building size={8} className="mr-1" /> {user.sector}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </Link>
+                                    {canManage && (
+                                        <button
+                                            title={user.isActive ? "Desativar" : "Ativar"}
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                if (confirm(`${user.isActive ? "Desativar" : "Ativar"} ${user.name}?`)) {
+                                                    toggleActive.mutate({ id: user.id, isActive: !user.isActive });
+                                                }
+                                            }}
+                                            className={`shrink-0 p-1.5 rounded-md transition-colors ${
+                                                user.isActive
+                                                    ? "text-green-400 hover:bg-green-400/10"
+                                                    : "text-red-400 hover:bg-red-400/10"
+                                            }`}
+                                        >
+                                            <Power size={16} />
+                                        </button>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
                     ))}
                 </div>
             )}

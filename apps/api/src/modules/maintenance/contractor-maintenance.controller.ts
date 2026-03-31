@@ -1,11 +1,33 @@
 import {
-    Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request,
-    ForbiddenException,
+    Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request,
+    ForbiddenException, UseInterceptors, UploadedFiles, BadRequestException, Res,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { randomUUID } from 'crypto';
+import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MaintenanceService } from './maintenance.service';
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
 import { createMaintenanceSchema, updateOsFormDataSchema, updateMaintenanceStatusSchema } from '@zyllen/shared';
+
+// Reuse same upload dir as internal controller
+const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'maintenance');
+if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const maintenanceStorage = diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+    filename: (_req, file, cb) => {
+        const unique = randomUUID();
+        const ext = extname(file.originalname) || '.bin';
+        cb(null, `${unique}${ext}`);
+    },
+});
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktime|x-msvideo))$/;
 
 /**
  * Contractor-facing maintenance OS endpoints.
@@ -124,5 +146,91 @@ export class ContractorMaintenanceController {
         }
         const data = await this.maintenanceService.updateStatus(id, body.status, req.user.id, body.notes, true);
         return { data, message: 'OS atualizada' };
+    }
+
+    // ── Attachments (photos/videos) ──
+
+    @Post(':id/attachments')
+    @UseInterceptors(FilesInterceptor('files', 10, { storage: maintenanceStorage, limits: { fileSize: MAX_FILE_SIZE } }))
+    async uploadAttachments(
+        @Param('id') id: string,
+        @Request() req: any,
+        @UploadedFiles() files: Express.Multer.File[],
+    ) {
+        this.assertContractor(req);
+        const os = await this.maintenanceService.findById(id);
+        if (os.openedByContractorId !== req.user.id) {
+            throw new ForbiddenException('OS não pertence a este terceirizado');
+        }
+        if (!files || files.length === 0) {
+            throw new BadRequestException('Nenhum arquivo enviado');
+        }
+        for (const file of files) {
+            if (!ALLOWED_MIME.test(file.mimetype)) {
+                throw new BadRequestException(`Tipo de arquivo não permitido: ${file.originalname}`);
+            }
+        }
+        const attachments = files.map((f) => ({
+            fileName: f.originalname,
+            filePath: f.filename,
+            mimeType: f.mimetype,
+        }));
+        await this.maintenanceService.addAttachments(id, attachments, req.user.id);
+        const all = await this.maintenanceService.findAttachments(id);
+        return { data: all, message: `${files.length} arquivo(s) enviado(s)` };
+    }
+
+    @Get(':id/attachments')
+    async listAttachments(@Request() req: any, @Param('id') id: string) {
+        this.assertContractor(req);
+        const os = await this.maintenanceService.findById(id);
+        if (os.openedByContractorId !== req.user.id) {
+            throw new ForbiddenException('OS não pertence a este terceirizado');
+        }
+        const data = await this.maintenanceService.findAttachments(id);
+        return { data };
+    }
+
+    @Get(':id/attachments/:attachmentId/file')
+    async serveFile(
+        @Request() req: any,
+        @Param('id') id: string,
+        @Param('attachmentId') attachmentId: string,
+        @Res() res: Response,
+    ) {
+        this.assertContractor(req);
+        const os = await this.maintenanceService.findById(id);
+        if (os.openedByContractorId !== req.user.id) {
+            throw new ForbiddenException('OS não pertence a este terceirizado');
+        }
+        const attachments = await this.maintenanceService.findAttachments(id);
+        const att = attachments.find((a) => a.id === attachmentId);
+        if (!att) throw new BadRequestException('Anexo não encontrado');
+
+        const filePath = join(UPLOAD_DIR, att.filePath);
+        if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
+
+        if (att.mimeType) res.setHeader('Content-Type', att.mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${att.fileName}"`);
+        return res.sendFile(filePath);
+    }
+
+    @Delete(':id/attachments/:attachmentId')
+    async deleteAttachment(
+        @Request() req: any,
+        @Param('id') id: string,
+        @Param('attachmentId') attachmentId: string,
+    ) {
+        this.assertContractor(req);
+        const os = await this.maintenanceService.findById(id);
+        if (os.openedByContractorId !== req.user.id) {
+            throw new ForbiddenException('OS não pertence a este terceirizado');
+        }
+        const att = await this.maintenanceService.deleteAttachment(id, attachmentId);
+        try {
+            const filePath = join(UPLOAD_DIR, att.filePath);
+            if (existsSync(filePath)) unlinkSync(filePath);
+        } catch { /* ignore */ }
+        return { message: 'Anexo removido' };
     }
 }

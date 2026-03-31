@@ -13,6 +13,8 @@ import {
     updateCompanySchema,
     createExternalUserSchema,
     updateContractorSchema,
+    createProjectSchema,
+    updateProjectSchema,
 } from '@zyllen/shared';
 
 @Controller('clients')
@@ -34,6 +36,15 @@ export class ClientsController {
     @Throttle({ auth: { ttl: 60000, limit: 10 } })
     async searchCompanies(@Query('q') query?: string) {
         const data = await this.clientsService.searchCompanies(query);
+        return { data };
+    }
+
+    // ── Public project list (for registration form, rate-limited) ──
+    @Get('companies/:companyId/projects-public')
+    @UseGuards(ThrottlerGuard)
+    @Throttle({ auth: { ttl: 60000, limit: 10 } })
+    async findProjectsByCompanyPublic(@Param('companyId') companyId: string) {
+        const data = await this.clientsService.findProjectsPublic(companyId);
         return { data };
     }
 
@@ -82,7 +93,7 @@ export class ClientsController {
     @Post('companies')
     @UseGuards(JwtAuthGuard, PermissionsGuard)
     @RequirePermission('settings.manage')
-    async createCompany(@Body(new ZodValidationPipe(createCompanySchema)) body: { name: string; cnpj?: string; address?: string; phone?: string }) {
+    async createCompany(@Body(new ZodValidationPipe(createCompanySchema)) body: { name: string; cnpj?: string; address?: string; city?: string; state?: string; phone?: string }) {
         const data = await this.clientsService.createCompany(body);
         return { data, message: 'Empresa criada com sucesso' };
     }
@@ -90,7 +101,7 @@ export class ClientsController {
     @Put('companies/:id')
     @UseGuards(JwtAuthGuard, PermissionsGuard)
     @RequirePermission('settings.manage')
-    async updateCompany(@Param('id') id: string, @Body(new ZodValidationPipe(updateCompanySchema)) body: { name?: string; cnpj?: string; address?: string; phone?: string }) {
+    async updateCompany(@Param('id') id: string, @Body(new ZodValidationPipe(updateCompanySchema)) body: { name?: string; cnpj?: string; address?: string; city?: string; state?: string; phone?: string }) {
         const data = await this.clientsService.updateCompany(id, body);
         return { data, message: 'Empresa atualizada' };
     }
@@ -101,6 +112,45 @@ export class ClientsController {
     async deleteCompany(@Param('id') id: string) {
         await this.clientsService.deleteCompany(id);
         return { message: 'Empresa excluída' };
+    }
+
+    // ── Projects ──
+    @Get('companies/:companyId/projects')
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @RequirePermission('settings.view')
+    async findProjectsByCompany(@Param('companyId') companyId: string) {
+        const data = await this.clientsService.findProjectsByCompany(companyId);
+        return { data };
+    }
+
+    @Post('companies/:companyId/projects')
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @RequirePermission('settings.manage')
+    async createProject(
+        @Param('companyId') companyId: string,
+        @Body(new ZodValidationPipe(createProjectSchema)) body: { name: string; description?: string },
+    ) {
+        const data = await this.clientsService.createProject(companyId, body);
+        return { data, message: 'Projeto criado com sucesso' };
+    }
+
+    @Put('projects/:id')
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @RequirePermission('settings.manage')
+    async updateProject(
+        @Param('id') id: string,
+        @Body(new ZodValidationPipe(updateProjectSchema)) body: { name?: string; description?: string },
+    ) {
+        const data = await this.clientsService.updateProject(id, body);
+        return { data, message: 'Projeto atualizado' };
+    }
+
+    @Delete('projects/:id')
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @RequirePermission('settings.manage')
+    async deleteProject(@Param('id') id: string) {
+        await this.clientsService.deleteProject(id);
+        return { message: 'Projeto excluído' };
     }
 
     // ── External Users ──
@@ -115,8 +165,13 @@ export class ClientsController {
     @Post('users')
     @UseGuards(JwtAuthGuard, PermissionsGuard)
     @RequirePermission('settings.manage')
-    async createExternalUser(@Body(new ZodValidationPipe(createExternalUserSchema)) body: { name: string; email: string; password: string; companyId: string }) {
-        const data = await this.clientsService.createExternalUser(body);
-        return { data, message: 'Usuário externo criado' };
+    async createExternalUser(@Body(new ZodValidationPipe(createExternalUserSchema)) body: {
+        name: string; email: string; password: string; confirmPassword: string;
+        cpf?: string; phone?: string; position?: string; city?: string; state?: string;
+        companyId: string; projectId?: string;
+    }) {
+        const { confirmPassword, ...data } = body;
+        const result = await this.clientsService.createExternalUser(data);
+        return { data: result, message: 'Usuário externo criado' };
     }
 }

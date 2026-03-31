@@ -154,6 +154,7 @@ export class MaintenanceService {
                 openedBy: { select: { name: true } },
                 openedByContractor: { select: { name: true } },
                 closedBy: { select: { name: true } },
+                attachments: { orderBy: { createdAt: 'desc' } },
             },
         });
         if (!os) throw new NotFoundException('OS não encontrada');
@@ -282,5 +283,43 @@ export class MaintenanceService {
             },
             orderBy: { name: 'asc' },
         });
+    }
+
+    // ── Attachments ──
+
+    async addAttachments(
+        osId: string,
+        files: { fileName: string; filePath: string; mimeType?: string }[],
+        uploadedById?: string,
+    ) {
+        // Verify OS exists
+        await this.findById(osId);
+
+        return this.prisma.maintenanceAttachment.createMany({
+            data: files.map((f) => ({
+                maintenanceOSId: osId,
+                fileName: f.fileName,
+                filePath: f.filePath,
+                mimeType: f.mimeType ?? null,
+                uploadedById: uploadedById ?? null,
+            })),
+        });
+    }
+
+    async findAttachments(osId: string) {
+        return this.prisma.maintenanceAttachment.findMany({
+            where: { maintenanceOSId: osId },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    async deleteAttachment(osId: string, attachmentId: string) {
+        const att = await this.prisma.maintenanceAttachment.findFirst({
+            where: { id: attachmentId, maintenanceOSId: osId },
+        });
+        if (!att) throw new NotFoundException('Anexo não encontrado');
+
+        await this.prisma.maintenanceAttachment.delete({ where: { id: attachmentId } });
+        return att;
     }
 }

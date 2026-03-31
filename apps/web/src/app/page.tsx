@@ -53,7 +53,12 @@ function LoginPageInner() {
   // Redirect if already logged in
   useEffect(() => {
     if (!isLoading && user) {
-      router.replace(REDIRECT_MAP[user.type] || "/dashboard");
+      // Internos role goes directly to chamados-ti
+      if (user.type === "internal" && "role" in user && (user as any).role?.name === "Internos") {
+        router.replace("/dashboard/chamados-ti");
+      } else {
+        router.replace(REDIRECT_MAP[user.type] || "/dashboard");
+      }
     }
   }, [isLoading, user, router]);
 
@@ -63,6 +68,17 @@ function LoginPageInner() {
     try {
       const type = await login(email, password, loginType);
       toast.success(LOGIN_COPY.successToast);
+      // After login, check if the user is Internos role
+      const savedToken = localStorage.getItem("accessToken");
+      if (type === "internal") {
+        try {
+          const meRes = await (await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001') + '/auth/me', { headers: { Authorization: `Bearer ${savedToken}` } })).json();
+          if (meRes?.data?.role?.name === "Internos") {
+            router.push("/dashboard/chamados-ti");
+            return;
+          }
+        } catch {}
+      }
       router.push(REDIRECT_MAP[type] || "/dashboard");
     } catch (err: any) {
       toast.error(err.message || LOGIN_COPY.errorToast);

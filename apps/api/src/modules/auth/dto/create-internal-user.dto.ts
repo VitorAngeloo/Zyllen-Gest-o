@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsUUID, IsOptional, Length, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsUUID, IsOptional } from 'class-validator';
 
 export class CreateInternalUserDto {
     @IsString()
@@ -22,10 +22,4 @@ export class CreateInternalUserDto {
     @IsOptional()
     @IsString()
     description?: string;
-
-    @IsOptional()
-    @IsString()
-    @Length(4, 4, { message: 'PIN deve ter exatamente 4 dígitos' })
-    @Matches(/^\d{4}$/, { message: 'PIN deve conter apenas números' })
-    pin?: string;
 }

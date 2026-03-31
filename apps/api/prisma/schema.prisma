@@ -19,7 +19,7 @@ model InternalUser {
   name         String
   email        String   @unique
   passwordHash String
-  pin4Hash     String   @unique
+  pin4Hash     String?  @unique
   roleId       String
   sector       String?  // Nome do setor
   description  String?  // Descrição do usuário
@@ -32,6 +32,7 @@ model InternalUser {
   approvalRequests    ApprovalRequest[] @relation("RequestedBy")
   approvedRequests    ApprovalRequest[] @relation("ApprovedBy")
   assignedTickets     Ticket[]
+  openedTickets       Ticket[]          @relation("OpenedTickets")
   maintenanceOpened   MaintenanceOS[]   @relation("OpenedBy")
   maintenanceClosed   MaintenanceOS[]   @relation("ClosedBy")
   receivings          Receiving[]
@@ -45,16 +46,19 @@ model ExternalUser {
   name         String
   email        String   @unique
   passwordHash String
+  cpf          String?  @unique // CPF do usuário externo
   phone        String?  // Telefone
   city         String?  // Cidade
   state        String?  // Estado (UF)
   position     String?  // Cargo/Função
   companyId    String?
+  projectId    String?  // Projeto vinculado
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   company  Company?  @relation(fields: [companyId], references: [id])
+  project  Project?  @relation(fields: [projectId], references: [id])
   tickets  Ticket[]
 }
 
@@ -113,13 +117,33 @@ model Company {
   id      String  @id @default(uuid())
   name    String
   cnpj    String? @unique
+  // Campos legados — dados preservados, não usados nos formulários novos
   address String?
+  city    String?
+  state   String?
   phone   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   externalUsers ExternalUser[]
   tickets       Ticket[]
+  projects      Project[]
+}
+
+model Project {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  externalUsers ExternalUser[]
 }
 
 // ─── Catalog & Assets ─────────────────────────
@@ -258,19 +282,23 @@ model Ticket {
   id                        String   @id @default(uuid())
   title                     String
   description               String
-  companyId                 String
-  externalUserId            String
+  companyId                 String?
+  externalUserId            String?
+  internalUserId            String?
+  source                    String   @default("CLIENT") // CLIENT | INTERNAL
   assignedToInternalUserId  String?
   status                    String   @default("OPEN")
   priority                  String   @default("MEDIUM")
+  resolutionNotes           String?
   slaDueAt                  DateTime?
   firstResponseAt           DateTime?
   closedAt                  DateTime?
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
 
-  company      Company       @relation(fields: [companyId], references: [id])
-  externalUser ExternalUser  @relation(fields: [externalUserId], references: [id])
+  company      Company?      @relation(fields: [companyId], references: [id])
+  externalUser ExternalUser? @relation(fields: [externalUserId], references: [id])
+  internalUser InternalUser? @relation("OpenedTickets", fields: [internalUserId], references: [id])
   assignedTo   InternalUser? @relation(fields: [assignedToInternalUserId], references: [id])
   messages     TicketMessage[]
   attachments  TicketAttachment[]
@@ -292,7 +320,7 @@ model TicketAttachment {
   ticketId     String
   fileName     String
   filePath     String
-  uploadedById String
+  uploadedById String?
   createdAt    DateTime @default(now())
 
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
@@ -329,6 +357,19 @@ model MaintenanceOS {
   openedBy           InternalUser?   @relation("OpenedBy", fields: [openedById], references: [id])
   openedByContractor ContractorUser? @relation("OpenedByContractor", fields: [openedByContractorId], references: [id])
   closedBy           InternalUser?   @relation("ClosedBy", fields: [closedById], references: [id])
+  attachments        MaintenanceAttachment[]
+}
+
+model MaintenanceAttachment {
+  id              String   @id @default(uuid())
+  maintenanceOSId String
+  fileName        String
+  filePath        String
+  mimeType        String?
+  uploadedById    String?
+  createdAt       DateTime @default(now())
+
+  maintenanceOS MaintenanceOS @relation(fields: [maintenanceOSId], references: [id], onDelete: Cascade)
 }
 
 // ─── Purchases ────────────────────────────────

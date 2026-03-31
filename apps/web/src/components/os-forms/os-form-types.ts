@@ -89,8 +89,8 @@ export const OS_FORM_CONFIG: Record<OsFormType, OsFormTypeConfig> = {
 
 export const OS_FORM_TYPE_LIST = OS_FORM_TYPES.map((key) => OS_FORM_CONFIG[key]);
 
-// Contractor users can only use the TERCEIRIZADO form type
-export const CONTRACTOR_FORM_TYPES: OsFormType[] = ['TERCEIRIZADO'];
+// Contractor users can use all form types (same as internal Técnico)
+export const CONTRACTOR_FORM_TYPES: OsFormType[] = [...OS_FORM_TYPES];
 
 // Internal users can use all form types
 export const INTERNAL_FORM_TYPES: OsFormType[] = [...OS_FORM_TYPES];

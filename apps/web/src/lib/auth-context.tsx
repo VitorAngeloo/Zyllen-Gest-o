@@ -35,9 +35,11 @@ interface AuthContextType {
     permissions: string[];
     userType: UserType | null;
     isLoading: boolean;
+    needsPin: boolean;
     login: (email: string, password: string, type?: UserType) => Promise<UserType>;
     logout: () => void;
     hasPermission: (perm: string) => boolean;
+    clearNeedsPin: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -47,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [token, setToken] = useState<string | null>(null);
     const [permissions, setPermissions] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [needsPin, setNeedsPin] = useState(false);
 
     const authHeaders = useCallback(
         (t: string) => ({ headers: { Authorization: `Bearer ${t}` } }),
@@ -133,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             accessToken: string;
             refreshToken: string;
             user: User;
+            needsPin?: boolean;
         }>(endpoints[type], { email, password });
 
         localStorage.setItem("accessToken", res.accessToken);
@@ -140,6 +144,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("userType", type);
         setToken(res.accessToken);
         setUser(res.user);
+
+        // Check if internal user needs to set PIN on first access
+        if (type === "internal" && res.needsPin) {
+            setNeedsPin(true);
+        }
 
         // Load permissions only for internal users
         if (type === "internal") {
@@ -159,12 +168,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return type;
     };
 
-    const hasPermission = (perm: string) => permissions.includes(perm);
+    const hasPermission = (perm: string) => {
+        // Administrador has full access
+        if (user && 'role' in user && (user as InternalUser).role?.name === 'Administrador') {
+            return true;
+        }
+        return permissions.includes(perm);
+    };
+
+    const clearNeedsPin = () => setNeedsPin(false);
 
     const userType: UserType | null = user?.type ?? null;
 
     return (
-        <AuthContext.Provider value={{ user, token, permissions, userType, isLoading, login, logout, hasPermission }}>
+        <AuthContext.Provider value={{ user, token, permissions, userType, isLoading, needsPin, login, logout, hasPermission, clearNeedsPin }}>
             {children}
         </AuthContext.Provider>
     );

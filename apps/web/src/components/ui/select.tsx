@@ -30,6 +30,7 @@ function SelectNative({
                 data-slot="select"
                 value={value}
                 onChange={(e) => onValueChange?.(e.target.value)}
+                style={{ colorScheme: 'dark' }}
                 className={cn(
                     "flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs",
                     "placeholder:text-muted-foreground focus:outline-none focus:ring-[3px] focus:ring-ring/50 focus:border-ring",

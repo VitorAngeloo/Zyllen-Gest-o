@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import { AppController } from './app.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -29,6 +31,11 @@ import { ProductExitsModule } from './modules/product-exits/product-exits.module
             limit: 10,    // max 10 requests per window
             name: 'auth',
         }]),
+        ServeStaticModule.forRoot({
+            rootPath: join(__dirname, '..', 'uploads'),
+            serveRoot: '/uploads',
+            serveStaticOptions: { index: false },
+        }),
         PrismaModule,
         AuthModule,
         AccessModule,

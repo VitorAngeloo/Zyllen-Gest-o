@@ -1,11 +1,21 @@
 "use client";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
+import { MediaUploader, type MediaAttachment } from "./media-uploader";
+import { SignaturePad } from "./signature-pad";
 
 export interface OsFormFieldsProps {
     formData: Record<string, any>;
     onChange: (data: Record<string, any>) => void;
     readOnly?: boolean;
+    /** OS id — needed for media upload. Only available in edit mode. */
+    osId?: string;
+    /** Existing attachments from the server */
+    attachments?: MediaAttachment[];
+    /** Callback to refresh attachments after upload/delete */
+    onRefreshAttachments?: () => void;
+    /** API base path for attachments (e.g. '/maintenance' or '/contractor/maintenance') */
+    apiBasePath?: string;
 }
 
 // CSS classes used across all forms
@@ -24,7 +34,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ═══════════════════════════════════════════════════
 // 1. INSTALAÇÃO DE SALA
 // ═══════════════════════════════════════════════════
-export function InstalacaoSalaFormFields({ formData, onChange, readOnly }: OsFormFieldsProps) {
+export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -139,6 +149,8 @@ export function InstalacaoSalaFormFields({ formData, onChange, readOnly }: OsFor
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
                     <textarea placeholder="Detalhes sobre a instalação do projeto..." value={formData.logbook || ""} onChange={(e) => u("logbook", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
@@ -155,10 +167,7 @@ export function InstalacaoSalaFormFields({ formData, onChange, readOnly }: OsFor
                     </div>
                 </div>
 
-                <div className="space-y-2">
-                    <Label className="text-[var(--zyllen-muted)]">Assinatura eletrônica de quem acompanhou</Label>
-                    <Input placeholder="Nome por extenso (assinatura)" value={formData.witnessSignature || ""} onChange={(e) => u("witnessSignature", e.target.value)} readOnly={readOnly} className={inputCls} />
-                </div>
+                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} readOnly={readOnly} />
             </div>
         </div>
     );
@@ -167,7 +176,7 @@ export function InstalacaoSalaFormFields({ formData, onChange, readOnly }: OsFor
 // ═══════════════════════════════════════════════════
 // 2. INSTALAÇÃO DE TELA
 // ═══════════════════════════════════════════════════
-export function InstalacaoTelaFormFields({ formData, onChange, readOnly }: OsFormFieldsProps) {
+export function InstalacaoTelaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -234,6 +243,8 @@ export function InstalacaoTelaFormFields({ formData, onChange, readOnly }: OsFor
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
                     <textarea placeholder="Detalhes sobre a instalação do projeto..." value={formData.logbook || ""} onChange={(e) => u("logbook", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
@@ -250,10 +261,7 @@ export function InstalacaoTelaFormFields({ formData, onChange, readOnly }: OsFor
                     </div>
                 </div>
 
-                <div className="space-y-2">
-                    <Label className="text-[var(--zyllen-muted)]">Assinatura eletrônica de quem acompanhou</Label>
-                    <Input placeholder="Nome por extenso (assinatura)" value={formData.witnessSignature || ""} onChange={(e) => u("witnessSignature", e.target.value)} readOnly={readOnly} className={inputCls} />
-                </div>
+                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} readOnly={readOnly} />
             </div>
         </div>
     );
@@ -262,7 +270,7 @@ export function InstalacaoTelaFormFields({ formData, onChange, readOnly }: OsFor
 // ═══════════════════════════════════════════════════
 // 3. DESINSTALAÇÃO
 // ═══════════════════════════════════════════════════
-export function DesinstalacaoFormFields({ formData, onChange, readOnly }: OsFormFieldsProps) {
+export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -296,6 +304,8 @@ export function DesinstalacaoFormFields({ formData, onChange, readOnly }: OsForm
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
                     <textarea placeholder="Detalhes sobre a desinstalação..." value={formData.logbook || ""} onChange={(e) => u("logbook", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
@@ -312,10 +322,7 @@ export function DesinstalacaoFormFields({ formData, onChange, readOnly }: OsForm
                     </div>
                 </div>
 
-                <div className="space-y-2">
-                    <Label className="text-[var(--zyllen-muted)]">Assinatura eletrônica de quem acompanhou</Label>
-                    <Input placeholder="Nome por extenso (assinatura)" value={formData.witnessSignature || ""} onChange={(e) => u("witnessSignature", e.target.value)} readOnly={readOnly} className={inputCls} />
-                </div>
+                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} readOnly={readOnly} />
             </div>
         </div>
     );
@@ -324,7 +331,7 @@ export function DesinstalacaoFormFields({ formData, onChange, readOnly }: OsForm
 // ═══════════════════════════════════════════════════
 // 4. MANUTENÇÃO (Tela/Sala)
 // ═══════════════════════════════════════════════════
-export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly }: OsFormFieldsProps) {
+export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -362,6 +369,8 @@ export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly }: O
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
                     <textarea placeholder="Detalhes sobre a manutenção..." value={formData.logbook || ""} onChange={(e) => u("logbook", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
@@ -378,10 +387,7 @@ export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly }: O
                     </div>
                 </div>
 
-                <div className="space-y-2">
-                    <Label className="text-[var(--zyllen-muted)]">Assinatura eletrônica de quem acompanhou</Label>
-                    <Input placeholder="Nome por extenso (assinatura)" value={formData.witnessSignature || ""} onChange={(e) => u("witnessSignature", e.target.value)} readOnly={readOnly} className={inputCls} />
-                </div>
+                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} readOnly={readOnly} />
             </div>
         </div>
     );
@@ -390,7 +396,7 @@ export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly }: O
 // ═══════════════════════════════════════════════════
 // 5. SUPORTE REMOTO
 // ═══════════════════════════════════════════════════
-export function SuporteRemotoFormFields({ formData, onChange, readOnly }: OsFormFieldsProps) {
+export function SuporteRemotoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -414,9 +420,11 @@ export function SuporteRemotoFormFields({ formData, onChange, readOnly }: OsForm
                 </div>
             </div>
 
-            {/* Fim do Trabalho — Suporte Remoto: sem fotos, sem assinatura */}
+            {/* Fim do Trabalho — Suporte Remoto */}
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
+
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
@@ -444,6 +452,7 @@ export function SuporteRemotoFormFields({ formData, onChange, readOnly }: OsForm
                         <Input placeholder="Nome do técnico acionado" value={formData.rsTechnicianName || ""} onChange={(e) => u("rsTechnicianName", e.target.value)} readOnly={readOnly} className={inputCls} />
                     </div>
                 )}
+
             </div>
         </div>
     );
@@ -452,7 +461,7 @@ export function SuporteRemotoFormFields({ formData, onChange, readOnly }: OsForm
 // ═══════════════════════════════════════════════════
 // 6. TERCEIRIZADO
 // ═══════════════════════════════════════════════════
-export function TerceirizadoFormFields({ formData, onChange, readOnly }: OsFormFieldsProps) {
+export function TerceirizadoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -501,6 +510,8 @@ export function TerceirizadoFormFields({ formData, onChange, readOnly }: OsFormF
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label className="text-[var(--zyllen-muted)]">Analista Skyline que acompanhou</Label>
@@ -513,13 +524,11 @@ export function TerceirizadoFormFields({ formData, onChange, readOnly }: OsFormF
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label className="text-[var(--zyllen-muted)]">Assinatura de quem acompanhou</Label>
-                        <Input placeholder="Nome por extenso (assinatura)" value={formData.witnessSignature || ""} onChange={(e) => u("witnessSignature", e.target.value)} readOnly={readOnly} className={inputCls} />
+                    <div>
+                        <SignaturePad label="Assinatura de quem acompanhou" value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} readOnly={readOnly} />
                     </div>
-                    <div className="space-y-2">
-                        <Label className="text-[var(--zyllen-muted)]">Assinatura do técnico</Label>
-                        <Input placeholder="Nome por extenso (assinatura)" value={formData.technicianSignature || ""} onChange={(e) => u("technicianSignature", e.target.value)} readOnly={readOnly} className={inputCls} />
+                    <div>
+                        <SignaturePad label="Assinatura do técnico" value={formData.technicianSignature || ""} onChange={(v) => u("technicianSignature", v)} readOnly={readOnly} />
                     </div>
                 </div>
             </div>

@@ -1,11 +1,30 @@
 import {
     Controller, Get, Post, Body, Param, Query, UseGuards, Request,
-    ForbiddenException,
+    ForbiddenException, UseInterceptors, UploadedFiles, BadRequestException,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TicketsService } from '../tickets/tickets.service';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
-import { createTicketMessageSchema } from '@zyllen/shared';
+
+// Ensure uploads directory exists
+const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'tickets');
+if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const ticketStorage = diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+    filename: (_req, file, cb) => {
+        const unique = randomUUID();
+        const ext = extname(file.originalname) || '.bin';
+        cb(null, `${unique}${ext}`);
+    },
+});
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktime|x-msvideo))$/;
 
 /**
  * Client-facing ticket endpoints.
@@ -21,6 +40,14 @@ export class ClientTicketsController {
         if (req.user?.type !== 'external') {
             throw new ForbiddenException('Acesso restrito a clientes');
         }
+    }
+
+    // ── Current active ticket ──
+    @Get('current')
+    async currentTicket(@Request() req: any) {
+        this.assertExternal(req);
+        const data = await this.ticketsService.findCurrentForUser(req.user.id);
+        return { data };
     }
 
     @Get()
@@ -53,35 +80,84 @@ export class ClientTicketsController {
         return { data: ticket };
     }
 
+    // ── Create ticket with file upload ──
     @Post()
+    @UseInterceptors(FilesInterceptor('files', 10, {
+        storage: ticketStorage,
+        limits: { fileSize: MAX_FILE_SIZE },
+        fileFilter: (_req, file, cb) => {
+            if (ALLOWED_MIME.test(file.mimetype)) {
+                cb(null, true);
+            } else {
+                cb(new BadRequestException(`Tipo de arquivo não permitido: ${file.mimetype}`), false);
+            }
+        },
+    }))
     async createTicket(
         @Request() req: any,
-        @Body() body: { title: string; description: string; priority?: string },
+        @Body('description') description: string,
+        @UploadedFiles() files: Express.Multer.File[],
     ) {
         this.assertExternal(req);
-        const data = await this.ticketsService.create({
-            title: body.title,
-            description: body.description,
+
+        if (!description || description.trim().length < 10) {
+            throw new BadRequestException('Descreva o problema com pelo menos 10 caracteres');
+        }
+        if (!files || files.length === 0) {
+            throw new BadRequestException('Anexe pelo menos uma foto ou vídeo do problema');
+        }
+
+        const attachments = files.map((f) => ({
+            fileName: f.originalname,
+            filePath: `/uploads/tickets/${f.filename}`,
+        }));
+
+        const data = await this.ticketsService.createWithAttachments({
+            description: description.trim(),
             companyId: req.user.companyId,
             externalUserId: req.user.id,
-            priority: body.priority,
+            files: attachments,
         });
         return { data, message: 'Chamado criado com sucesso' };
     }
 
-    @Post(':id/messages')
-    async addMessage(
+    // ── Add attachments to existing ticket ──
+    @Post(':id/attachments')
+    @UseInterceptors(FilesInterceptor('files', 10, {
+        storage: ticketStorage,
+        limits: { fileSize: MAX_FILE_SIZE },
+        fileFilter: (_req, file, cb) => {
+            if (ALLOWED_MIME.test(file.mimetype)) {
+                cb(null, true);
+            } else {
+                cb(new BadRequestException(`Tipo de arquivo não permitido: ${file.mimetype}`), false);
+            }
+        },
+    }))
+    async addAttachments(
         @Request() req: any,
         @Param('id') id: string,
-        @Body(new ZodValidationPipe(createTicketMessageSchema)) body: { content: string },
+        @UploadedFiles() files: Express.Multer.File[],
     ) {
         this.assertExternal(req);
-        // Verify ownership
         const ticket = await this.ticketsService.findById(id);
         if (ticket.externalUserId !== req.user.id) {
             throw new ForbiddenException('Chamado não pertence a este usuário');
         }
-        const data = await this.ticketsService.addMessage(id, req.user.id, 'external', body.content);
-        return { data };
+        if (!files || files.length === 0) {
+            throw new BadRequestException('Nenhum arquivo enviado');
+        }
+
+        const attachments = files.map((f) => ({
+            fileName: f.originalname,
+            filePath: `/uploads/tickets/${f.filename}`,
+        }));
+
+        await this.ticketsService.addAttachments(id, req.user.id, attachments);
+        return { message: 'Anexos adicionados com sucesso' };
     }
+
+    // Chat removido do portal cliente — mantido apenas para chamados internos (colaboradores)
+    // @Post(':id/messages')
+    // async addMessage(...) { ... }
 }
