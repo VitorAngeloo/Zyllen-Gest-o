@@ -10,7 +10,7 @@ import {
 import { useState, useEffect } from "react";
 import { cn } from "@web/lib/utils";
 import { Breadcrumb } from "@web/components/ui/breadcrumb";
-import { ZyllenIcon, ZyllenTextLogo } from "@web/components/brand/zyllen-logo";
+import { ZyllenIcon, ZyllenTextLogo, SkyLineLogo } from "@web/components/brand/zyllen-logo";
 
 const NAV_ITEMS: { label: string; href: string; icon: any; perm?: string }[] = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, perm: "dashboard.view" },
@@ -62,11 +62,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const sidebarContent = (
         <>
-            {/* Logo */}
+            {/* Logo — Partnership */}
             <div className="flex items-center gap-3 px-4 h-16 border-b border-[var(--zyllen-border)] shrink-0">
                 <ZyllenIcon height={collapsed && !mobileOpen ? 28 : 32} />
                 {(!collapsed || mobileOpen) && (
-                    <ZyllenTextLogo size="default" />
+                    <>
+                        <ZyllenTextLogo size="default" />
+                        <div className="h-5 w-px bg-[var(--zyllen-border)]" />
+                        <SkyLineLogo height={22} />
+                    </>
                 )}
                 {/* Desktop collapse button */}
                 <button
@@ -174,6 +178,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <div className="flex items-center gap-2">
                         <ZyllenIcon height={26} />
                         <ZyllenTextLogo size="sm" />
+                        <div className="h-4 w-px bg-[var(--zyllen-border)]" />
+                        <SkyLineLogo height={18} />
                     </div>
                     <div className="ml-auto flex items-center gap-2">
                         <Link

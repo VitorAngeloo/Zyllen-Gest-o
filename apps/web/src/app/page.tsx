@@ -9,7 +9,7 @@ import { Label } from "@web/components/ui/label";
 import { toast } from "sonner";
 import { Eye, EyeOff, LogIn, Building2, HardHat, Users } from "lucide-react";
 import Link from "next/link";
-import { ZyllenLogoFull, ZyllenTextLogo } from "@web/components/brand/zyllen-logo";
+import { ZyllenLogoFull, ZyllenTextLogo, PartnershipLogos } from "@web/components/brand/zyllen-logo";
 import { DiagonalPattern, ZPattern } from "@web/components/brand/geometric-elements";
 import { LOGIN_COPY } from "@web/lib/brand-voice";
 
@@ -91,7 +91,7 @@ function LoginPageInner() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--zyllen-bg-dark)]">
         <div className="animate-pulse flex flex-col items-center gap-4">
-          <ZyllenLogoFull height={64} />
+          <PartnershipLogos height={56} variant="horizontal" />
           <div className="h-[2px] w-32 bg-[var(--zyllen-highlight)] clip-angle-r animate-pulse" />
         </div>
       </div>
@@ -120,9 +120,9 @@ function LoginPageInner() {
 
         {/* Brand content */}
         <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 w-full">
-          {/* Logo */}
+          {/* Logo — Partnership */}
           <div>
-            <ZyllenLogoFull height={70} />
+            <PartnershipLogos height={60} variant="horizontal" />
           </div>
 
           {/* Tagline */}
@@ -139,7 +139,7 @@ function LoginPageInner() {
 
           {/* Footer info */}
           <div className="flex items-center gap-6 text-xs text-[var(--zyllen-muted)]/60">
-            <span>Zyllen Systems © 2026</span>
+            <span>Zyllen Systems & Grupo Sky Line © 2026</span>
             <div className="h-3 w-px bg-[var(--zyllen-border)]" />
             <span>Todos os direitos reservados</span>
           </div>
@@ -150,7 +150,7 @@ function LoginPageInner() {
       <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 relative">
         {/* Mobile logo (visible only on small screens) */}
         <div className="lg:hidden flex flex-col items-center gap-4 mb-8">
-          <ZyllenLogoFull height={56} />
+          <PartnershipLogos height={48} variant="vertical" />
           <div className="h-[2px] w-16 bg-[var(--zyllen-highlight)] clip-angle-r" />
         </div>
 

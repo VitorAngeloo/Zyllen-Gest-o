@@ -124,3 +124,66 @@ export function ZyllenBrandHeader({
     </div>
   );
 }
+
+/**
+ * Grupo Sky Line logo mark.
+ */
+export function SkyLineLogo({ height = 32, className }: { height?: number; className?: string }) {
+  return (
+    <img
+      src="/brand/logo-skyline.svg"
+      alt="Grupo Sky Line"
+      className={className}
+      style={{ height: typeof height === "number" ? `${height}px` : height, width: "auto" }}
+    />
+  );
+}
+
+/**
+ * Partnership logo block — shows both Zyllen and Grupo Sky Line logos
+ * separated by a divider, indicating the partnership.
+ */
+export function PartnershipLogos({
+  height = 48,
+  variant = "horizontal",
+  className,
+}: {
+  height?: number;
+  variant?: "horizontal" | "vertical" | "compact";
+  className?: string;
+}) {
+  if (variant === "compact") {
+    return (
+      <div className={`flex items-center gap-2 ${className || ""}`}>
+        <ZyllenIcon height={height * 0.65} />
+        <div className="h-5 w-px bg-[var(--zyllen-border)]" />
+        <SkyLineLogo height={height * 0.5} />
+      </div>
+    );
+  }
+
+  if (variant === "vertical") {
+    return (
+      <div className={`flex flex-col items-center gap-3 ${className || ""}`}>
+        <ZyllenLogoFull height={height} />
+        <div className="flex items-center gap-2">
+          <div className="h-px w-6 bg-[var(--zyllen-border)]" />
+          <span className="text-[9px] uppercase tracking-[0.3em] text-[var(--zyllen-muted)]">Parceria</span>
+          <div className="h-px w-6 bg-[var(--zyllen-border)]" />
+        </div>
+        <SkyLineLogo height={height * 0.65} />
+      </div>
+    );
+  }
+
+  // horizontal (default)
+  return (
+    <div className={`flex items-center gap-4 ${className || ""}`}>
+      <ZyllenLogoFull height={height} />
+      <div className="flex flex-col items-center gap-0.5">
+        <div className="h-6 w-px bg-[var(--zyllen-border)]" />
+      </div>
+      <SkyLineLogo height={height * 0.65} />
+    </div>
+  );
+}
