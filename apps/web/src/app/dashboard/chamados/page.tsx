@@ -76,7 +76,7 @@ export default function ChamadosPage() {
     const [delegateUserId, setDelegateUserId] = useState("");
     const [modalLoading, setModalLoading] = useState(false);
 
-    const isAdminOrGestor = user?.role?.name === "Administrador" || user?.role?.name === "Gestor";
+    const isAdminOrGestor = user && "role" in user && (user.role?.name === "Administrador" || user.role?.name === "Gestor");
 
     const { data: tickets, isLoading: loadingTickets } = useQuery({
         queryKey: ["tickets"],

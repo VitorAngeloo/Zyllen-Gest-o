@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
-  allowedDevOrigins: ["192.168.50.225"],
+  transpilePackages: ["@zyllen/shared"],
 };
 
 export default nextConfig;
