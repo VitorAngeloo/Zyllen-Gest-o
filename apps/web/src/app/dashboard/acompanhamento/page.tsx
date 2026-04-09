@@ -10,8 +10,9 @@ import { toast } from "sonner";
 import {
     ClipboardList, Plus, ArrowLeft, Search, Trash2, Edit, MessageSquare,
     Image, FileText, Send, X, ChevronDown, Clock, Building2, User, Phone,
-    History, MoreVertical, Upload,
+    History, MoreVertical, Upload, Printer,
 } from "lucide-react";
+import { printFollowupPdf } from "@web/lib/followup-pdf";
 import { Skeleton } from "@web/components/ui/skeleton";
 
 // ─── Types ──────────────────────────────────────
@@ -487,6 +488,25 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
                             <option value="COMPLETED">Concluído</option>
                         </select>
                     )}
+                    <Button
+                        variant="ghost" size="sm"
+                        onClick={() => printFollowupPdf({
+                            code: followup.code,
+                            status: followup.status,
+                            createdAt: followup.createdAt,
+                            updatedAt: followup.updatedAt,
+                            responsibleName: followup.responsibleName,
+                            responsibleContact: followup.responsibleContact,
+                            company: followup.company,
+                            createdBy: followup.createdBy,
+                            blocks: followup.blocks ?? [],
+                            apiBaseUrl: API_URL,
+                            followupId: followup.id,
+                        })}
+                        className="text-[var(--zyllen-muted)] hover:text-white gap-1"
+                    >
+                        <Printer size={16} /> Exportar PDF
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => setShowHistory(!showHistory)} className="text-[var(--zyllen-muted)] hover:text-white gap-1">
                         <History size={16} /> Histórico
                     </Button>
