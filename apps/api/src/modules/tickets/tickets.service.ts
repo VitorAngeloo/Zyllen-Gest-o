@@ -148,8 +148,9 @@ export class TicketsService {
                 where,
                 include: {
                     company: { select: { name: true } },
-                    externalUser: { select: { name: true } },
-                    assignedTo: { select: { name: true } },
+                    externalUser: { select: { name: true, company: { select: { name: true } } } },
+                    internalUser: { select: { name: true, sector: true } },
+                    assignedTo: { select: { name: true, sector: true } },
                 },
                 orderBy: { createdAt: 'desc' },
                 ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
@@ -172,7 +173,8 @@ export class TicketsService {
                         project: { select: { name: true } },
                     },
                 },
-                assignedTo: { select: { name: true, email: true } },
+                internalUser: { select: { name: true, sector: true } },
+                assignedTo: { select: { name: true, email: true, sector: true } },
                 messages: { orderBy: { createdAt: 'asc' } },
                 attachments: true,
             },
@@ -242,12 +244,18 @@ export class TicketsService {
         const valid = await this.authService.validatePin(userId, pin);
         if (!valid) throw new ForbiddenException('PIN inválido');
 
+        const now = new Date();
+        const elapsedSeconds = ticket.firstResponseAt
+            ? Math.floor((now.getTime() - new Date(ticket.firstResponseAt).getTime()) / 1000)
+            : null;
+
         return this.prisma.ticket.update({
             where: { id: ticketId },
             data: {
                 status: 'CLOSED',
                 resolutionNotes,
-                closedAt: new Date(),
+                closedAt: now,
+                elapsedSeconds,
             },
         });
     }

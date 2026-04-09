@@ -26,6 +26,15 @@ const STATUS_LABELS: Record<string, string> = {
     RESOLVED: "Resolvido", CLOSED: "Encerrado",
 };
 
+function formatElapsedSeconds(sec: number): string {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}h ${String(m).padStart(2, "0")}min ${String(s).padStart(2, "0")}s`;
+    if (m > 0) return `${m}min ${String(s).padStart(2, "0")}s`;
+    return `${s}s`;
+}
+
 /* ── Pin Modal ── */
 function PinModal({ title, onConfirm, onCancel, loading, children }: {
     title: string; onConfirm: (pin: string) => void; onCancel: () => void; loading: boolean; children?: React.ReactNode;
@@ -412,13 +421,20 @@ export default function ChamadosPage() {
                                             </span>
                                             <span className="text-[var(--zyllen-border)]">·</span>
                                             <span className="text-xs text-[var(--zyllen-muted)] flex items-center gap-1">
-                                                <User size={11} /> {t.externalUser?.name ?? "—"}
+                                                <User size={11} /> {t.externalUser?.name ?? t.internalUser?.name ?? "—"}
+                                                {t.internalUser?.sector && !t.externalUser?.name && (
+                                                    <span className="text-[var(--zyllen-muted)]/60">({t.internalUser.sector})</span>
+                                                )}
                                             </span>
+                                            {t.internalUser?.name && !t.externalUser?.name && (
+                                                <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Interno</Badge>
+                                            )}
                                             {t.assignedTo && (
                                                 <>
                                                     <span className="text-[var(--zyllen-border)]">·</span>
                                                     <span className="text-xs text-[var(--zyllen-muted)] flex items-center gap-1">
                                                         <Shield size={11} /> {t.assignedTo.name}
+                                                        {t.assignedTo.sector && <span className="text-[var(--zyllen-muted)]/60">({t.assignedTo.sector})</span>}
                                                     </span>
                                                 </>
                                             )}
@@ -481,10 +497,21 @@ export default function ChamadosPage() {
 
                                             {/* Ticket meta */}
                                             <div className="flex flex-wrap gap-4 text-xs text-[var(--zyllen-muted)]">
+                                                <span>Aberto por: <span className="text-white">{d.externalUser?.name ?? d.internalUser?.name ?? "—"}{d.internalUser?.sector && !d.externalUser?.name ? ` (${d.internalUser.sector})` : ""}</span></span>
                                                 <span><Clock size={12} className="inline mr-1" />SLA: {d.slaDueAt ? new Date(d.slaDueAt).toLocaleString("pt-BR") : "—"}</span>
-                                                <span>Técnico: <span className="text-white">{d.assignedTo?.name ?? "Não atribuído"}</span></span>
+                                                <span>Técnico: <span className="text-white">{d.assignedTo?.name ?? "Não atribuído"}{d.assignedTo?.sector ? ` (${d.assignedTo.sector})` : ""}</span></span>
                                                 <span>Criado: {new Date(d.createdAt).toLocaleString("pt-BR")}</span>
                                                 {d.closedAt && <span>Fechado: {new Date(d.closedAt).toLocaleString("pt-BR")}</span>}
+                                                {d.elapsedSeconds != null && (
+                                                    <span className="text-emerald-400 font-medium">
+                                                        <Clock size={12} className="inline mr-1" />Tempo de atendimento: {formatElapsedSeconds(d.elapsedSeconds)}
+                                                    </span>
+                                                )}
+                                                {d.firstResponseAt && !d.closedAt && (
+                                                    <span className="text-blue-400 font-medium">
+                                                        <Clock size={12} className="inline mr-1" />Assumido: {new Date(d.firstResponseAt).toLocaleString("pt-BR")}
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {/* Attachments */}

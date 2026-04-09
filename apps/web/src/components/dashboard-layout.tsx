@@ -5,7 +5,7 @@ import { useAuth } from "@web/lib/auth-context";
 import {
     LayoutDashboard, Package, ScanBarcode, ShoppingCart,
     Headset, Wrench, Database, ShieldCheck, LogOut, ChevronLeft, Menu,
-    Tag, Building2, Users, UserCircle, Key, X, FileText, HardHat, MessageSquareText
+    Tag, Building2, Users, UserCircle, Key, X, FileText, HardHat, MessageSquareText, ClipboardList
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@web/lib/utils";
@@ -18,6 +18,7 @@ const NAV_ITEMS: { label: string; href: string; icon: any; perm?: string }[] = [
     { label: "Chamados", href: "/dashboard/chamados", icon: Headset, perm: "tickets.view" },
     { label: "Minhas OS", href: "/dashboard/minhas-os", icon: FileText, perm: "maintenance.view" },
     { label: "Manutenção", href: "/dashboard/manutencao", icon: Wrench, perm: "maintenance.view" },
+    { label: "Acompanhamento", href: "/dashboard/acompanhamento", icon: ClipboardList, perm: "followups.view" },
 
     { label: "Estoque", href: "/dashboard/estoque", icon: Package, perm: "inventory.view" },
     { label: "Patrimônio", href: "/dashboard/patrimonio", icon: ScanBarcode, perm: "assets.view" },

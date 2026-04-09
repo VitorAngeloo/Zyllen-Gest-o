@@ -39,6 +39,9 @@ model InternalUser {
   labelPrintJobs      LabelPrintJob[]
   auditLogs           AuditLog[]
   productExits        ProductExit[]
+  followupsCreated    Followup[]        @relation("FollowupCreatedBy")
+  followupComments    FollowupComment[] @relation("FollowupComments")
+  followupHistory     FollowupHistory[] @relation("FollowupHistoryUser")
 }
 
 model ExternalUser {
@@ -128,6 +131,7 @@ model Company {
   externalUsers ExternalUser[]
   tickets       Ticket[]
   projects      Project[]
+  followups     Followup[]
 }
 
 model Project {
@@ -290,6 +294,7 @@ model Ticket {
   status                    String   @default("OPEN")
   priority                  String   @default("MEDIUM")
   resolutionNotes           String?
+  elapsedSeconds            Int?
   slaDueAt                  DateTime?
   firstResponseAt           DateTime?
   closedAt                  DateTime?
@@ -462,6 +467,75 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   user InternalUser @relation(fields: [userId], references: [id])
+}
+
+// ─── Followups (Acompanhamento) ───────────────
+
+model Followup {
+  id                String   @id @default(uuid())
+  code              String   @unique
+  companyId         String
+  createdById       String
+  responsibleName   String?  // Nome do responsável do cliente
+  responsibleContact String? // Contato do responsável
+  status            String   @default("IN_PROGRESS") // IN_PROGRESS | PENDING | COMPLETED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company   Company      @relation(fields: [companyId], references: [id])
+  createdBy InternalUser @relation("FollowupCreatedBy", fields: [createdById], references: [id])
+  blocks    FollowupBlock[]
+  history   FollowupHistory[]
+}
+
+model FollowupBlock {
+  id         String   @id @default(uuid())
+  followupId String
+  type       String   // TEXT | MEDIA
+  title      String?
+  content    String?  // Texto para blocos TEXT
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  followup    Followup                 @relation(fields: [followupId], references: [id], onDelete: Cascade)
+  attachments FollowupBlockAttachment[]
+  comments    FollowupComment[]
+}
+
+model FollowupBlockAttachment {
+  id           String   @id @default(uuid())
+  blockId      String
+  fileName     String
+  filePath     String
+  mimeType     String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  block FollowupBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+}
+
+model FollowupComment {
+  id        String   @id @default(uuid())
+  blockId   String
+  authorId  String
+  text      String
+  createdAt DateTime @default(now())
+
+  block  FollowupBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  author InternalUser  @relation("FollowupComments", fields: [authorId], references: [id])
+}
+
+model FollowupHistory {
+  id         String   @id @default(uuid())
+  followupId String
+  userId     String
+  action     String
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  followup Followup     @relation(fields: [followupId], references: [id], onDelete: Cascade)
+  user     InternalUser @relation("FollowupHistoryUser", fields: [userId], references: [id])
 }
 
 // ─── Product Exits ────────────────────────────

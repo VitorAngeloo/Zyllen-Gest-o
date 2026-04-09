@@ -19,6 +19,7 @@ import { PurchasesModule } from './modules/purchases/purchases.module';
 import { LabelsModule } from './modules/labels/labels.module';
 import { RegistrationModule } from './modules/registration/registration.module';
 import { ProductExitsModule } from './modules/product-exits/product-exits.module';
+import { FollowupsModule } from './modules/followups/followups.module';
 
 @Module({
     imports: [
@@ -51,6 +52,7 @@ import { ProductExitsModule } from './modules/product-exits/product-exits.module
         LabelsModule,
         RegistrationModule,
         ProductExitsModule,
+        FollowupsModule,
     ],
     controllers: [AppController],
 })

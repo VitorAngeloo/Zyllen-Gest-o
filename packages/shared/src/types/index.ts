@@ -42,6 +42,13 @@ export enum MaintenanceStatus {
     CLOSED = 'CLOSED',
 }
 
+// ── Followup Status ──
+export enum FollowupStatus {
+    IN_PROGRESS = 'IN_PROGRESS',
+    PENDING = 'PENDING',
+    COMPLETED = 'COMPLETED',
+}
+
 // ── Purchase Order Status ──
 export enum PurchaseOrderStatus {
     DRAFT = 'DRAFT',

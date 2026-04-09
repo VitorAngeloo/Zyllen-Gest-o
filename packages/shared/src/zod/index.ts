@@ -441,6 +441,34 @@ export const paginationSchema = z.object({
     search: z.string().optional(),
 });
 
+// ── Followups (Acompanhamento) ──
+export const createFollowupSchema = z.object({
+    companyId: z.string().uuid('ID da empresa inválido'),
+    responsibleName: z.string().max(200).optional(),
+    responsibleContact: z.string().max(200).optional(),
+});
+
+export const updateFollowupSchema = z.object({
+    responsibleName: z.string().max(200).optional(),
+    responsibleContact: z.string().max(200).optional(),
+    status: z.enum(['IN_PROGRESS', 'PENDING', 'COMPLETED']).optional(),
+});
+
+export const createFollowupBlockSchema = z.object({
+    type: z.enum(['TEXT', 'MEDIA']),
+    title: z.string().max(300).optional(),
+    content: z.string().optional(),
+});
+
+export const updateFollowupBlockSchema = z.object({
+    title: z.string().max(300).optional(),
+    content: z.string().optional(),
+});
+
+export const createFollowupCommentSchema = z.object({
+    text: z.string().min(1, 'Comentário não pode ser vazio').max(2000),
+});
+
 // ── Product Exit ──
 export const createProductExitSchema = z.object({
     skuId: z.string().uuid('SKU ID inválido'),
