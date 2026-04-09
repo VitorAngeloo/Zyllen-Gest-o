@@ -32,6 +32,8 @@ export interface FollowupPdfData {
     /** base URL to build attachment image URLs – e.g. http://localhost:3001 */
     apiBaseUrl: string;
     followupId: string;
+    /** JWT token appended as ?token= for authenticated file access */
+    token?: string | null;
 }
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
@@ -77,7 +79,8 @@ function buildBlocksHtml(data: FollowupPdfData): string {
             if (images.length > 0) {
                 contentHtml += `<div class="att-grid">`;
                 for (const img of images) {
-                    const url = `${data.apiBaseUrl}/followups/${data.followupId}/blocks/${block.id}/attachments/${img.id}/file`;
+                    const tokenQs = data.token ? `?token=${data.token}` : '';
+                    const url = `${data.apiBaseUrl}/followups/${data.followupId}/blocks/${block.id}/attachments/${img.id}/file${tokenQs}`;
                     contentHtml += `<div class="att-img-wrap"><img src="${esc(url)}" alt="${esc(img.fileName)}" /><span class="att-name">${esc(img.fileName)}</span></div>`;
                 }
                 contentHtml += `</div>`;

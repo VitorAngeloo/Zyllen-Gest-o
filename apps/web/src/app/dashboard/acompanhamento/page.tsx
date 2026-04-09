@@ -502,6 +502,7 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
                             blocks: followup.blocks ?? [],
                             apiBaseUrl: API_URL,
                             followupId: followup.id,
+                            token: typeof window !== "undefined" ? localStorage.getItem("accessToken") : null,
                         })}
                         className="text-[var(--zyllen-muted)] hover:text-white gap-1"
                     >
@@ -875,7 +876,8 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                                 {block.attachments.map((att) => {
                                     const isImage = att.mimeType?.startsWith("image/");
                                     const isVideo = att.mimeType?.startsWith("video/");
-                                    const url = `${API_URL}/followups/${followupId}/blocks/${block.id}/attachments/${att.id}/file`;
+                                    const tkn = typeof window !== "undefined" ? localStorage.getItem("accessToken") : "";
+                                    const url = `${API_URL}/followups/${followupId}/blocks/${block.id}/attachments/${att.id}/file${tkn ? `?token=${tkn}` : ""}`;
                                     return (
                                         <div key={att.id} className="relative group rounded-lg overflow-hidden border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]">
                                             {isImage && (
