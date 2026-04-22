@@ -669,6 +669,14 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
                             >
                                 <Image size={14} /> Mídia
                             </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => addBlock.mutate({ type: "CHECKLIST", title: "" })}
+                                className="gap-1 border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30"
+                            >
+                                <ClipboardList size={14} /> Checklist
+                            </Button>
                         </div>
                     )}
                 </div>
@@ -678,7 +686,7 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
                         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                             <Plus size={36} className="text-[var(--zyllen-muted)] mb-3" />
                             <p className="text-[var(--zyllen-muted)] text-sm">Nenhum bloco adicionado ainda</p>
-                            <p className="text-xs text-[var(--zyllen-muted)] mt-1">Clique em "Texto" ou "Mídia" para adicionar blocos</p>
+                            <p className="text-xs text-[var(--zyllen-muted)] mt-1">Clique em "Texto", "Mídia" ou "Checklist" para adicionar blocos</p>
                         </CardContent>
                     </Card>
                 ) : (
