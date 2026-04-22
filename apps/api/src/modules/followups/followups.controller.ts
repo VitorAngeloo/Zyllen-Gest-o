@@ -19,6 +19,8 @@ import {
     createFollowupBlockSchema,
     updateFollowupBlockSchema,
     createFollowupCommentSchema,
+    createChecklistItemSchema,
+    updateChecklistItemSchema,
 } from '@zyllen/shared';
 
 // Ensure uploads directory exists
@@ -213,6 +215,42 @@ export class FollowupsController {
             if (existsSync(filePath)) unlinkSync(filePath);
         } catch { /* ignore */ }
         return { message: 'Anexo removido' };
+    }
+
+    // ── Checklist Items ──
+
+    @Post(':id/blocks/:blockId/checklist')
+    @RequirePermission('followups.edit')
+    async addChecklistItem(
+        @Param('id') id: string,
+        @Param('blockId') blockId: string,
+        @Body(new ZodValidationPipe(createChecklistItemSchema)) body: { text: string; order?: number },
+    ) {
+        const data = await this.followupsService.addChecklistItem(id, blockId, body);
+        return { data, message: 'Item adicionado' };
+    }
+
+    @Put(':id/blocks/:blockId/checklist/:itemId')
+    @RequirePermission('followups.edit')
+    async updateChecklistItem(
+        @Param('id') id: string,
+        @Param('blockId') blockId: string,
+        @Param('itemId') itemId: string,
+        @Body(new ZodValidationPipe(updateChecklistItemSchema)) body: { text?: string; checked?: boolean; order?: number },
+    ) {
+        const data = await this.followupsService.updateChecklistItem(id, blockId, itemId, body);
+        return { data, message: 'Item atualizado' };
+    }
+
+    @Delete(':id/blocks/:blockId/checklist/:itemId')
+    @RequirePermission('followups.edit')
+    async removeChecklistItem(
+        @Param('id') id: string,
+        @Param('blockId') blockId: string,
+        @Param('itemId') itemId: string,
+    ) {
+        await this.followupsService.removeChecklistItem(id, blockId, itemId);
+        return { message: 'Item removido' };
     }
 
     // ── Comments ──

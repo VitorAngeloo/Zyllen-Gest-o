@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
 import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
@@ -30,11 +30,12 @@ interface Company {
 
 interface FollowupBlock {
     id: string;
-    type: "TEXT" | "MEDIA";
+    type: "TEXT" | "MEDIA" | "CHECKLIST";
     title?: string;
     content?: string;
     order: number;
     attachments: { id: string; fileName: string; filePath: string; mimeType?: string }[];
+    checklistItems: { id: string; text: string; checked: boolean; order: number }[];
     comments: { id: string; text: string; createdAt: string; author: { id: string; name: string } }[];
 }
 
@@ -715,6 +716,14 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
                             >
                                 <Plus size={14} /> Adicionar Mídia
                             </Button>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => addBlock.mutate({ type: "CHECKLIST", title: "" })}
+                                className="gap-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"
+                            >
+                                <Plus size={14} /> Adicionar Checklist
+                            </Button>
                         </div>
                     </div>
                 )}
@@ -739,8 +748,15 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
     const [content, setContent] = useState(block.content ?? "");
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState("");
+    const [newChecklistItem, setNewChecklistItem] = useState("");
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [draftItemTexts, setDraftItemTexts] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        const drafts = Object.fromEntries((block.checklistItems ?? []).map((item) => [item.id, item.text]));
+        setDraftItemTexts(drafts);
+    }, [block.checklistItems]);
 
     const updateBlock = useMutation({
         mutationFn: (body: any) => apiClient.put(`/followups/${followupId}/blocks/${block.id}`, body, fetchOpts),
@@ -780,6 +796,34 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
         onError: (e: any) => toast.error(e.message),
     });
 
+    const addChecklistItem = useMutation({
+        mutationFn: (text: string) => apiClient.post(`/followups/${followupId}/blocks/${block.id}/checklist`, { text }, fetchOpts),
+        onSuccess: () => {
+            toast.success("Item adicionado");
+            qc.invalidateQueries({ queryKey: ["followup", followupId] });
+            setNewChecklistItem("");
+        },
+        onError: (e: any) => toast.error(e.message),
+    });
+
+    const updateChecklistItem = useMutation({
+        mutationFn: ({ itemId, body }: { itemId: string; body: { text?: string; checked?: boolean } }) =>
+            apiClient.put(`/followups/${followupId}/blocks/${block.id}/checklist/${itemId}`, body, fetchOpts),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["followup", followupId] });
+        },
+        onError: (e: any) => toast.error(e.message),
+    });
+
+    const removeChecklistItem = useMutation({
+        mutationFn: (itemId: string) => apiClient.delete(`/followups/${followupId}/blocks/${block.id}/checklist/${itemId}`, fetchOpts),
+        onSuccess: () => {
+            toast.success("Item removido");
+            qc.invalidateQueries({ queryKey: ["followup", followupId] });
+        },
+        onError: (e: any) => toast.error(e.message),
+    });
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files?.length) return;
@@ -800,14 +844,15 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
 
     const isText = block.type === "TEXT";
     const isMedia = block.type === "MEDIA";
+    const isChecklist = block.type === "CHECKLIST";
 
     return (
         <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
             {/* Block header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]/50">
                 <div className="flex items-center gap-2">
-                    <div className={`flex items-center justify-center size-7 rounded ${isText ? "bg-blue-500/15 text-blue-400" : "bg-purple-500/15 text-purple-400"}`}>
-                        {isText ? <FileText size={14} /> : <Image size={14} />}
+                    <div className={`flex items-center justify-center size-7 rounded ${isText ? "bg-blue-500/15 text-blue-400" : isMedia ? "bg-purple-500/15 text-purple-400" : "bg-green-500/15 text-green-400"}`}>
+                        {isText ? <FileText size={14} /> : isMedia ? <Image size={14} /> : <ClipboardList size={14} />}
                     </div>
                     {editing ? (
                         <input
@@ -822,7 +867,7 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                             {block.title || `Bloco ${index + 1}`}
                         </span>
                     )}
-                    <span className="text-xs text-[var(--zyllen-muted)] capitalize">{isText ? "Texto" : "Mídia"}</span>
+                    <span className="text-xs text-[var(--zyllen-muted)] capitalize">{isText ? "Texto" : isMedia ? "Mídia" : "Checklist"}</span>
                 </div>
                 {!readOnly && (
                     <div className="flex items-center gap-1">
@@ -933,6 +978,80 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                         ) : block.content ? (
                             <p className="text-white text-sm whitespace-pre-wrap">{block.content}</p>
                         ) : null}
+                    </div>
+                )}
+
+                {isChecklist && (
+                    <div className="space-y-3">
+                        {block.checklistItems.length > 0 ? (
+                            <div className="space-y-2">
+                                {block.checklistItems.map((item) => (
+                                    <div key={item.id} className="flex items-center gap-2 rounded-md border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]/60 px-2 py-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={item.checked}
+                                            disabled={readOnly}
+                                            onChange={(e) => updateChecklistItem.mutate({ itemId: item.id, body: { checked: e.target.checked } })}
+                                            className="size-4 accent-[var(--zyllen-highlight)]"
+                                        />
+                                        {readOnly ? (
+                                            <span className={`text-sm flex-1 ${item.checked ? "line-through text-[var(--zyllen-muted)]" : "text-white"}`}>
+                                                {item.text}
+                                            </span>
+                                        ) : (
+                                            <input
+                                                value={draftItemTexts[item.id] ?? item.text}
+                                                onChange={(e) => setDraftItemTexts((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                                onBlur={() => {
+                                                    const nextText = (draftItemTexts[item.id] ?? "").trim();
+                                                    if (!nextText || nextText === item.text) return;
+                                                    updateChecklistItem.mutate({ itemId: item.id, body: { text: nextText } });
+                                                }}
+                                                className={`flex-1 h-8 px-2 rounded bg-[var(--zyllen-bg)] border border-[var(--zyllen-border)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/30 ${item.checked ? "line-through text-[var(--zyllen-muted)]" : "text-white"}`}
+                                            />
+                                        )}
+                                        {!readOnly && (
+                                            <button
+                                                onClick={() => removeChecklistItem.mutate(item.id)}
+                                                className="text-[var(--zyllen-error)] hover:text-white"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-sm text-[var(--zyllen-muted)] italic">
+                                Nenhum item na checklist.
+                            </div>
+                        )}
+
+                        {!readOnly && (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    value={newChecklistItem}
+                                    onChange={(e) => setNewChecklistItem(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && newChecklistItem.trim()) {
+                                            addChecklistItem.mutate(newChecklistItem.trim());
+                                        }
+                                    }}
+                                    placeholder="Adicionar novo item"
+                                    className="flex-1 h-9 px-3 rounded-md bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] text-white text-sm placeholder:text-[var(--zyllen-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/30"
+                                />
+                                <Button
+                                    size="sm"
+                                    onClick={() => {
+                                        if (newChecklistItem.trim()) addChecklistItem.mutate(newChecklistItem.trim());
+                                    }}
+                                    disabled={!newChecklistItem.trim()}
+                                    className="h-9"
+                                >
+                                    <Plus size={14} />
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 )}
 

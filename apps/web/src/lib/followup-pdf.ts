@@ -4,11 +4,12 @@
 
 export interface FollowupPdfBlock {
     id: string;
-    type: "TEXT" | "MEDIA";
+    type: "TEXT" | "MEDIA" | "CHECKLIST";
     title?: string | null;
     content?: string | null;
     order: number;
     attachments: { id: string; fileName: string; mimeType?: string | null }[];
+    checklistItems: { id: string; text: string; checked: boolean; order: number }[];
     comments: { text: string; createdAt: string; author: { name: string } }[];
 }
 
@@ -61,7 +62,7 @@ function buildBlocksHtml(data: FollowupPdfData): string {
     const sorted = [...data.blocks].sort((a, b) => a.order - b.order);
 
     return sorted.map((block, idx) => {
-        const typeLabel = block.type === "TEXT" ? "Texto" : "Mídia";
+        const typeLabel = block.type === "TEXT" ? "Texto" : block.type === "MEDIA" ? "Mídia" : "Checklist";
         const heading = block.title ? esc(block.title) : `Bloco ${idx + 1}`;
 
         let contentHtml = "";
@@ -92,6 +93,16 @@ function buildBlocksHtml(data: FollowupPdfData): string {
                 }
                 contentHtml += `</div>`;
             }
+        }
+
+        if (block.type === "CHECKLIST" && block.checklistItems.length > 0) {
+            contentHtml += `<div class="att-list">`;
+            for (const item of [...block.checklistItems].sort((a, b) => a.order - b.order)) {
+                const marker = item.checked ? "☑" : "☐";
+                const text = item.checked ? `<s>${esc(item.text)}</s>` : esc(item.text);
+                contentHtml += `<span class="att-file">${marker} ${text}</span>`;
+            }
+            contentHtml += `</div>`;
         }
 
         // Comments

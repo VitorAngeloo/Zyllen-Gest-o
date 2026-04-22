@@ -491,16 +491,29 @@ model Followup {
 model FollowupBlock {
   id         String   @id @default(uuid())
   followupId String
-  type       String   // TEXT | MEDIA
+  type       String   // TEXT | MEDIA | CHECKLIST
   title      String?
   content    String?  // Texto para blocos TEXT
   order      Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  followup    Followup                 @relation(fields: [followupId], references: [id], onDelete: Cascade)
-  attachments FollowupBlockAttachment[]
-  comments    FollowupComment[]
+  followup       Followup                 @relation(fields: [followupId], references: [id], onDelete: Cascade)
+  attachments    FollowupBlockAttachment[]
+  comments       FollowupComment[]
+  checklistItems FollowupChecklistItem[]
+}
+
+model FollowupChecklistItem {
+  id        String   @id @default(uuid())
+  blockId   String
+  text      String
+  checked   Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  block FollowupBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
 }
 
 model FollowupBlockAttachment {

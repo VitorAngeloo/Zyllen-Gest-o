@@ -455,7 +455,7 @@ export const updateFollowupSchema = z.object({
 });
 
 export const createFollowupBlockSchema = z.object({
-    type: z.enum(['TEXT', 'MEDIA']),
+    type: z.enum(['TEXT', 'MEDIA', 'CHECKLIST']),
     title: z.string().max(300).optional(),
     content: z.string().optional(),
 });
@@ -467,6 +467,17 @@ export const updateFollowupBlockSchema = z.object({
 
 export const createFollowupCommentSchema = z.object({
     text: z.string().min(1, 'Comentário não pode ser vazio').max(2000),
+});
+
+export const createChecklistItemSchema = z.object({
+    text: z.string().min(1, 'Texto do item é obrigatório').max(500),
+    order: z.number().int().optional(),
+});
+
+export const updateChecklistItemSchema = z.object({
+    text: z.string().min(1).max(500).optional(),
+    checked: z.boolean().optional(),
+    order: z.number().int().optional(),
 });
 
 // ── Product Exit ──
