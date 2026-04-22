@@ -1025,10 +1025,13 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                                             )}
                                             <button
                                                 onClick={() => setExpandedChecklistItems((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
-                                                className="text-[var(--zyllen-muted)] hover:text-white"
-                                                title="Expandir detalhes"
+                                                className="relative text-[var(--zyllen-muted)] hover:text-white"
+                                                title={item.details ? "Ver detalhes" : "Adicionar detalhes"}
                                             >
                                                 <ChevronDown size={14} className={`transition-transform ${expandedChecklistItems[item.id] ? "rotate-180" : ""}`} />
+                                                {item.details && !expandedChecklistItems[item.id] && (
+                                                    <span className="absolute -top-1 -right-1 size-2 rounded-full bg-[var(--zyllen-highlight)]" />
+                                                )}
                                             </button>
                                             {!readOnly && (
                                                 <button
