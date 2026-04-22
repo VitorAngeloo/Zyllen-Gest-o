@@ -508,6 +508,7 @@ model FollowupChecklistItem {
   id        String   @id @default(uuid())
   blockId   String
   text      String
+  details   String?
   checked   Boolean  @default(false)
   order     Int      @default(0)
   createdAt DateTime @default(now())

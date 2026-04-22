@@ -35,7 +35,7 @@ interface FollowupBlock {
     content?: string;
     order: number;
     attachments: { id: string; fileName: string; filePath: string; mimeType?: string }[];
-    checklistItems: { id: string; text: string; checked: boolean; order: number }[];
+    checklistItems: { id: string; text: string; details?: string | null; checked: boolean; order: number }[];
     comments: { id: string; text: string; createdAt: string; author: { id: string; name: string } }[];
 }
 
@@ -760,10 +760,14 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [draftItemTexts, setDraftItemTexts] = useState<Record<string, string>>({});
+    const [draftItemDetails, setDraftItemDetails] = useState<Record<string, string>>({});
+    const [expandedChecklistItems, setExpandedChecklistItems] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         const drafts = Object.fromEntries((block.checklistItems ?? []).map((item) => [item.id, item.text]));
         setDraftItemTexts(drafts);
+        const detailsDrafts = Object.fromEntries((block.checklistItems ?? []).map((item) => [item.id, item.details ?? ""]));
+        setDraftItemDetails(detailsDrafts);
     }, [block.checklistItems]);
 
     const updateBlock = useMutation({
@@ -815,7 +819,7 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
     });
 
     const updateChecklistItem = useMutation({
-        mutationFn: ({ itemId, body }: { itemId: string; body: { text?: string; checked?: boolean } }) =>
+        mutationFn: ({ itemId, body }: { itemId: string; body: { text?: string; details?: string; checked?: boolean } }) =>
             apiClient.put(`/followups/${followupId}/blocks/${block.id}/checklist/${itemId}`, body, fetchOpts),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["followup", followupId] });
@@ -994,37 +998,72 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                         {block.checklistItems.length > 0 ? (
                             <div className="space-y-2">
                                 {block.checklistItems.map((item) => (
-                                    <div key={item.id} className="flex items-center gap-2 rounded-md border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]/60 px-2 py-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={item.checked}
-                                            disabled={readOnly}
-                                            onChange={(e) => updateChecklistItem.mutate({ itemId: item.id, body: { checked: e.target.checked } })}
-                                            className="size-4 accent-[var(--zyllen-highlight)]"
-                                        />
-                                        {readOnly ? (
-                                            <span className={`text-sm flex-1 ${item.checked ? "line-through text-[var(--zyllen-muted)]" : "text-white"}`}>
-                                                {item.text}
-                                            </span>
-                                        ) : (
+                                    <div key={item.id} className="rounded-md border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]/60 px-2 py-2 space-y-2">
+                                        <div className="flex items-center gap-2">
                                             <input
-                                                value={draftItemTexts[item.id] ?? item.text}
-                                                onChange={(e) => setDraftItemTexts((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                                                onBlur={() => {
-                                                    const nextText = (draftItemTexts[item.id] ?? "").trim();
-                                                    if (!nextText || nextText === item.text) return;
-                                                    updateChecklistItem.mutate({ itemId: item.id, body: { text: nextText } });
-                                                }}
-                                                className={`flex-1 h-8 px-2 rounded bg-[var(--zyllen-bg)] border border-[var(--zyllen-border)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/30 ${item.checked ? "line-through text-[var(--zyllen-muted)]" : "text-white"}`}
+                                                type="checkbox"
+                                                checked={item.checked}
+                                                disabled={readOnly}
+                                                onChange={(e) => updateChecklistItem.mutate({ itemId: item.id, body: { checked: e.target.checked } })}
+                                                className="size-4 accent-[var(--zyllen-highlight)]"
                                             />
-                                        )}
-                                        {!readOnly && (
+                                            {readOnly ? (
+                                                <span className={`text-sm flex-1 ${item.checked ? "line-through text-[var(--zyllen-muted)]" : "text-white"}`}>
+                                                    {item.text}
+                                                </span>
+                                            ) : (
+                                                <input
+                                                    value={draftItemTexts[item.id] ?? item.text}
+                                                    onChange={(e) => setDraftItemTexts((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                                    onBlur={() => {
+                                                        const nextText = (draftItemTexts[item.id] ?? "").trim();
+                                                        if (!nextText || nextText === item.text) return;
+                                                        updateChecklistItem.mutate({ itemId: item.id, body: { text: nextText } });
+                                                    }}
+                                                    className={`flex-1 h-8 px-2 rounded bg-[var(--zyllen-bg)] border border-[var(--zyllen-border)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/30 ${item.checked ? "line-through text-[var(--zyllen-muted)]" : "text-white"}`}
+                                                />
+                                            )}
                                             <button
-                                                onClick={() => removeChecklistItem.mutate(item.id)}
-                                                className="text-[var(--zyllen-error)] hover:text-white"
+                                                onClick={() => setExpandedChecklistItems((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
+                                                className="text-[var(--zyllen-muted)] hover:text-white"
+                                                title="Expandir detalhes"
                                             >
-                                                <X size={12} />
+                                                <ChevronDown size={14} className={`transition-transform ${expandedChecklistItems[item.id] ? "rotate-180" : ""}`} />
                                             </button>
+                                            {!readOnly && (
+                                                <button
+                                                    onClick={() => removeChecklistItem.mutate(item.id)}
+                                                    className="text-[var(--zyllen-error)] hover:text-white"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {expandedChecklistItems[item.id] && (
+                                            <div className="pl-6">
+                                                {readOnly ? (
+                                                    item.details ? (
+                                                        <p className="text-xs text-[var(--zyllen-muted)] whitespace-pre-wrap">{item.details}</p>
+                                                    ) : (
+                                                        <p className="text-xs text-[var(--zyllen-muted)] italic">Sem detalhes</p>
+                                                    )
+                                                ) : (
+                                                    <textarea
+                                                        value={draftItemDetails[item.id] ?? ""}
+                                                        onChange={(e) => setDraftItemDetails((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                                        onBlur={() => {
+                                                            const nextDetails = (draftItemDetails[item.id] ?? "").trim();
+                                                            const currentDetails = (item.details ?? "").trim();
+                                                            if (nextDetails === currentDetails) return;
+                                                            updateChecklistItem.mutate({ itemId: item.id, body: { details: nextDetails } });
+                                                        }}
+                                                        rows={3}
+                                                        placeholder="Detalhes ocultos deste item..."
+                                                        className="w-full px-2 py-2 rounded bg-[var(--zyllen-bg)] border border-[var(--zyllen-border)] text-xs text-white placeholder:text-[var(--zyllen-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/30 resize-y"
+                                                    />
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 ))}

@@ -471,11 +471,13 @@ export const createFollowupCommentSchema = z.object({
 
 export const createChecklistItemSchema = z.object({
     text: z.string().min(1, 'Texto do item é obrigatório').max(500),
+    details: z.string().max(3000).optional(),
     order: z.number().int().optional(),
 });
 
 export const updateChecklistItemSchema = z.object({
     text: z.string().min(1).max(500).optional(),
+    details: z.string().max(3000).optional(),
     checked: z.boolean().optional(),
     order: z.number().int().optional(),
 });

@@ -224,7 +224,7 @@ export class FollowupsController {
     async addChecklistItem(
         @Param('id') id: string,
         @Param('blockId') blockId: string,
-        @Body(new ZodValidationPipe(createChecklistItemSchema)) body: { text: string; order?: number },
+        @Body(new ZodValidationPipe(createChecklistItemSchema)) body: { text: string; details?: string; order?: number },
     ) {
         const data = await this.followupsService.addChecklistItem(id, blockId, body);
         return { data, message: 'Item adicionado' };
@@ -236,7 +236,7 @@ export class FollowupsController {
         @Param('id') id: string,
         @Param('blockId') blockId: string,
         @Param('itemId') itemId: string,
-        @Body(new ZodValidationPipe(updateChecklistItemSchema)) body: { text?: string; checked?: boolean; order?: number },
+        @Body(new ZodValidationPipe(updateChecklistItemSchema)) body: { text?: string; details?: string; checked?: boolean; order?: number },
     ) {
         const data = await this.followupsService.updateChecklistItem(id, blockId, itemId, body);
         return { data, message: 'Item atualizado' };

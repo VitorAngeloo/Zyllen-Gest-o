@@ -314,7 +314,7 @@ export class FollowupsService {
 
     // ── Checklist Items ──
 
-    async addChecklistItem(followupId: string, blockId: string, data: { text: string; order?: number }) {
+    async addChecklistItem(followupId: string, blockId: string, data: { text: string; details?: string; order?: number }) {
         const block = await this.prisma.followupBlock.findFirst({
             where: { id: blockId, followupId },
         });
@@ -328,11 +328,11 @@ export class FollowupsService {
         const order = data.order ?? (maxOrder._max.order ?? -1) + 1;
 
         return this.prisma.followupChecklistItem.create({
-            data: { blockId, text: data.text, order },
+            data: { blockId, text: data.text, details: data.details ?? null, order },
         });
     }
 
-    async updateChecklistItem(followupId: string, blockId: string, itemId: string, data: { text?: string; checked?: boolean; order?: number }) {
+    async updateChecklistItem(followupId: string, blockId: string, itemId: string, data: { text?: string; details?: string; checked?: boolean; order?: number }) {
         const item = await this.prisma.followupChecklistItem.findFirst({
             where: { id: itemId, blockId, block: { followupId } },
         });
@@ -342,6 +342,7 @@ export class FollowupsService {
             where: { id: itemId },
             data: {
                 ...(data.text !== undefined ? { text: data.text } : {}),
+                ...(data.details !== undefined ? { details: data.details } : {}),
                 ...(data.checked !== undefined ? { checked: data.checked } : {}),
                 ...(data.order !== undefined ? { order: data.order } : {}),
             },
