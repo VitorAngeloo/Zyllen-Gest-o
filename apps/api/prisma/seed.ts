@@ -100,6 +100,11 @@ async function main() {
         // Labels
         { screen: 'labels', action: 'view' },
         { screen: 'labels', action: 'print' },
+        // Followups (Acompanhamento)
+        { screen: 'followups', action: 'view' },
+        { screen: 'followups', action: 'create' },
+        { screen: 'followups', action: 'edit' },
+        { screen: 'followups', action: 'delete' },
         // Product Exits
         { screen: 'inventory', action: 'exit' },
         // Audit
@@ -148,6 +153,7 @@ async function main() {
         'tickets.view',
         'maintenance.view', 'maintenance.open', 'maintenance.execute', 'maintenance.close',
         'labels.view', 'labels.print',
+        'followups.view', 'followups.create', 'followups.edit',
     ];
     for (const key of tecnicoScreens) {
         const [screen, action] = key.split('.');
@@ -173,6 +179,7 @@ async function main() {
         'purchases.view', 'purchases.create', 'purchases.approve', 'purchases.receive',
         'tickets.view', 'tickets.triage', 'tickets.assign', 'tickets.close',
         'maintenance.view', 'maintenance.open', 'maintenance.execute', 'maintenance.close',
+        'followups.view', 'followups.create', 'followups.edit', 'followups.delete',
         'approvals.view', 'approvals.approve', 'approvals.reject',
         'labels.view', 'labels.print',
         'audit.view',
