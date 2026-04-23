@@ -941,9 +941,9 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                                                 <img src={url} alt={att.fileName} className="w-full h-32 object-cover" />
                                             )}
                                             {isVideo && (
-                                                <video src={url} controls className="w-full h-32 object-cover" />
+                                                <video src={url} controls playsInline preload="metadata" className="w-full h-32 object-cover bg-black" />
                                             )}
-                                            <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1 flex items-center justify-between">
+                                            <div className={`${isVideo ? "" : "absolute bottom-0 left-0 right-0 bg-black/70"} px-2 py-1 flex items-center justify-between`}>
                                                 <span className="text-xs text-white truncate flex-1">{att.fileName}</span>
                                                 {!readOnly && (
                                                     <button onClick={() => removeAttachment.mutate(att.id)} className="text-[var(--zyllen-error)] hover:text-white ml-1">
