@@ -6,10 +6,51 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StockLedgerService } from './stock-ledger.service';
 
 @Injectable()
 export class InventoryService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly stockLedger: StockLedgerService,
+    ) { }
+
+    private async validateAssetSkuConsistency(assetId: string | undefined, skuId: string): Promise<void> {
+        if (!assetId) return;
+        const asset = await this.prisma.asset.findUnique({ where: { id: assetId }, select: { skuId: true } });
+        if (!asset) throw new NotFoundException('Patrimônio não encontrado');
+        if (asset.skuId !== skuId) {
+            throw new BadRequestException('Patrimônio informado não pertence ao item selecionado');
+        }
+    }
+
+    private async applyAssetMovementRules(tx: any, params: {
+        assetId?: string;
+        moveType: { setsAssetStatus?: string | null; defaultToLocationId?: string | null };
+        fromLocationId?: string;
+        toLocationId?: string;
+    }): Promise<void> {
+        if (!params.assetId) return;
+
+        const nextLocationId = params.toLocationId
+            ?? params.moveType.defaultToLocationId
+            ?? undefined;
+
+        const updateData: { status?: string; currentLocationId?: string | null } = {};
+        if (params.moveType.setsAssetStatus) {
+            updateData.status = params.moveType.setsAssetStatus;
+        }
+        if (nextLocationId !== undefined) {
+            updateData.currentLocationId = nextLocationId;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+            await tx.asset.update({
+                where: { id: params.assetId },
+                data: updateData,
+            });
+        }
+    }
 
     // ── Validate PIN ──
     private async validatePin(userId: string, pin: string): Promise<void> {
@@ -23,13 +64,20 @@ export class InventoryService {
     // ── Stock Entry (Entrada) ──
     async createEntry(data: {
         skuId: string;
-        toLocationId: string;
+        toLocationId?: string;
         qty: number;
         movementTypeId: string;
         userId: string;
         pin: string;
         reason?: string;
         assetId?: string;
+        attachments?: {
+            fileName: string;
+            filePath: string;
+            mimeType: string;
+            mediaType: string;
+            uploadedById: string;
+        }[];
     }) {
         if (!data.qty || data.qty <= 0 || !Number.isInteger(data.qty)) {
             throw new BadRequestException('Quantidade deve ser um número inteiro positivo');
@@ -41,9 +89,16 @@ export class InventoryService {
         if (!moveType) throw new NotFoundException('Tipo de movimentação não encontrado');
 
         const sku = await this.prisma.skuItem.findUnique({ where: { id: data.skuId } });
-        if (!sku) throw new NotFoundException('SKU não encontrado');
+        if (!sku) throw new NotFoundException('Item não encontrado');
 
-        const location = await this.prisma.location.findUnique({ where: { id: data.toLocationId } });
+        await this.validateAssetSkuConsistency(data.assetId, data.skuId);
+
+        const resolvedToLocationId = data.toLocationId ?? moveType.defaultToLocationId ?? undefined;
+        if (!resolvedToLocationId) {
+            throw new BadRequestException('Local de destino não informado e tipo de movimentação sem local padrão');
+        }
+
+        const location = await this.prisma.location.findUnique({ where: { id: resolvedToLocationId } });
         if (!location) throw new NotFoundException('Local não encontrado');
 
         return this.prisma.$transaction(async (tx) => {
@@ -51,7 +106,7 @@ export class InventoryService {
                 data: {
                     typeId: data.movementTypeId,
                     skuId: data.skuId,
-                    toLocationId: data.toLocationId,
+                    toLocationId: resolvedToLocationId,
                     qty: data.qty,
                     reason: data.reason,
                     createdByInternalUserId: data.userId,
@@ -62,13 +117,45 @@ export class InventoryService {
                     type: { select: { name: true } },
                     sku: { select: { skuCode: true, name: true } },
                     toLocation: { select: { name: true } },
+                    mediaAttachments: {
+                        select: {
+                            id: true,
+                            fileName: true,
+                            filePath: true,
+                            mimeType: true,
+                            mediaType: true,
+                            createdAt: true,
+                            uploadedBy: { select: { id: true, name: true } },
+                        },
+                        orderBy: { createdAt: 'desc' },
+                    },
                 },
             });
 
+            if (data.attachments?.length) {
+                await tx.itemMediaAttachment.createMany({
+                    data: data.attachments.map((att) => ({
+                        skuId: data.skuId,
+                        stockMovementId: movement.id,
+                        fileName: att.fileName,
+                        filePath: att.filePath,
+                        mimeType: att.mimeType,
+                        mediaType: att.mediaType,
+                        uploadedById: att.uploadedById,
+                    })),
+                });
+            }
+
             await tx.stockBalance.upsert({
-                where: { skuId_locationId: { skuId: data.skuId, locationId: data.toLocationId } },
+                where: { skuId_locationId: { skuId: data.skuId, locationId: resolvedToLocationId } },
                 update: { quantity: { increment: data.qty } },
-                create: { skuId: data.skuId, locationId: data.toLocationId, quantity: data.qty },
+                create: { skuId: data.skuId, locationId: resolvedToLocationId, quantity: data.qty },
+            });
+
+            await this.applyAssetMovementRules(tx, {
+                assetId: data.assetId,
+                moveType,
+                toLocationId: resolvedToLocationId,
             });
 
             await tx.auditLog.create({
@@ -106,7 +193,9 @@ export class InventoryService {
         if (!moveType) throw new NotFoundException('Tipo de movimentação não encontrado');
 
         const sku = await this.prisma.skuItem.findUnique({ where: { id: data.skuId } });
-        if (!sku) throw new NotFoundException('SKU não encontrado');
+        if (!sku) throw new NotFoundException('Item não encontrado');
+
+        await this.validateAssetSkuConsistency(data.assetId, data.skuId);
 
         const location = await this.prisma.location.findUnique({ where: { id: data.fromLocationId } });
         if (!location) throw new NotFoundException('Local não encontrado');
@@ -157,27 +246,20 @@ export class InventoryService {
         sku: any, location: any, moveType: any,
     ) {
         return this.prisma.$transaction(async (tx) => {
-            const movement = await tx.stockMovement.create({
-                data: {
-                    typeId: data.movementTypeId,
-                    skuId: data.skuId,
-                    fromLocationId: data.fromLocationId,
-                    qty: data.qty,
-                    reason: data.reason,
-                    createdByInternalUserId: data.userId,
-                    pinValidatedAt: new Date(),
-                    assetId: data.assetId,
-                },
-                include: {
-                    type: { select: { name: true } },
-                    sku: { select: { skuCode: true, name: true } },
-                    fromLocation: { select: { name: true } },
-                },
+            const { movement } = await this.stockLedger.registerExitMovement(tx, {
+                skuId: data.skuId,
+                fromLocationId: data.fromLocationId,
+                qty: data.qty,
+                userId: data.userId,
+                reason: data.reason,
+                assetId: data.assetId,
+                movementTypeId: data.movementTypeId,
             });
 
-            await tx.stockBalance.update({
-                where: { skuId_locationId: { skuId: data.skuId, locationId: data.fromLocationId } },
-                data: { quantity: { decrement: data.qty } },
+            await this.applyAssetMovementRules(tx, {
+                assetId: data.assetId,
+                moveType,
+                fromLocationId: data.fromLocationId,
             });
 
             await tx.auditLog.create({
@@ -206,7 +288,8 @@ export class InventoryService {
 
         const payload = request.payloadJson as any;
         const sku = await this.prisma.skuItem.findUnique({ where: { id: payload.skuId } });
-        if (!sku) throw new NotFoundException('SKU referenciado não existe mais');
+    if (!sku) throw new NotFoundException('Item referenciado não existe mais');
+        await this.validateAssetSkuConsistency(payload.assetId, payload.skuId);
         const location = await this.prisma.location.findUnique({ where: { id: payload.fromLocationId } });
         if (!location) throw new NotFoundException('Local referenciado não existe mais');
         const moveType = await this.prisma.movementType.findUnique({ where: { id: payload.movementTypeId } });
@@ -403,6 +486,18 @@ export class InventoryService {
                     fromLocation: { select: { name: true } },
                     toLocation: { select: { name: true } },
                     createdBy: { select: { name: true } },
+                    mediaAttachments: {
+                        select: {
+                            id: true,
+                            fileName: true,
+                            filePath: true,
+                            mimeType: true,
+                            mediaType: true,
+                            createdAt: true,
+                            uploadedBy: { select: { id: true, name: true } },
+                        },
+                        orderBy: { createdAt: 'desc' },
+                    },
                 },
                 orderBy: { createdAt: 'desc' },
                 ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),

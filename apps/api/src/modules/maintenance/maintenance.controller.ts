@@ -107,7 +107,7 @@ export class MaintenanceController {
     // ── Attachments (photos/videos) ──
 
     @Post(':id/attachments')
-    @RequirePermission('maintenance.execute')
+    @RequirePermission(['maintenance.open', 'maintenance.execute'])
     @UseInterceptors(FilesInterceptor('files', 10, { storage: maintenanceStorage, limits: { fileSize: MAX_FILE_SIZE } }))
     async uploadAttachments(
         @Param('id') id: string,

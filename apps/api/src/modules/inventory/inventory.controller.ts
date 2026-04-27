@@ -11,7 +11,16 @@ import {
     Request,
     HttpCode,
     HttpStatus,
+    UseInterceptors,
+    UploadedFiles,
+    BadRequestException,
+    ForbiddenException,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
@@ -25,6 +34,21 @@ import {
     reversalReasonSchema,
 } from '@zyllen/shared';
 
+const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'media', 'inventory-entry');
+if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const mediaStorage = diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+    filename: (_req, file, cb) => {
+        const ext = extname(file.originalname) || '.bin';
+        cb(null, `${randomUUID()}${ext}`);
+    },
+});
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const ALLOWED_MIME = /^(image\/(jpeg|png|webp)|video\/(mp4|quicktime|webm))$/;
+const ALLOWED_ROLES = new Set(['Administrador', 'Gestor', 'Técnico']);
+
 @Controller('inventory')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class InventoryController {
@@ -33,19 +57,43 @@ export class InventoryController {
     // ── Stock Entry ──
     @Post('entry')
     @RequirePermission('inventory.bipar_entrada')
+    @UseInterceptors(FilesInterceptor('files', 10, { storage: mediaStorage, limits: { fileSize: MAX_FILE_SIZE } }))
     async createEntry(
         @Request() req: any,
         @Body(new ZodValidationPipe(createStockEntrySchema)) body: {
             skuId: string;
-            toLocationId: string;
+            toLocationId?: string;
             qty: number;
             movementTypeId: string;
             pin: string;
             reason?: string;
             assetId?: string;
         },
+        @UploadedFiles() files?: Express.Multer.File[],
     ) {
-        const data = await this.inventoryService.createEntry({ ...body, userId: req.user.id });
+        if (files?.length && !ALLOWED_ROLES.has(req.user?.role?.name)) {
+            throw new ForbiddenException('Apenas Técnico, Gestor e Administrador podem enviar anexos de mídia');
+        }
+
+        for (const file of files ?? []) {
+            if (!ALLOWED_MIME.test(file.mimetype)) {
+                throw new BadRequestException(
+                    `Tipo não permitido: ${file.originalname}. Use JPG, PNG, WEBP, MP4, MOV ou WEBM.`,
+                );
+            }
+        }
+
+        const data = await this.inventoryService.createEntry({
+            ...body,
+            userId: req.user.id,
+            attachments: (files ?? []).map((file) => ({
+                fileName: file.originalname,
+                filePath: `/uploads/media/inventory-entry/${file.filename}`,
+                mimeType: file.mimetype,
+                mediaType: file.mimetype.startsWith('image/') ? 'IMAGE' : 'VIDEO',
+                uploadedById: req.user.id,
+            })),
+        });
         return { data, message: 'Entrada registrada com sucesso' };
     }
 

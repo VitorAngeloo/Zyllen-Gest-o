@@ -26,6 +26,7 @@ interface Ticket {
     messages?: { id: string; content: string; authorType: string; createdAt: string }[];
     attachments?: { id: string; fileName: string; filePath: string }[];
     statusLabel?: string;
+    rating?: { rating: number; comment?: string | null; createdAt: string; evaluator?: { name: string } } | null;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof Clock }> = {
@@ -49,6 +50,10 @@ function isImageFile(name: string) {
 }
 function isVideoFile(name: string) {
     return /\.(mp4|webm|mov|avi)$/i.test(name);
+}
+
+function renderStars(rating: number) {
+    return Array.from({ length: 5 }, (_, index) => (index < rating ? "★" : "☆")).join("");
 }
 
 export default function ChamadosTIPage() {
@@ -78,6 +83,7 @@ export default function ChamadosTIPage() {
         try {
             const res = await apiClient.get<{ data: Ticket[] }>("/tickets/my-internal", authFetch);
             setTickets(res.data);
+            setSelectedTicket((current) => current ? (res.data.find((ticket) => ticket.id === current.id) ?? null) : current);
         } catch {
             toast.error("Erro ao carregar chamados");
         } finally {
@@ -87,6 +93,12 @@ export default function ChamadosTIPage() {
 
     useEffect(() => {
         fetchTickets();
+    }, [fetchTickets]);
+
+    useEffect(() => {
+        const handleRefresh = () => fetchTickets();
+        window.addEventListener("tickets:refresh", handleRefresh);
+        return () => window.removeEventListener("tickets:refresh", handleRefresh);
     }, [fetchTickets]);
 
     // ── File handling ──
@@ -258,6 +270,19 @@ export default function ChamadosTIPage() {
                             <div className="p-3 rounded-lg border border-[var(--zyllen-success)]/20 bg-[var(--zyllen-success)]/5">
                                 <h4 className="text-xs font-medium text-[var(--zyllen-success)] uppercase tracking-wider mb-1">Descrição do Atendimento</h4>
                                 <p className="text-sm text-white whitespace-pre-wrap">{selectedTicket.resolutionNotes}</p>
+                            </div>
+                        )}
+
+                        {selectedTicket.rating && (
+                            <div className="p-3 rounded-lg border border-yellow-400/20 bg-yellow-400/5 space-y-2">
+                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                    <h4 className="text-xs font-medium text-yellow-300 uppercase tracking-wider">Avaliação do Atendimento</h4>
+                                    <span className="text-xs text-[var(--zyllen-muted)]">{new Date(selectedTicket.rating.createdAt).toLocaleString("pt-BR")}</span>
+                                </div>
+                                <p className="text-lg tracking-wide text-yellow-300">{renderStars(selectedTicket.rating.rating)}</p>
+                                {selectedTicket.rating.comment && (
+                                    <p className="text-sm text-white whitespace-pre-wrap">{selectedTicket.rating.comment}</p>
+                                )}
                             </div>
                         )}
 

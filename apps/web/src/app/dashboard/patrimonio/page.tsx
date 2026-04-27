@@ -86,7 +86,7 @@ export default function PatrimonioPage() {
                                 <p className="text-white font-medium">{selectedAsset.sku?.name}</p>
                             </div>
                             <div>
-                                <p className="text-xs text-[var(--zyllen-muted)]">SKU</p>
+                                <p className="text-xs text-[var(--zyllen-muted)]">Código do item</p>
                                 <p className="text-white font-mono text-sm">{selectedAsset.sku?.skuCode}</p>
                             </div>
                             <div>

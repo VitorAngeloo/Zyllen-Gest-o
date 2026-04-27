@@ -125,7 +125,7 @@ export const EMPTY_STATES = {
 
   // Cadastros
   categories: "Nenhuma categoria — organize seus itens.",
-  skus: "Nenhum SKU cadastrado.",
+  skus: "Nenhum item cadastrado.",
   locations: "Nenhum local — defina seus pontos de operação.",
   suppliers: "Nenhum fornecedor cadastrado.",
   movementTypes: "Nenhum tipo de movimentação.",
@@ -229,10 +229,10 @@ export const PAGE_DESCRIPTIONS = {
   clientes: "Gerencie empresas parceiras e seus usuários.",
   colaboradores: "Monte sua equipe e defina responsabilidades.",
   permissoes: "Defina níveis de acesso por colaborador.",
-  cadastros: "Configure categorias, SKUs, locais e fornecedores.",
+  cadastros: "Configure categorias, itens, locais e fornecedores.",
   acesso: "Gerencie roles, usuários e permissões do sistema.",
   equipamentos: "Cadastre equipamentos e gere patrimônios.",
-  saidas: "Registre e acompanhe saídas de produtos.",
+  saidas: "Registre e acompanhe saídas de itens.",
   perfil: "Seus dados e atividades recentes.",
 } as const;
 

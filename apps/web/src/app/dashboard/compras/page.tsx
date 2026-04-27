@@ -85,7 +85,7 @@ export default function ComprasPage() {
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Item (SKU)</Label>
+                                <Label className="text-[var(--zyllen-muted)]">Item</Label>
                                 <select value={form.skuId} onChange={(e) => setForm({ ...form, skuId: e.target.value })} required className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
                                     <option value="">Selecione...</option>
                                     {skus?.data?.map((s: any) => <option key={s.id} value={s.id}>{s.skuCode} — {s.name}</option>)}

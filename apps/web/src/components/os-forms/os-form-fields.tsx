@@ -1,7 +1,7 @@
 "use client";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
-import { MediaUploader, type MediaAttachment } from "./media-uploader";
+import { MediaUploader, type MediaAttachment, type LocalMediaFile } from "./media-uploader";
 import { SignaturePad } from "./signature-pad";
 
 export interface OsFormFieldsProps {
@@ -16,6 +16,12 @@ export interface OsFormFieldsProps {
     onRefreshAttachments?: () => void;
     /** API base path for attachments (e.g. '/maintenance' or '/contractor/maintenance') */
     apiBasePath?: string;
+    /** Local files pending upload (for new OS or during edit) */
+    localFiles?: LocalMediaFile[];
+    /** Callback to update local files */
+    onLocalFilesChange?: (files: LocalMediaFile[]) => void;
+    /** When true, new files are queued locally instead of uploaded directly */
+    editMode?: boolean;
 }
 
 // CSS classes used across all forms
@@ -34,7 +40,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ═══════════════════════════════════════════════════
 // 1. INSTALAÇÃO DE SALA
 // ═══════════════════════════════════════════════════
-export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
+export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -149,7 +155,7 @@ export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, a
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
-                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} localFiles={localFiles} onLocalFilesChange={onLocalFilesChange} editMode={editMode} />
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
@@ -176,7 +182,7 @@ export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, a
 // ═══════════════════════════════════════════════════
 // 2. INSTALAÇÃO DE TELA
 // ═══════════════════════════════════════════════════
-export function InstalacaoTelaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
+export function InstalacaoTelaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -243,7 +249,7 @@ export function InstalacaoTelaFormFields({ formData, onChange, readOnly, osId, a
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
-                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} localFiles={localFiles} onLocalFilesChange={onLocalFilesChange} editMode={editMode} />
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
@@ -270,7 +276,7 @@ export function InstalacaoTelaFormFields({ formData, onChange, readOnly, osId, a
 // ═══════════════════════════════════════════════════
 // 3. DESINSTALAÇÃO
 // ═══════════════════════════════════════════════════
-export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
+export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -304,7 +310,7 @@ export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, at
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
-                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} localFiles={localFiles} onLocalFilesChange={onLocalFilesChange} editMode={editMode} />
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
@@ -331,7 +337,7 @@ export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, at
 // ═══════════════════════════════════════════════════
 // 4. MANUTENÇÃO (Tela/Sala)
 // ═══════════════════════════════════════════════════
-export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
+export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -369,7 +375,7 @@ export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly, osI
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
-                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} localFiles={localFiles} onLocalFilesChange={onLocalFilesChange} editMode={editMode} />
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
@@ -396,7 +402,7 @@ export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly, osI
 // ═══════════════════════════════════════════════════
 // 5. SUPORTE REMOTO
 // ═══════════════════════════════════════════════════
-export function SuporteRemotoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
+export function SuporteRemotoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -424,7 +430,7 @@ export function SuporteRemotoFormFields({ formData, onChange, readOnly, osId, at
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
-                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} localFiles={localFiles} onLocalFilesChange={onLocalFilesChange} editMode={editMode} />
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
@@ -461,7 +467,7 @@ export function SuporteRemotoFormFields({ formData, onChange, readOnly, osId, at
 // ═══════════════════════════════════════════════════
 // 6. TERCEIRIZADO
 // ═══════════════════════════════════════════════════
-export function TerceirizadoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath }: OsFormFieldsProps) {
+export function TerceirizadoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -510,7 +516,7 @@ export function TerceirizadoFormFields({ formData, onChange, readOnly, osId, att
             <div className="space-y-4">
                 <SectionTitle>Fim do Trabalho</SectionTitle>
 
-                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} />
+                <MediaUploader osId={osId} attachments={attachments} onRefresh={onRefreshAttachments} apiBasePath={apiBasePath} readOnly={readOnly} localFiles={localFiles} onLocalFilesChange={onLocalFilesChange} editMode={editMode} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">

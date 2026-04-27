@@ -13,6 +13,7 @@ import { Skeleton } from "@web/components/ui/skeleton";
 import { OS_FORM_CONFIG } from "@web/components/os-forms";
 import type { OsFormType, OsFormSubmitData } from "@web/components/os-forms";
 import { OsFormWizard } from "@web/components/os-forms";
+import { getOsFieldRows } from "@web/lib/os-form-view";
 
 type View = "list" | "detail" | "edit";
 type ListTab = "mine" | "collaborators" | "contractors";
@@ -165,6 +166,7 @@ export default function MinhasOsPage() {
     if (view === "detail" && selectedOS) {
         const formTypeLabel = OS_FORM_CONFIG[selectedOS.formType as OsFormType]?.label || selectedOS.formType || "—";
         const statusCfg = STATUS_CONFIG[selectedOS.status] || STATUS_CONFIG.OPEN;
+        const formRows = getOsFieldRows(selectedOS.formType, selectedOS.formData);
 
         return (
             <div className="space-y-6">
@@ -231,19 +233,29 @@ export default function MinhasOsPage() {
                             )}
                         </div>
 
-                        {selectedOS.formData && Object.keys(selectedOS.formData).length > 0 && (
-                            <div>
-                                <span className="text-sm text-[var(--zyllen-muted)]">Dados do Formulário:</span>
-                                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                                    {Object.entries(selectedOS.formData).map(([k, v]) => (
-                                        <div key={k} className="bg-[var(--zyllen-bg-dark)] rounded p-2">
-                                            <span className="text-[var(--zyllen-muted)] text-xs">{k}:</span>
-                                            <p className="text-white truncate">{String(v)}</p>
+                        <div>
+                            <span className="text-sm text-[var(--zyllen-muted)]">Formulário consolidado:</span>
+                            {formRows.length > 0 ? (
+                                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                    {formRows.map((row) => (
+                                        <div key={row.key} className="bg-[var(--zyllen-bg-dark)] rounded-md px-3 py-2 border border-[var(--zyllen-border)]/50">
+                                            <span className="text-[var(--zyllen-muted)] text-xs">{row.label}:</span>
+                                            {row.isSignature ? (
+                                                <div className="mt-2 rounded-md border border-[var(--zyllen-border)] bg-white p-2">
+                                                    <img src={row.rawValue as string} alt={row.label} className="w-full h-24 object-contain" />
+                                                </div>
+                                            ) : (
+                                                <p className={`${row.isEmpty ? "text-[var(--zyllen-muted)] italic" : "text-white"}`}>
+                                                    {row.displayValue}
+                                                </p>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
-                            </div>
-                        )}
+                            ) : (
+                                <p className="text-[var(--zyllen-muted)] text-sm italic mt-2">Sem campos definidos para este tipo de formulário.</p>
+                            )}
+                        </div>
 
                         <div className="flex gap-2 pt-4 border-t border-[var(--zyllen-border)]">
                             {selectedOS.status !== "CLOSED" && (

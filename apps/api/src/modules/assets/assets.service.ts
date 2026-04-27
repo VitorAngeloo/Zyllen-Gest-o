@@ -9,6 +9,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class AssetsService {
     constructor(private readonly prisma: PrismaService) { }
 
+    private readonly assetCodeSequenceId = 'ASSET_CODE';
+
     // ── List all assets ──
     async findAll(params?: { skuId?: string; status?: string; locationId?: string; search?: string; skip?: number; take?: number }) {
         const where = {
@@ -124,11 +126,11 @@ export class AssetsService {
         return timeline;
     }
 
-    // ── Create asset with auto SKY-XXXXX code ──
+    // ── Create asset with sequential SKY-XXXXX code ──
     async create(data: { skuId: string; currentLocationId?: string }) {
         // Verify SKU exists
         const sku = await this.prisma.skuItem.findUnique({ where: { id: data.skuId } });
-        if (!sku) throw new NotFoundException('SKU não encontrado');
+        if (!sku) throw new NotFoundException('Item não encontrado');
 
         // Verify location exists (if provided)
         if (data.currentLocationId) {
@@ -136,19 +138,21 @@ export class AssetsService {
             if (!location) throw new NotFoundException('Local não encontrado');
         }
 
-        const assetCode = await this.generateUniqueAssetCode();
+        return this.prisma.$transaction(async (tx) => {
+            const assetCode = await this.generateNextAssetCode(tx);
 
-        return this.prisma.asset.create({
-            data: {
-                assetCode,
-                skuId: data.skuId,
-                currentLocationId: data.currentLocationId,
-                status: 'ATIVO',
-            },
-            include: {
-                sku: { select: { id: true, skuCode: true, name: true } },
-                currentLocation: { select: { id: true, name: true } },
-            },
+            return tx.asset.create({
+                data: {
+                    assetCode,
+                    skuId: data.skuId,
+                    currentLocationId: data.currentLocationId,
+                    status: 'ATIVO',
+                },
+                include: {
+                    sku: { select: { id: true, skuCode: true, name: true } },
+                    currentLocation: { select: { id: true, name: true } },
+                },
+            });
         });
     }
 
@@ -174,12 +178,6 @@ export class AssetsService {
         // Generate unique SKU code
         const skuCode = await this.generateUniqueSkuCode();
 
-        // Generate all asset codes in advance
-        const assetCodes: string[] = [];
-        for (let i = 0; i < data.quantity; i++) {
-            assetCodes.push(await this.generateUniqueAssetCode());
-        }
-
         return this.prisma.$transaction(async (tx) => {
             // 1. Create SkuItem
             const skuItem = await tx.skuItem.create({
@@ -195,18 +193,19 @@ export class AssetsService {
             });
 
             // 2. Create N Assets
-            const assets = await Promise.all(
-                assetCodes.map((code) =>
-                    tx.asset.create({
-                        data: {
-                            assetCode: code,
-                            skuId: skuItem.id,
-                            currentLocationId: data.locationId,
-                            status: 'ATIVO',
-                        },
-                    }),
-                ),
-            );
+            const assets = [];
+            for (let i = 0; i < data.quantity; i++) {
+                const assetCode = await this.generateNextAssetCode(tx);
+                const createdAsset = await tx.asset.create({
+                    data: {
+                        assetCode,
+                        skuId: skuItem.id,
+                        currentLocationId: data.locationId,
+                        status: 'ATIVO',
+                    },
+                });
+                assets.push(createdAsset);
+            }
 
             // 3. Create StockBalance
             await tx.stockBalance.upsert({
@@ -302,16 +301,47 @@ export class AssetsService {
         });
     }
 
-    // ── Generate Unique SKY-XXXXX code ──
-    private async generateUniqueAssetCode(): Promise<string> {
-        const MAX_RETRIES = 100;
+    private async generateNextAssetCode(tx: any): Promise<string> {
+        let sequence = await tx.assetCodeSequence.findUnique({
+            where: { id: this.assetCodeSequenceId },
+        });
+
+        if (!sequence) {
+            const existingAssets = await tx.asset.findMany({
+                select: { assetCode: true },
+            });
+
+            let maxExistingCodeNumber = 0;
+            for (const asset of existingAssets) {
+                const match = /^SKY-(\d+)$/.exec(asset.assetCode);
+                if (!match) continue;
+                const parsed = Number(match[1]);
+                if (Number.isFinite(parsed) && parsed > maxExistingCodeNumber) {
+                    maxExistingCodeNumber = parsed;
+                }
+            }
+
+            sequence = await tx.assetCodeSequence.create({
+                data: {
+                    id: this.assetCodeSequenceId,
+                    currentValue: maxExistingCodeNumber,
+                },
+            });
+        }
+
+        const MAX_RETRIES = 200;
         for (let i = 0; i < MAX_RETRIES; i++) {
-            const num = String(Math.floor(Math.random() * 100_000)).padStart(5, '0');
-            const code = `SKY-${num}`;
-            const existing = await this.prisma.asset.findUnique({ where: { assetCode: code } });
+            sequence = await tx.assetCodeSequence.update({
+                where: { id: this.assetCodeSequenceId },
+                data: { currentValue: { increment: 1 } },
+            });
+
+            const code = `SKY-${String(sequence.currentValue).padStart(5, '0')}`;
+            const existing = await tx.asset.findUnique({ where: { assetCode: code } });
             if (!existing) return code;
         }
-        throw new ConflictException('Não foi possível gerar um código de patrimônio único.');
+
+        throw new ConflictException('Não foi possível gerar o próximo código sequencial de patrimônio.');
     }
 
     // ── Generate Unique 6-digit SKU Code ──
@@ -322,6 +352,6 @@ export class AssetsService {
             const existing = await this.prisma.skuItem.findUnique({ where: { skuCode: code } });
             if (!existing) return code;
         }
-        throw new ConflictException('Não foi possível gerar um SKU único.');
+        throw new ConflictException('Não foi possível gerar um código de item único.');
     }
 }

@@ -193,7 +193,7 @@ export default function SaidasPage() {
                 </Card>
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
                     <CardContent className="pt-6 text-center">
-                        <p className="text-xs text-[var(--zyllen-muted)] uppercase tracking-wider">SKUs Diferentes</p>
+                        <p className="text-xs text-[var(--zyllen-muted)] uppercase tracking-wider">Itens Diferentes</p>
                         <p className="text-3xl font-bold text-white mt-1">{summary?.data?.uniqueSkus ?? 0}</p>
                     </CardContent>
                 </Card>
@@ -220,7 +220,7 @@ export default function SaidasPage() {
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
                     <CardHeader>
                         <CardTitle className="text-white flex items-center gap-2">
-                            <ArrowDownCircle size={18} className="text-[var(--zyllen-highlight)]" /> Registrar Saída de Produto
+                            <ArrowDownCircle size={18} className="text-[var(--zyllen-highlight)]" /> Registrar Saída de Item
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -232,11 +232,11 @@ export default function SaidasPage() {
                             className="grid grid-cols-1 md:grid-cols-2 gap-4"
                         >
                             <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Produto (SKU) *</Label>
+                                <Label className="text-[var(--zyllen-muted)]">Item *</Label>
                                 <Select
                                     value={exitForm.skuId}
                                     onValueChange={(v) => setExitForm({ ...exitForm, skuId: v, locationId: "" })}
-                                    placeholder="Selecione o produto..."
+                                    placeholder="Selecione o item..."
                                     className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
                                     required
                                 >
@@ -347,10 +347,10 @@ export default function SaidasPage() {
                                 <Select
                                     value={filterSkuId}
                                     onValueChange={setFilterSkuId}
-                                    placeholder="Todos os produtos"
+                                    placeholder="Todos os itens"
                                     className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-sm"
                                 >
-                                    <SelectOption value="">Todos os produtos</SelectOption>
+                                    <SelectOption value="">Todos os itens</SelectOption>
                                     {skus?.data?.map((s: any) => (
                                         <SelectOption key={s.id} value={s.id}>{s.skuCode} — {s.name}</SelectOption>
                                     ))}
@@ -393,8 +393,8 @@ export default function SaidasPage() {
                                         <thead>
                                             <tr className="border-b border-[var(--zyllen-border)]">
                                                 <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Data/Hora</th>
-                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">SKU</th>
-                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Produto</th>
+                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Código</th>
+                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Item</th>
                                                 <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium hidden md:table-cell">Local</th>
                                                 <th className="text-center py-3 text-[var(--zyllen-muted)] font-medium">Qtd</th>
                                                 <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium hidden lg:table-cell">Motivo</th>
@@ -466,14 +466,14 @@ export default function SaidasPage() {
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label className="text-[var(--zyllen-muted)] text-xs">Produto</Label>
+                                    <Label className="text-[var(--zyllen-muted)] text-xs">Item</Label>
                                     <Select
                                         value={filterSkuId}
                                         onValueChange={setFilterSkuId}
                                         placeholder="Todos"
                                         className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
                                     >
-                                        <SelectOption value="">Todos os produtos</SelectOption>
+                                        <SelectOption value="">Todos os itens</SelectOption>
                                         {skus?.data?.map((s: any) => (
                                             <SelectOption key={s.id} value={s.id}>{s.skuCode} — {s.name}</SelectOption>
                                         ))}
@@ -526,7 +526,7 @@ export default function SaidasPage() {
 
                                             {expandedPeriod === item.period && (
                                                 <div className="border-t border-[var(--zyllen-border)]/30 p-4">
-                                                    <p className="text-xs text-[var(--zyllen-muted)] font-medium uppercase tracking-wider mb-3">Detalhamento por Produto</p>
+                                                    <p className="text-xs text-[var(--zyllen-muted)] font-medium uppercase tracking-wider mb-3">Detalhamento por Item</p>
                                                     <div className="space-y-2">
                                                         {item.items.map((prod, idx) => (
                                                             <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-[var(--zyllen-bg)] border border-[var(--zyllen-border)]/30">

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Button } from "@web/components/ui/button";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
+import { uploadMaintenanceAttachments } from "@web/lib/maintenance-attachments";
 import { Plus, Wrench, Clock, CheckCircle2, AlertCircle, ArrowLeft, FileText, Edit, Printer } from "lucide-react";
 import { OsFormWizard } from "@web/components/os-forms";
 import type { OsFormSubmitData } from "@web/components/os-forms";
@@ -79,7 +80,12 @@ function ContractorMaintenanceInner() {
     const handleSubmitOS = async (data: OsFormSubmitData) => {
         setSubmitting(true);
         try {
-            await apiClient.post("/contractor/maintenance", data, authFetch);
+            const { localFiles, ...payload } = data;
+            const created = await apiClient.post<{ data?: { id?: string } }>("/contractor/maintenance", payload, authFetch);
+
+            const createdId = created?.data?.id;
+            await uploadMaintenanceAttachments("/contractor/maintenance", createdId, localFiles, authFetch);
+
             toast.success("OS aberta com sucesso!");
             setView("list");
             fetchOrders();
@@ -125,7 +131,11 @@ function ContractorMaintenanceInner() {
         if (!selectedOS) return;
         setSubmitting(true);
         try {
-            await apiClient.put(`/contractor/maintenance/${selectedOS.id}/form-data`, data, authFetch);
+            const { localFiles, ...payload } = data;
+            await apiClient.put(`/contractor/maintenance/${selectedOS.id}/form-data`, payload, authFetch);
+
+            await uploadMaintenanceAttachments("/contractor/maintenance", selectedOS.id, localFiles, authFetch);
+
             toast.success("OS atualizada");
             fetchOrders();
             setView("list");
@@ -229,7 +239,7 @@ function ContractorMaintenanceInner() {
                                         <p className="text-white font-medium">{selectedOS.asset.assetCode}</p>
                                     </div>
                                     <div>
-                                        <span className="text-[var(--zyllen-muted)]">SKU:</span>
+                                        <span className="text-[var(--zyllen-muted)]">Código do item:</span>
                                         <p className="text-white font-medium">{selectedOS.asset.sku.skuCode}</p>
                                     </div>
                                 </>

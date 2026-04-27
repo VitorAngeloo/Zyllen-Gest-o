@@ -10,6 +10,8 @@
         "lint": "eslint \"{src,test}/**/*.ts\"",
         "prisma:migrate": "prisma migrate dev",
         "prisma:seed": "ts-node prisma/seed.ts",
+        "backfill:product-exits-ledger": "ts-node prisma/backfill-product-exits-ledger.ts",
+        "reconcile:stock-ledger": "ts-node prisma/reconcile-stock-ledger.ts",
         "prisma:studio": "prisma studio",
         "prisma:generate": "prisma generate"
     },

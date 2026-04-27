@@ -263,7 +263,7 @@ export default function EquipamentosPage() {
                                 </div>
                             </form>
                             <p className="text-xs text-[var(--zyllen-muted)] mt-3">
-                                * O sistema gera automaticamente o código SKU e os códigos de patrimônio (SKY-XXXXX) para cada unidade.
+                                * O sistema gera automaticamente o código do item e os códigos de patrimônio (SKY-XXXXX) para cada unidade.
                             </p>
                         </CardContent>
                     </Card>
@@ -274,7 +274,7 @@ export default function EquipamentosPage() {
                         <Input
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar por nome, SKU, descrição ou código de barras..."
+                            placeholder="Buscar por nome, código do item, descrição ou código de barras..."
                             className="pl-9 bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] text-white"
                         />
                     </div>
@@ -296,7 +296,7 @@ export default function EquipamentosPage() {
                                     <table className="w-full text-sm">
                                         <thead>
                                             <tr className="border-b border-[var(--zyllen-border)]">
-                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">SKU</th>
+                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Código</th>
                                                 <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Nome</th>
                                                 <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium hidden md:table-cell">Descrição</th>
                                                 <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium hidden lg:table-cell">Categoria</th>
@@ -431,7 +431,7 @@ export default function EquipamentosPage() {
                                             <div>
                                                 <span>{c.name}</span>
                                                 {c._count?.skuItems !== undefined && (
-                                                    <span className="text-xs text-[var(--zyllen-muted)] ml-2">({c._count.skuItems} SKUs)</span>
+                                                    <span className="text-xs text-[var(--zyllen-muted)] ml-2">({c._count.skuItems} itens)</span>
                                                 )}
                                             </div>
                                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -518,7 +518,7 @@ export default function EquipamentosPage() {
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div>
-                                        <p className="text-[var(--zyllen-muted)] text-xs">Código SKU</p>
+                                        <p className="text-[var(--zyllen-muted)] text-xs">Código do item</p>
                                         <p className="text-[var(--zyllen-highlight)] font-mono font-bold">{detailSku.skuCode}</p>
                                     </div>
                                     <div>

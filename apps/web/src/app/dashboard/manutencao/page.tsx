@@ -13,6 +13,8 @@ import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 import { OsFormWizard, OS_FORM_CONFIG } from "@web/components/os-forms";
 import type { OsFormSubmitData, OsFormType } from "@web/components/os-forms";
 import { printOsPdf } from "@web/lib/os-pdf";
+import { getOsFieldRows } from "@web/lib/os-form-view";
+import { uploadMaintenanceAttachments } from "@web/lib/maintenance-attachments";
 
 type Tab = "list" | "new" | "detail" | "edit";
 
@@ -49,7 +51,12 @@ export default function ManutencaoPage() {
     const handleSubmitOS = async (data: OsFormSubmitData) => {
         setSubmitting(true);
         try {
-            await apiClient.post("/maintenance", data, fetchOpts);
+            const { localFiles, ...payload } = data;
+            const created = await apiClient.post<{ data?: { id?: string } }>("/maintenance", payload, fetchOpts);
+
+            const createdId = created?.data?.id;
+            await uploadMaintenanceAttachments("/maintenance", createdId, localFiles, fetchOpts);
+
             toast.success(TOASTS.osOpened);
             qc.invalidateQueries({ queryKey: ["maintenance"] });
             setTab("list");
@@ -64,7 +71,11 @@ export default function ManutencaoPage() {
         if (!selectedOS) return;
         setSubmitting(true);
         try {
-            await apiClient.put(`/maintenance/${selectedOS.id}/form-data`, data, fetchOpts);
+            const { localFiles, ...payload } = data;
+            await apiClient.put(`/maintenance/${selectedOS.id}/form-data`, payload, fetchOpts);
+
+            await uploadMaintenanceAttachments("/maintenance", selectedOS.id, localFiles, fetchOpts);
+
             toast.success("OS atualizada");
             qc.invalidateQueries({ queryKey: ["maintenance"] });
             setTab("list");
@@ -80,7 +91,11 @@ export default function ManutencaoPage() {
         if (!selectedOS) return;
         setSubmitting(true);
         try {
-            await apiClient.put(`/maintenance/${selectedOS.id}/form-data`, data, fetchOpts);
+            const { localFiles, ...payload } = data;
+            await apiClient.put(`/maintenance/${selectedOS.id}/form-data`, payload, fetchOpts);
+
+            await uploadMaintenanceAttachments("/maintenance", selectedOS.id, localFiles, fetchOpts);
+
             toast.success("Rascunho salvo");
             qc.invalidateQueries({ queryKey: ["maintenance"] });
         } catch (e: any) {
@@ -171,6 +186,7 @@ export default function ManutencaoPage() {
     if (tab === "detail" && selectedOS) {
         const formTypeLabel = OS_FORM_CONFIG[selectedOS.formType as OsFormType]?.label || selectedOS.formType || "—";
         const stCfg = STATUS_CONFIG[selectedOS.status] || STATUS_CONFIG.OPEN;
+        const formRows = getOsFieldRows(selectedOS.formType, selectedOS.formData);
         return (
             <div className="space-y-6">
                 <button
@@ -260,19 +276,29 @@ export default function ManutencaoPage() {
                             )}
                         </div>
 
-                        {selectedOS.formData && typeof selectedOS.formData === "object" && Object.keys(selectedOS.formData).length > 0 && (
-                            <div>
-                                <span className="text-sm text-[var(--zyllen-muted)]">Dados do Formulário:</span>
-                                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                                    {Object.entries(selectedOS.formData).map(([key, value]) => (
-                                        <div key={key} className="bg-white/5 rounded-md px-3 py-2">
-                                            <span className="text-[var(--zyllen-muted)] text-xs">{key}:</span>
-                                            <p className="text-white text-sm">{String(value)}</p>
+                        <div>
+                            <span className="text-sm text-[var(--zyllen-muted)]">Formulário consolidado:</span>
+                            {formRows.length > 0 ? (
+                                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                    {formRows.map((row) => (
+                                        <div key={row.key} className="bg-white/5 rounded-md px-3 py-2 border border-[var(--zyllen-border)]/50">
+                                            <span className="text-[var(--zyllen-muted)] text-xs">{row.label}:</span>
+                                            {row.isSignature ? (
+                                                <div className="mt-2 rounded-md border border-[var(--zyllen-border)] bg-white p-2">
+                                                    <img src={row.rawValue as string} alt={row.label} className="w-full h-24 object-contain" />
+                                                </div>
+                                            ) : (
+                                                <p className={`text-sm ${row.isEmpty ? "text-[var(--zyllen-muted)] italic" : "text-white"}`}>
+                                                    {row.displayValue}
+                                                </p>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
-                            </div>
-                        )}
+                            ) : (
+                                <p className="text-[var(--zyllen-muted)] text-sm italic mt-2">Sem campos definidos para este tipo de formulário.</p>
+                            )}
+                        </div>
 
                         <div className="flex gap-2 pt-4 border-t border-[var(--zyllen-border)]">
                             {selectedOS.status === "OPEN" && (
@@ -341,10 +367,9 @@ export default function ManutencaoPage() {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-[var(--zyllen-border)]">
-                                        <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Nº OS</th>
+                                        <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Nº OS / Cliente</th>
                                         <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Tipo</th>
                                         <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Patrimônio</th>
-                                        <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Cliente</th>
                                         <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Status</th>
                                         <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Data</th>
                                         <th className="text-right py-3 text-[var(--zyllen-muted)] font-medium">Ações</th>
@@ -359,10 +384,12 @@ export default function ManutencaoPage() {
                                                 className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02] cursor-pointer"
                                                 onClick={() => { setSelectedOS(os); setTab("detail"); }}
                                             >
-                                                <td className="py-3 font-mono text-[var(--zyllen-highlight)] text-xs">{os.osNumber || "—"}</td>
+                                                <td className="py-3 text-xs">
+                                                    <p className="font-mono text-[var(--zyllen-highlight)]">{os.osNumber || "—"}</p>
+                                                    <p className="text-[var(--zyllen-muted)] truncate max-w-[220px]" title={os.clientName || "—"}>{os.clientName || "—"}</p>
+                                                </td>
                                                 <td className="py-3 text-white text-xs">{typeLabel}</td>
                                                 <td className="py-3 font-mono text-xs text-white">{os.asset?.assetCode || "—"}</td>
-                                                <td className="py-3 text-white text-xs">{os.clientName || "—"}</td>
                                                 <td className="py-3"><Badge variant={(STATUS_CONFIG[os.status] || STATUS_CONFIG.OPEN).variant}>{(STATUS_CONFIG[os.status] || STATUS_CONFIG.OPEN).label}</Badge></td>
                                                 <td className="py-3 text-[var(--zyllen-muted)] text-xs">{new Date(os.createdAt).toLocaleDateString("pt-BR")}</td>
                                                 <td className="py-3 text-right" onClick={(e) => e.stopPropagation()}>

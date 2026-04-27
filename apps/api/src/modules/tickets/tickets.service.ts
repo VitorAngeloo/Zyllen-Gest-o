@@ -7,6 +7,26 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 
+const TICKET_INCLUDE = {
+    company: true,
+    externalUser: {
+        select: {
+            name: true, email: true, phone: true, position: true, cpf: true,
+            company: { select: { name: true } },
+            project: { select: { name: true } },
+        },
+    },
+    internalUser: { select: { name: true, sector: true } },
+    assignedTo: { select: { name: true, email: true, sector: true } },
+    messages: { orderBy: { createdAt: 'asc' as const } },
+    attachments: true,
+    rating: {
+        include: {
+            evaluator: { select: { id: true, name: true } },
+        },
+    },
+};
+
 @Injectable()
 export class TicketsService {
     constructor(
@@ -151,6 +171,11 @@ export class TicketsService {
                     externalUser: { select: { name: true, company: { select: { name: true } } } },
                     internalUser: { select: { name: true, sector: true } },
                     assignedTo: { select: { name: true, sector: true } },
+                    rating: {
+                        include: {
+                            evaluator: { select: { id: true, name: true } },
+                        },
+                    },
                 },
                 orderBy: { createdAt: 'desc' },
                 ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
@@ -164,20 +189,7 @@ export class TicketsService {
     async findById(id: string) {
         const ticket = await this.prisma.ticket.findUnique({
             where: { id },
-            include: {
-                company: true,
-                externalUser: {
-                    select: {
-                        name: true, email: true, phone: true, position: true, cpf: true,
-                        company: { select: { name: true } },
-                        project: { select: { name: true } },
-                    },
-                },
-                internalUser: { select: { name: true, sector: true } },
-                assignedTo: { select: { name: true, email: true, sector: true } },
-                messages: { orderBy: { createdAt: 'asc' } },
-                attachments: true,
-            },
+            include: TICKET_INCLUDE,
         });
         if (!ticket) throw new NotFoundException('Chamado não encontrado');
         return ticket;
@@ -336,6 +348,67 @@ export class TicketsService {
         });
     }
 
+    // ── Pending mandatory rating for internal collaborator ──
+    async findPendingRatingForInternalUser(internalUserId: string) {
+        return this.prisma.ticket.findFirst({
+            where: {
+                source: 'INTERNAL',
+                internalUserId,
+                status: 'CLOSED',
+                rating: { is: null },
+            },
+            include: {
+                assignedTo: { select: { id: true, name: true } },
+            },
+            orderBy: [
+                { closedAt: 'asc' },
+                { createdAt: 'asc' },
+            ],
+        });
+    }
+
+    // ── Submit immutable ticket rating ──
+    async submitTicketRating(ticketId: string, internalUserId: string, data: { rating: number; comment?: string }) {
+        const ticket = await this.prisma.ticket.findUnique({
+            where: { id: ticketId },
+            include: {
+                rating: true,
+            },
+        });
+
+        if (!ticket) throw new NotFoundException('Chamado não encontrado');
+        if (ticket.source !== 'INTERNAL') {
+            throw new ForbiddenException('Apenas chamados internos podem ser avaliados');
+        }
+        if (ticket.internalUserId !== internalUserId) {
+            throw new ForbiddenException('Apenas o colaborador vinculado ao chamado pode avaliar');
+        }
+        if (ticket.status !== 'CLOSED') {
+            throw new BadRequestException('A avaliação só pode ser enviada após a finalização do chamado');
+        }
+        if (ticket.rating) {
+            throw new BadRequestException('Este chamado já foi avaliado');
+        }
+
+        const comment = data.comment?.trim() || null;
+        if (data.rating <= 3 && (!comment || comment.length < 10)) {
+            throw new BadRequestException('Para notas de 1 a 3 estrelas, descreva o atendimento com pelo menos 10 caracteres');
+        }
+
+        return this.prisma.ticketRating.create({
+            data: {
+                ticketId,
+                evaluatorInternalUserId: internalUserId,
+                rating: data.rating,
+                comment,
+            },
+            include: {
+                evaluator: { select: { id: true, name: true } },
+                ticket: { select: { id: true, title: true } },
+            },
+        });
+    }
+
     // ── Create internal ticket (collaborator TI) ──
     async createInternalTicket(data: {
         title: string;
@@ -383,6 +456,11 @@ export class TicketsService {
                 assignedTo: { select: { name: true } },
                 attachments: true,
                 messages: { orderBy: { createdAt: 'asc' } },
+                rating: {
+                    include: {
+                        evaluator: { select: { id: true, name: true } },
+                    },
+                },
             },
             orderBy: { createdAt: 'desc' },
         });

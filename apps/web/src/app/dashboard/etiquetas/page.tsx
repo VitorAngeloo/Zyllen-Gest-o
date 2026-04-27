@@ -18,6 +18,30 @@ import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
 type Tab = "print" | "history" | "templates";
 
+type LabelDataContractV1 = {
+    contractVersion: "v1";
+    layoutVersion: "1";
+    templateId: string | null;
+    assetId: string;
+    assetCode: string;
+    skuId: string;
+    skuCode: string;
+    skuName: string;
+    description: string;
+    brand?: string | null;
+    barcode?: string | null;
+    barcodeValue: string;
+    qrContent: string;
+    category: string;
+    location: string;
+    status: string;
+};
+
+type SelectedLabelData = {
+    asset: any;
+    contract: LabelDataContractV1;
+};
+
 export default function EtiquetasPage() {
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
@@ -25,7 +49,7 @@ export default function EtiquetasPage() {
 
     // Print form
     const [assetCode, setAssetCode] = useState("");
-    const [labelData, setLabelData] = useState<any>(null);
+    const [labelData, setLabelData] = useState<SelectedLabelData | null>(null);
 
     // Template form
     const [newTemplate, setNewTemplate] = useState({ name: "", layout: "" });
@@ -58,8 +82,8 @@ export default function EtiquetasPage() {
         try {
             const res = await apiClient.get<{ data: any }>(`/assets/lookup/${searchCode}`, fetchOpts);
             if (res.data) {
-                const labelRes = await apiClient.get<any>(`/labels/data/${res.data.id}`, fetchOpts);
-                setLabelData({ asset: res.data, ...labelRes });
+                const labelRes = await apiClient.get<{ data: LabelDataContractV1 }>(`/labels/data/${res.data.id}`, fetchOpts);
+                setLabelData({ asset: res.data, contract: labelRes.data });
             }
         } catch {
             toast.error("Patrimônio não encontrado");
@@ -155,19 +179,30 @@ export default function EtiquetasPage() {
                                 <div className="grid grid-cols-2 gap-4 mb-6">
                                     <div>
                                         <p className="text-xs text-[var(--zyllen-muted)]">Código</p>
-                                        <p className="text-white font-mono text-lg">{labelData.asset?.assetCode}</p>
+                                        <p className="text-white font-mono text-lg">{labelData.contract.assetCode}</p>
                                     </div>
                                     <div>
                                         <p className="text-xs text-[var(--zyllen-muted)]">Item</p>
-                                        <p className="text-white">{labelData.asset?.sku?.name}</p>
+                                        <p className="text-white">{labelData.contract.skuName}</p>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-[var(--zyllen-muted)]">SKU</p>
-                                        <p className="text-white font-mono text-sm">{labelData.asset?.sku?.skuCode}</p>
+                                        <p className="text-xs text-[var(--zyllen-muted)]">Código do item</p>
+                                        <p className="text-white font-mono text-sm">{labelData.contract.skuCode}</p>
                                     </div>
                                     <div>
                                         <p className="text-xs text-[var(--zyllen-muted)]">Local</p>
-                                        <p className="text-white">{labelData.asset?.currentLocation?.name ?? "Sem local"}</p>
+                                        <p className="text-white">{labelData.contract.location}</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                    <div>
+                                        <p className="text-xs text-[var(--zyllen-muted)]">Contrato</p>
+                                        <p className="text-white font-mono text-sm">{labelData.contract.contractVersion}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-[var(--zyllen-muted)]">Layout</p>
+                                        <p className="text-white font-mono text-sm">{labelData.contract.layoutVersion}</p>
                                     </div>
                                 </div>
 
@@ -175,9 +210,9 @@ export default function EtiquetasPage() {
                                 <div className="border-2 border-dashed border-[var(--zyllen-border)] rounded-lg p-6 text-center mb-4">
                                     <p className="text-[var(--zyllen-muted)] text-sm mb-2">Preview da Etiqueta</p>
                                     <div className="inline-block bg-white text-black rounded p-4 text-left">
-                                        <p className="font-bold text-lg">{labelData.asset?.assetCode}</p>
-                                        <p className="text-sm">{labelData.asset?.sku?.name}</p>
-                                        <p className="text-xs text-gray-500 font-mono">{labelData.asset?.sku?.skuCode}</p>
+                                        <p className="font-bold text-lg">{labelData.contract.assetCode}</p>
+                                        <p className="text-sm">{labelData.contract.skuName}</p>
+                                        <p className="text-xs text-gray-500 font-mono">{labelData.contract.skuCode}</p>
                                     </div>
                                 </div>
 

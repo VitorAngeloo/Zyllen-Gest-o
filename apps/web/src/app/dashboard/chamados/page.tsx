@@ -20,6 +20,7 @@ import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 function isImage(n: string) { return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(n); }
 function isVideo(n: string) { return /\.(mp4|webm|mov|avi)$/i.test(n); }
+function renderStars(rating: number) { return Array.from({ length: 5 }, (_, i) => i < rating ? "★" : "☆").join(""); }
 
 const STATUS_LABELS: Record<string, string> = {
     OPEN: "Aberto", IN_PROGRESS: "Em Andamento", WAITING_CLIENT: "Aguardando Cliente",
@@ -541,6 +542,20 @@ export default function ChamadosPage() {
                                                 <div className="p-3 rounded-lg border border-[var(--zyllen-success)]/20 bg-[var(--zyllen-success)]/5">
                                                     <h4 className="text-xs font-medium text-[var(--zyllen-success)] uppercase tracking-wider mb-1">Descrição do Atendimento</h4>
                                                     <p className="text-sm text-white whitespace-pre-wrap">{d.resolutionNotes}</p>
+                                                </div>
+                                            )}
+
+                                            {d.rating && (
+                                                <div className="p-3 rounded-lg border border-yellow-400/20 bg-yellow-400/5 space-y-2">
+                                                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                                                        <h4 className="text-xs font-medium text-yellow-300 uppercase tracking-wider">Avaliação do Atendimento</h4>
+                                                        <span className="text-xs text-[var(--zyllen-muted)]">{new Date(d.rating.createdAt).toLocaleString("pt-BR")}</span>
+                                                    </div>
+                                                    <p className="text-lg tracking-wide text-yellow-300">{renderStars(d.rating.rating)}</p>
+                                                    {d.rating.comment && <p className="text-sm text-white whitespace-pre-wrap">{d.rating.comment}</p>}
+                                                    {d.rating.evaluator?.name && (
+                                                        <p className="text-xs text-[var(--zyllen-muted)]">Avaliado por <span className="text-white">{d.rating.evaluator.name}</span></p>
+                                                    )}
                                                 </div>
                                             )}
 

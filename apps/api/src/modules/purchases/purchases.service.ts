@@ -9,6 +9,16 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class PurchasesService {
     constructor(private readonly prisma: PrismaService) { }
 
+    private readonly validStatuses = ['DRAFT', 'SENT', 'PARTIAL', 'COMPLETED', 'CANCELLED'] as const;
+
+    private readonly allowedStatusTransitions: Record<(typeof this.validStatuses)[number], (typeof this.validStatuses)[number][]> = {
+        DRAFT: ['SENT', 'CANCELLED'],
+        SENT: ['PARTIAL', 'COMPLETED', 'CANCELLED'],
+        PARTIAL: ['PARTIAL', 'COMPLETED', 'CANCELLED'],
+        COMPLETED: [],
+        CANCELLED: [],
+    };
+
     // ── Create PO ──
     async createOrder(data: { supplierId: string; items: { skuId: string; qtyOrdered: number }[] }) {
         const supplier = await this.prisma.supplier.findUnique({ where: { id: data.supplierId } });
@@ -83,9 +93,20 @@ export class PurchasesService {
 
     // ── Update PO status ──
     async updateStatus(id: string, status: string) {
-        const validStatuses = ['DRAFT', 'SENT', 'PARTIAL', 'COMPLETED', 'CANCELLED'];
-        if (!validStatuses.includes(status)) throw new BadRequestException(`Status inválido: ${validStatuses.join(', ')}`);
-        await this.findById(id);
+        if (!this.validStatuses.includes(status as (typeof this.validStatuses)[number])) {
+            throw new BadRequestException(`Status inválido: ${this.validStatuses.join(', ')}`);
+        }
+
+        const po = await this.findById(id);
+        if (po.status === status) {
+            return po;
+        }
+
+        const allowedNext = this.allowedStatusTransitions[po.status as keyof typeof this.allowedStatusTransitions] ?? [];
+        if (!allowedNext.includes(status as (typeof this.validStatuses)[number])) {
+            throw new BadRequestException(`Transição inválida: ${po.status} -> ${status}`);
+        }
+
         return this.prisma.purchaseOrder.update({ where: { id }, data: { status } });
     }
 
@@ -104,14 +125,61 @@ export class PurchasesService {
         const location = await this.prisma.location.findUnique({ where: { id: data.locationId } });
         if (!location) throw new NotFoundException('Local não encontrado');
 
+        const orderedMap = new Map<string, number>();
+        for (const item of po.items) {
+            orderedMap.set(item.skuId, item.qtyOrdered);
+        }
+
+        const payloadSkuMap = new Map<string, { qtyReceived: number; divergenceNote?: string }>();
+        for (const item of data.items) {
+            if (!orderedMap.has(item.skuId)) {
+                throw new BadRequestException(`Item ${item.skuId} não pertence ao pedido ${po.number}`);
+            }
+            if (payloadSkuMap.has(item.skuId)) {
+                throw new BadRequestException(`Item ${item.skuId} informado mais de uma vez no recebimento`);
+            }
+            payloadSkuMap.set(item.skuId, { qtyReceived: item.qtyReceived, divergenceNote: item.divergenceNote });
+        }
+
+        const normalizedItems = Array.from(payloadSkuMap.entries()).map(([skuId, payload]) => ({
+            skuId,
+            qtyReceived: payload.qtyReceived,
+            divergenceNote: payload.divergenceNote,
+        }));
+
         return this.prisma.$transaction(async (tx) => {
+            const alreadyReceivedItems = await tx.receivingItem.findMany({
+                where: { receiving: { purchaseOrderId: data.purchaseOrderId } },
+                select: { skuId: true, qtyReceived: true },
+            });
+
+            const alreadyReceivedMap = new Map<string, number>();
+            for (const item of alreadyReceivedItems) {
+                alreadyReceivedMap.set(item.skuId, (alreadyReceivedMap.get(item.skuId) ?? 0) + item.qtyReceived);
+            }
+
+            for (const item of normalizedItems) {
+                const orderedQty = orderedMap.get(item.skuId) ?? 0;
+                const alreadyReceivedQty = alreadyReceivedMap.get(item.skuId) ?? 0;
+                const projectedTotal = alreadyReceivedQty + item.qtyReceived;
+                if (projectedTotal > orderedQty) {
+                    throw new BadRequestException(
+                        `Recebimento excede pedido para o item ${item.skuId}. Pedido: ${orderedQty}, já recebido: ${alreadyReceivedQty}, tentativa: ${item.qtyReceived}`,
+                    );
+                }
+            }
+
+            const entryType = await tx.movementType.findFirst({ where: { name: 'Entrada' } })
+                ?? await tx.movementType.findFirst();
+            if (!entryType) throw new NotFoundException('Tipo de movimentação "Entrada" não configurado. Execute o seed.');
+
             // Create receiving record
             const receiving = await tx.receiving.create({
                 data: {
                     purchaseOrderId: data.purchaseOrderId,
                     receivedById: data.receivedById,
                     items: {
-                        create: data.items.map((item) => ({
+                        create: normalizedItems.map((item) => ({
                             skuId: item.skuId,
                             qtyReceived: item.qtyReceived,
                             divergenceNote: item.divergenceNote,
@@ -124,7 +192,7 @@ export class PurchasesService {
             });
 
             // Update stock balances and create stock movements for each received item
-            for (const item of data.items) {
+            for (const item of normalizedItems) {
                 await tx.stockBalance.upsert({
                     where: { skuId_locationId: { skuId: item.skuId, locationId: data.locationId } },
                     update: { quantity: { increment: item.qtyReceived } },
@@ -132,9 +200,6 @@ export class PurchasesService {
                 });
 
                 // Create StockMovement for audit trail
-                const entryType = await tx.movementType.findFirst({ where: { name: 'Entrada' } })
-                    ?? await tx.movementType.findFirst();
-                if (!entryType) throw new NotFoundException('Tipo de movimentação "Entrada" não configurado. Execute o seed.');
                 await tx.stockMovement.create({
                     data: {
                         typeId: entryType.id,
@@ -183,7 +248,7 @@ export class PurchasesService {
                     userId: data.receivedById,
                     details: {
                         po: po.number,
-                        items: data.items.map((i) => ({ skuId: i.skuId, qty: i.qtyReceived })),
+                        items: normalizedItems.map((i) => ({ skuId: i.skuId, qty: i.qtyReceived })),
                         newStatus,
                     },
                 },

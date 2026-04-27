@@ -1,18 +1,20 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
-import { useAuthedFetch } from "@web/lib/auth-context";
+import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
-import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Plus, Hash, Loader2, TrendingDown, ClipboardList, X } from "lucide-react";
+import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Plus, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import Link from "next/link";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
+
+const ALLOWED_MEDIA_MIME = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"]);
 
 function SkuSearchCombobox({ skus, value, onChange }: { skus: any[]; value: string; onChange: (id: string) => void }) {
     const [query, setQuery] = useState("");
@@ -60,7 +62,7 @@ function SkuSearchCombobox({ skus, value, onChange }: { skus: any[]; value: stri
                         value={query}
                         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
                         onFocus={() => setOpen(true)}
-                        placeholder="Buscar por nome, SKU ou código de barras..."
+                        placeholder="Buscar por nome, código do item ou código de barras..."
                         className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9 pr-3 text-sm placeholder:text-[var(--zyllen-muted)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
                     />
                 </div>
@@ -90,11 +92,55 @@ function SkuSearchCombobox({ skus, value, onChange }: { skus: any[]; value: stri
 }
 
 export default function EstoquePage() {
+    const { user } = useAuth();
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
     const [tab, setTab] = useState<"balances" | "entry" | "exit" | "movements">("balances");
     const [entryForm, setEntryForm] = useState({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
+    const [entryMediaFiles, setEntryMediaFiles] = useState<File[]>([]);
+    const entryMediaFilesInputRef = useRef<HTMLInputElement>(null);
+    const entryMediaCameraInputRef = useRef<HTMLInputElement>(null);
     const [exitForm, setExitForm] = useState({ skuId: "", locationId: "", quantity: 1, pin: "", motivo: "", reason: "" });
+
+    const canUploadMedia = user?.type === "internal" && ["Técnico", "Gestor", "Administrador"].includes((user as any).role?.name ?? "");
+
+    const entryMediaPreviews = useMemo(
+        () => entryMediaFiles.map((file) => ({
+            file,
+            url: URL.createObjectURL(file),
+            isImage: file.type.startsWith("image/"),
+        })),
+        [entryMediaFiles],
+    );
+
+    useEffect(() => {
+        return () => {
+            for (const preview of entryMediaPreviews) {
+                URL.revokeObjectURL(preview.url);
+            }
+        };
+    }, [entryMediaPreviews]);
+
+    const appendEntryMedia = (files: FileList | null) => {
+        if (!files?.length) return;
+        const selected = Array.from(files);
+        const invalid = selected.find((file) => !ALLOWED_MEDIA_MIME.has(file.type));
+        if (invalid) {
+            toast.error("Arquivo inválido. Use JPG, PNG, WEBP, MP4, MOV ou WEBM.");
+            return;
+        }
+        setEntryMediaFiles((prev) => {
+            const map = new Map(prev.map((file) => [`${file.name}-${file.size}-${file.lastModified}`, file]));
+            for (const file of selected) {
+                map.set(`${file.name}-${file.size}-${file.lastModified}`, file);
+            }
+            return Array.from(map.values());
+        });
+    };
+
+    const removeEntryMedia = (index: number) => {
+        setEntryMediaFiles((prev) => prev.filter((_, i) => i !== index));
+    };
 
     const { data: balances, isLoading: loadingBalances } = useQuery({
         queryKey: ["balances"],
@@ -124,15 +170,37 @@ export default function EstoquePage() {
         mutationFn: async (data: any) => {
             const entradaId = findTypeId("Entrada");
             const transferenciaId = findTypeId("Transferência") || entradaId;
+            const postEntry = async (payload: { skuId: string; toLocationId: string; qty: number; movementTypeId: string; pin: string; reason?: string }, files?: File[]) => {
+                if (files?.length) {
+                    const formData = new FormData();
+                    formData.append("skuId", payload.skuId);
+                    formData.append("toLocationId", payload.toLocationId);
+                    formData.append("qty", String(payload.qty));
+                    formData.append("movementTypeId", payload.movementTypeId);
+                    formData.append("pin", payload.pin);
+                    if (payload.reason) formData.append("reason", payload.reason);
+                    for (const file of files) formData.append("files", file);
+                    await apiClient.upload("/inventory/entry", formData, fetchOpts);
+                    return;
+                }
+                await apiClient.post("/inventory/entry", payload, fetchOpts);
+            };
+
             if (data.transferToId) {
                 const saidaId = findTypeId("Saída") || entradaId;
                 await apiClient.post("/inventory/exit", { skuId: data.skuId, fromLocationId: data.locationId, qty: data.quantity, movementTypeId: saidaId, pin: data.pin, reason: data.reason || "Transferência entre locais" }, fetchOpts);
-                await apiClient.post("/inventory/entry", { skuId: data.skuId, toLocationId: data.transferToId, qty: data.quantity, movementTypeId: transferenciaId || entradaId, pin: data.pin, reason: data.reason || "Transferência entre locais" }, fetchOpts);
+                await postEntry({ skuId: data.skuId, toLocationId: data.transferToId, qty: data.quantity, movementTypeId: transferenciaId || entradaId, pin: data.pin, reason: data.reason || "Transferência entre locais" }, data.files);
             } else {
-                await apiClient.post("/inventory/entry", { skuId: data.skuId, toLocationId: data.locationId, qty: data.quantity, movementTypeId: entradaId, pin: data.pin, reason: data.reason || undefined }, fetchOpts);
+                await postEntry({ skuId: data.skuId, toLocationId: data.locationId, qty: data.quantity, movementTypeId: entradaId, pin: data.pin, reason: data.reason || undefined }, data.files);
             }
         },
-        onSuccess: () => { toast.success(entryForm.transferToId ? TOASTS.transferDone : TOASTS.entryRegistered); qc.invalidateQueries({ queryKey: ["balances"] }); qc.invalidateQueries({ queryKey: ["movements"] }); setEntryForm({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" }); },
+        onSuccess: () => {
+            toast.success(entryForm.transferToId ? TOASTS.transferDone : TOASTS.entryRegistered);
+            qc.invalidateQueries({ queryKey: ["balances"] });
+            qc.invalidateQueries({ queryKey: ["movements"] });
+            setEntryForm({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
+            setEntryMediaFiles([]);
+        },
         onError: (e: any) => toast.error(e.message),
     });
     const exitMut = useMutation({
@@ -167,7 +235,7 @@ export default function EstoquePage() {
                     </Link>
                     <Link href="/dashboard/saidas">
                         <Button variant="outline" className="border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30 gap-2">
-                            <TrendingDown size={16} /> Saída de Produtos
+                            <TrendingDown size={16} /> Saída de Itens
                         </Button>
                     </Link>
                 </div>
@@ -192,7 +260,7 @@ export default function EstoquePage() {
             {tab === "balances" && (
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
                     <CardHeader>
-                        <CardTitle className="text-white">Saldo por Local × SKU</CardTitle>
+                        <CardTitle className="text-white">Saldo por Local × Item</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {loadingBalances ? (
@@ -211,7 +279,7 @@ export default function EstoquePage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="border-b border-[var(--zyllen-border)]">
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">SKU</th>
+                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Código</th>
                                             <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Item</th>
                                             <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Local</th>
                                             <th className="text-right py-3 text-[var(--zyllen-muted)] font-medium">Qtd</th>
@@ -250,11 +318,11 @@ export default function EstoquePage() {
                     </CardHeader>
                     <CardContent>
                         <form
-                            onSubmit={(e) => { e.preventDefault(); entryMut.mutate(entryForm); }}
+                            onSubmit={(e) => { e.preventDefault(); entryMut.mutate({ ...entryForm, files: entryMediaFiles }); }}
                             className="space-y-4"
                         >
                             <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Produto</Label>
+                                <Label className="text-[var(--zyllen-muted)]">Item</Label>
                                 <SkuSearchCombobox skus={skus?.data ?? []} value={entryForm.skuId} onChange={(id) => setEntryForm({ ...entryForm, skuId: id })} />
                             </div>
                             <div className="space-y-2">
@@ -285,8 +353,74 @@ export default function EstoquePage() {
                                 <Label className="text-[var(--zyllen-muted)]">Motivo</Label>
                                 <Input value={entryForm.reason} onChange={(e) => setEntryForm({ ...entryForm, reason: e.target.value })} placeholder="Compra, reposição..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                             </div>
+                            {canUploadMedia && (
+                                <div className="space-y-3">
+                                    <Label className="text-[var(--zyllen-muted)]">Mídia (opcional)</Label>
+                                    <div className="flex flex-wrap gap-2">
+                                        <input
+                                            ref={entryMediaFilesInputRef}
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                                            multiple
+                                            onChange={(e) => {
+                                                appendEntryMedia(e.target.files);
+                                                e.currentTarget.value = "";
+                                            }}
+                                            className="sr-only"
+                                        />
+                                        <input
+                                            ref={entryMediaCameraInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            capture="environment"
+                                            onChange={(e) => {
+                                                appendEntryMedia(e.target.files);
+                                                e.currentTarget.value = "";
+                                            }}
+                                            className="sr-only"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="border-[var(--zyllen-border)] text-white hover:bg-white/5 gap-2"
+                                            onClick={() => entryMediaFilesInputRef.current?.click()}
+                                        >
+                                            <Upload size={14} /> Adicionar foto/vídeo
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="border-[var(--zyllen-border)] text-white hover:bg-white/5 gap-2"
+                                            onClick={() => entryMediaCameraInputRef.current?.click()}
+                                        >
+                                            <Camera size={14} /> Tirar foto agora
+                                        </Button>
+                                    </div>
+                                    {entryMediaPreviews.length > 0 && (
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                            {entryMediaPreviews.map((preview, index) => (
+                                                <div key={`${preview.file.name}-${preview.file.lastModified}-${index}`} className="relative rounded-lg border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] p-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeEntryMedia(index)}
+                                                        className="absolute top-1 right-1 z-10 flex items-center justify-center size-5 rounded-full bg-red-500 text-white hover:bg-red-400"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                    {preview.isImage ? (
+                                                        <img src={preview.url} alt={preview.file.name} className="h-24 w-full object-cover rounded" />
+                                                    ) : (
+                                                        <video src={preview.url} className="h-24 w-full object-cover rounded" controls />
+                                                    )}
+                                                    <p className="text-[11px] text-[var(--zyllen-muted)] truncate mt-2">{preview.file.name}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             <Button type="submit" variant="highlight" className="w-full" disabled={entryMut.isPending}>
-                                {entryMut.isPending ? "Registrando..." : entryForm.transferToId ? "Transferir" : "Registrar Entrada"}
+                                {entryMut.isPending ? (entryMediaFiles.length ? "Enviando mídia..." : "Registrando...") : entryForm.transferToId ? "Transferir" : "Registrar Entrada"}
                             </Button>
                         </form>
                     </CardContent>
@@ -306,7 +440,7 @@ export default function EstoquePage() {
                             className="space-y-4"
                         >
                             <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Produto</Label>
+                                <Label className="text-[var(--zyllen-muted)]">Item</Label>
                                 <SkuSearchCombobox skus={skus?.data ?? []} value={exitForm.skuId} onChange={(id) => setExitForm({ ...exitForm, skuId: id })} />
                             </div>
                             <div className="space-y-2">
@@ -372,7 +506,7 @@ export default function EstoquePage() {
                                         <tr className="border-b border-[var(--zyllen-border)]">
                                             <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Data</th>
                                             <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Tipo</th>
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">SKU</th>
+                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Código</th>
                                             <th className="text-right py-3 text-[var(--zyllen-muted)] font-medium">Qtd</th>
                                             <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Motivo</th>
                                         </tr>

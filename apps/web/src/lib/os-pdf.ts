@@ -4,6 +4,7 @@
 
 import { OS_FORM_CONFIG } from "@web/components/os-forms";
 import type { OsFormType } from "@web/components/os-forms";
+import { getOsFieldRows } from "@web/lib/os-form-view";
 
 export interface OsPdfData {
     osNumber: string;
@@ -31,46 +32,6 @@ const STATUS_LABELS: Record<string, string> = {
     CLOSED: "Encerrada",
 };
 
-const FIELD_LABELS: Record<string, string> = {
-    roomModel: "Modelo da sala",
-    screenDimensions: "Dimensões da tela",
-    hasOutlets: "Pontos de tomada",
-    internetType: "Tipo de Internet",
-    easyAccess: "Fácil acesso",
-    safeLocation: "Local seguro",
-    displayType: "Tipo display",
-    displayModel: "Modelo display",
-    computerConfig: "Configuração PC",
-    soundEquipment: "Equipamento de som",
-    tabletTotem: "Tablet/Totem",
-    cameraInstalled: "Câmera instalada",
-    anydeskAlias: "Anydesk Alias",
-    logbook: "Diário de bordo",
-    witnessName: "Acompanhante",
-    witnessDocument: "Doc. acompanhante",
-    witnessSignature: "Assinatura acompanhante",
-    totemCondition: "Condição do totem",
-    uninstalledServiceType: "Tipo desinstalado",
-    equipmentCondition: "Condição equipamento",
-    uninstalledEquipment: "Equipamentos desinstalados",
-    infrastructureIssues: "Problemas infraestrutura",
-    maintenanceType: "Tipo manutenção",
-    workDone: "Serviço realizado",
-    softwareCorrection: "Correção software",
-    rsActivated: "R&S acionada",
-    issueDescription: "Descrição do problema",
-    localContactName: "Contato no local",
-    localContactPhone: "Telefone contato",
-    localContactRole: "Cargo contato",
-    rsTechnicianName: "Técnico R&S",
-    serviceScope: "Escopo do serviço",
-    serviceDescription: "Descrição atendimento",
-    equipmentUsed: "Equipamento utilizado",
-    skylineAnalyst: "Analista Skyline",
-    technicianName: "Técnico",
-    technicianSignature: "Assinatura técnico",
-};
-
 function formatDate(v: string | null | undefined): string {
     if (!v) return "—";
     try {
@@ -84,27 +45,32 @@ function escapeHtml(s: string): string {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+function escapeAttr(s: string): string {
+    return s.replace(/&/g, "&amp;").replace(/\"/g, "&quot;");
+}
+
 export function printOsPdf(data: OsPdfData): void {
     const formTypeLabel = OS_FORM_CONFIG[data.formType as OsFormType]?.label || data.formType;
     const statusLabel = STATUS_LABELS[data.status] || data.status;
 
-    let formDataHtml = "";
-    if (data.formData && typeof data.formData === "object") {
-        const entries = Object.entries(data.formData).filter(([, v]) => v !== null && v !== undefined && v !== "");
-        if (entries.length > 0) {
-            formDataHtml = `
-                <h3>Detalhes do Serviço</h3>
-                <table>
-                    ${entries.map(([key, value]) => `
-                        <tr>
-                            <td class="label">${escapeHtml(FIELD_LABELS[key] || key)}</td>
-                            <td>${escapeHtml(String(value))}</td>
-                        </tr>
-                    `).join("")}
-                </table>
-            `;
-        }
-    }
+    const formRows = getOsFieldRows(data.formType, data.formData as Record<string, unknown> | null | undefined);
+    const formDataHtml = formRows.length > 0
+        ? `
+            <h3>Detalhes do Serviço</h3>
+            <table>
+                ${formRows.map((row) => `
+                    <tr>
+                        <td class="label">${escapeHtml(row.label)}</td>
+                        <td>
+                            ${row.isSignature && typeof row.rawValue === "string"
+                                ? `<div class="signature-box"><img src="${escapeAttr(row.rawValue)}" alt="${escapeAttr(row.label)}" /></div>`
+                                : `<span class="${row.isEmpty ? "empty" : ""}">${escapeHtml(row.displayValue)}</span>`}
+                        </td>
+                    </tr>
+                `).join("")}
+            </table>
+        `
+        : "";
 
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -125,6 +91,9 @@ export function printOsPdf(data: OsPdfData): void {
         table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
         td { padding: 6px 8px; border: 1px solid #e5e7eb; vertical-align: top; }
         td.label { background: #f9fafb; font-weight: 600; width: 180px; }
+        .empty { color: #6b7280; font-style: italic; }
+        .signature-box { background: #fff; border: 1px solid #d1d5db; border-radius: 6px; padding: 6px; min-height: 84px; display: flex; align-items: center; justify-content: center; }
+        .signature-box img { max-width: 100%; max-height: 72px; object-fit: contain; }
         .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
         .footer { margin-top: 32px; border-top: 1px solid #ccc; padding-top: 12px; font-size: 10px; color: #888; text-align: center; }
         @media print { body { padding: 0; } .no-print { display: none; } }

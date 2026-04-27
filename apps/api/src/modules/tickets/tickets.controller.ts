@@ -16,7 +16,7 @@ import {
     createTicketSchema, assignTicketSchema, updateTicketStatusSchema,
     createTicketMessageSchema, assignTicketWithPinSchema,
     closeTicketWithPinSchema, reassignTicketSchema,
-    createInternalTicketSchema,
+    createInternalTicketSchema, createTicketRatingSchema,
 } from '@zyllen/shared';
 
 // Ensure uploads directory exists
@@ -66,6 +66,12 @@ export class TicketsController {
     @Get('my-internal')
     async myInternalTickets(@Request() req: any) {
         const data = await this.ticketsService.findMyInternalTickets(req.user.id);
+        return { data };
+    }
+
+    @Get('my-internal/pending-rating')
+    async pendingInternalRating(@Request() req: any) {
+        const data = await this.ticketsService.findPendingRatingForInternalUser(req.user.id);
         return { data };
     }
 
@@ -226,5 +232,15 @@ export class TicketsController {
     ) {
         const data = await this.ticketsService.addInternalMessage(id, req.user.id, body.content);
         return { data };
+    }
+
+    @Post('my-internal/:id/rating')
+    async submitInternalTicketRating(
+        @Param('id') id: string,
+        @Request() req: any,
+        @Body(new ZodValidationPipe(createTicketRatingSchema)) body: { rating: number; comment?: string },
+    ) {
+        const data = await this.ticketsService.submitTicketRating(id, req.user.id, body);
+        return { data, message: 'Avaliação enviada com sucesso' };
     }
 }

@@ -3,11 +3,22 @@ import {
     NotFoundException,
     BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StockLedgerService } from '../inventory/stock-ledger.service';
 
 @Injectable()
 export class ProductExitsService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly stockLedger: StockLedgerService,
+        private readonly configService: ConfigService,
+    ) { }
+
+    private isLedgerUnifiedWriteEnabled(): boolean {
+        const raw = this.configService.get<string>('FF_LEDGER_UNIFIED_WRITE') ?? 'false';
+        return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase());
+    }
 
     // ── Register a product exit ──
     async create(data: {
@@ -23,7 +34,7 @@ export class ProductExitsService {
 
         // Verify SKU exists
         const sku = await this.prisma.skuItem.findUnique({ where: { id: data.skuId } });
-        if (!sku) throw new NotFoundException('SKU não encontrado');
+        if (!sku) throw new NotFoundException('Item não encontrado');
 
         // Verify location exists
         const location = await this.prisma.location.findUnique({ where: { id: data.locationId } });
@@ -40,6 +51,8 @@ export class ProductExitsService {
         }
 
         return this.prisma.$transaction(async (tx) => {
+            const dualWriteEnabled = this.isLedgerUnifiedWriteEnabled();
+
             // 1. Create exit record
             const exit = await tx.productExit.create({
                 data: {
@@ -56,11 +69,24 @@ export class ProductExitsService {
                 },
             });
 
-            // 2. Decrement stock balance
-            await tx.stockBalance.update({
-                where: { skuId_locationId: { skuId: data.skuId, locationId: data.locationId } },
-                data: { quantity: { decrement: data.quantity } },
-            });
+            // 2. Keep legacy balance write, optionally enable dual-write to unified ledger
+            if (dualWriteEnabled) {
+                await this.stockLedger.registerExitMovement(tx, {
+                    skuId: data.skuId,
+                    fromLocationId: data.locationId,
+                    qty: data.quantity,
+                    userId: data.createdById,
+                    reason: data.reason,
+                    movementTypeName: 'Saída',
+                    referenceType: 'PRODUCT_EXIT',
+                    referenceId: exit.id,
+                });
+            } else {
+                await tx.stockBalance.update({
+                    where: { skuId_locationId: { skuId: data.skuId, locationId: data.locationId } },
+                    data: { quantity: { decrement: data.quantity } },
+                });
+            }
 
             // 3. Audit log
             await tx.auditLog.create({

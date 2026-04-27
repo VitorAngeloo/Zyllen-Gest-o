@@ -8,13 +8,38 @@ import {
     Param,
     Query,
     UseGuards,
+    Request,
+    UseInterceptors,
+    UploadedFiles,
+    BadRequestException,
+    ForbiddenException,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { CatalogService } from './catalog.service';
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
 import { createCategorySchema, createSkuItemSchema, updateCategorySchema, updateSkuItemSchema } from '@zyllen/shared';
+
+const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'media', 'catalog');
+if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const mediaStorage = diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+    filename: (_req, file, cb) => {
+        const ext = extname(file.originalname) || '.bin';
+        cb(null, `${randomUUID()}${ext}`);
+    },
+});
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const ALLOWED_MIME = /^(image\/(jpeg|png|webp)|video\/(mp4|quicktime|webm))$/;
+const ALLOWED_ROLES = new Set(['Administrador', 'Gestor', 'Técnico']);
 
 @Controller('catalog')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -88,22 +113,48 @@ export class CatalogController {
 
     @Post('skus')
     @RequirePermission('catalog.create')
-    async createSku(@Body(new ZodValidationPipe(createSkuItemSchema)) body: { name: string; description?: string; brand?: string; barcode?: string; categoryId: string }) {
-        const data = await this.catalogService.createSkuItem(body);
-        return { data, message: 'SKU criado com sucesso' };
+    @UseInterceptors(FilesInterceptor('files', 10, { storage: mediaStorage, limits: { fileSize: MAX_FILE_SIZE } }))
+    async createSku(
+        @Request() req: any,
+        @Body(new ZodValidationPipe(createSkuItemSchema)) body: { name: string; description?: string; brand?: string; barcode?: string; categoryId: string },
+        @UploadedFiles() files?: Express.Multer.File[],
+    ) {
+        if (files?.length && !ALLOWED_ROLES.has(req.user?.role?.name)) {
+            throw new ForbiddenException('Apenas Técnico, Gestor e Administrador podem enviar anexos de mídia');
+        }
+
+        for (const file of files ?? []) {
+            if (!ALLOWED_MIME.test(file.mimetype)) {
+                throw new BadRequestException(
+                    `Tipo não permitido: ${file.originalname}. Use JPG, PNG, WEBP, MP4, MOV ou WEBM.`,
+                );
+            }
+        }
+
+        const data = await this.catalogService.createSkuItem({
+            ...body,
+            attachments: (files ?? []).map((file) => ({
+                fileName: file.originalname,
+                filePath: `/uploads/media/catalog/${file.filename}`,
+                mimeType: file.mimetype,
+                mediaType: file.mimetype.startsWith('image/') ? 'IMAGE' : 'VIDEO',
+                uploadedById: req.user.id,
+            })),
+        });
+        return { data, message: 'Item criado com sucesso' };
     }
 
     @Put('skus/:id')
     @RequirePermission('catalog.update')
     async updateSku(@Param('id') id: string, @Body(new ZodValidationPipe(updateSkuItemSchema)) body: { name?: string; description?: string; brand?: string; barcode?: string; categoryId?: string }) {
         const data = await this.catalogService.updateSkuItem(id, body);
-        return { data, message: 'SKU atualizado com sucesso' };
+        return { data, message: 'Item atualizado com sucesso' };
     }
 
     @Delete('skus/:id')
     @RequirePermission('catalog.delete')
     async deleteSku(@Param('id') id: string) {
         await this.catalogService.deleteSkuItem(id);
-        return { message: 'SKU excluído com sucesso' };
+        return { message: 'Item excluído com sucesso' };
     }
 }

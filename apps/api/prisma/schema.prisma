@@ -42,6 +42,8 @@ model InternalUser {
   followupsCreated    Followup[]        @relation("FollowupCreatedBy")
   followupComments    FollowupComment[] @relation("FollowupComments")
   followupHistory     FollowupHistory[] @relation("FollowupHistoryUser")
+  ticketRatingsGiven  TicketRating[]    @relation("TicketRatingEvaluator")
+  mediaAttachments    ItemMediaAttachment[]
 }
 
 model ExternalUser {
@@ -179,6 +181,7 @@ model SkuItem {
   purchaseItems   PurchaseOrderItem[]
   receivingItems  ReceivingItem[]
   productExits    ProductExit[]
+  mediaAttachments ItemMediaAttachment[]
 }
 
 model Asset {
@@ -195,6 +198,12 @@ model Asset {
   stockMovements  StockMovement[]
   maintenanceOrders MaintenanceOS[]
   labelPrintJobs  LabelPrintJob[]
+}
+
+model AssetCodeSequence {
+  id          String   @id
+  currentValue Int     @default(0)
+  updatedAt   DateTime @updatedAt
 }
 
 // ─── Inventory ────────────────────────────────
@@ -248,6 +257,7 @@ model StockMovement {
   fromLocation Location?    @relation("FromLocation", fields: [fromLocationId], references: [id])
   toLocation   Location?    @relation("ToLocation", fields: [toLocationId], references: [id])
   createdBy   InternalUser  @relation(fields: [createdByInternalUserId], references: [id])
+  mediaAttachments ItemMediaAttachment[]
 }
 
 model MovementType {
@@ -307,6 +317,19 @@ model Ticket {
   assignedTo   InternalUser? @relation(fields: [assignedToInternalUserId], references: [id])
   messages     TicketMessage[]
   attachments  TicketAttachment[]
+  rating       TicketRating?
+}
+
+model TicketRating {
+  id                      String   @id @default(uuid())
+  ticketId                String   @unique
+  evaluatorInternalUserId String
+  rating                  Int
+  comment                 String?
+  createdAt               DateTime @default(now())
+
+  ticket     Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  evaluator  InternalUser @relation("TicketRatingEvaluator", fields: [evaluatorInternalUserId], references: [id])
 }
 
 model TicketMessage {
@@ -566,4 +589,24 @@ model ProductExit {
   sku       SkuItem      @relation(fields: [skuId], references: [id])
   location  Location     @relation(fields: [locationId], references: [id])
   createdBy InternalUser @relation(fields: [createdById], references: [id])
+}
+
+model ItemMediaAttachment {
+  id              String   @id @default(uuid())
+  skuId           String?
+  stockMovementId String?
+  fileName        String
+  filePath        String
+  mimeType        String
+  mediaType       String   // IMAGE | VIDEO
+  uploadedById    String
+  createdAt       DateTime @default(now())
+
+  sku           SkuItem?       @relation(fields: [skuId], references: [id], onDelete: SetNull)
+  stockMovement StockMovement? @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
+  uploadedBy    InternalUser   @relation(fields: [uploadedById], references: [id])
+
+  @@index([skuId])
+  @@index([stockMovementId])
+  @@index([uploadedById])
 }

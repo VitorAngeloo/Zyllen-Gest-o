@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
-import { useAuthedFetch } from "@web/lib/auth-context";
+import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -11,13 +11,15 @@ import { Badge } from "@web/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@web/components/ui/dialog";
 import { Select, SelectOption } from "@web/components/ui/select";
 import { toast } from "sonner";
-import { Database, Layers, MapPin, Truck, Tag, Plus, Pencil, Trash2, X } from "lucide-react";
+import { Database, Layers, MapPin, Truck, Tag, Plus, Pencil, Trash2, X, Camera, Upload } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
 type Tab = "categories" | "skus" | "locations" | "suppliers" | "movementTypes";
+const ALLOWED_MEDIA_MIME = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"]);
 
 export default function CadastrosPage() {
+    const { user } = useAuth();
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
     const [tab, setTab] = useState<Tab>("categories");
@@ -54,7 +56,44 @@ export default function CadastrosPage() {
     const [newLoc, setNewLoc] = useState({ name: "", description: "" });
     const [newSup, setNewSup] = useState({ name: "", cnpj: "", contact: "" });
     const [newSku, setNewSku] = useState({ name: "", brand: "", barcode: "", categoryId: "" });
+    const [newSkuMedia, setNewSkuMedia] = useState<File[]>([]);
+    const skuMediaFilesInputRef = useRef<HTMLInputElement>(null);
+    const skuMediaCameraInputRef = useRef<HTMLInputElement>(null);
     const [newMt, setNewMt] = useState({ name: "", requiresApproval: false, isFinalWriteOff: false, setsAssetStatus: "", defaultToLocationId: "" });
+
+    const canUploadMedia = user?.type === "internal" && ["Técnico", "Gestor", "Administrador"].includes((user as any).role?.name ?? "");
+
+    const skuMediaPreviews = useMemo(
+        () => newSkuMedia.map((file) => ({ file, url: URL.createObjectURL(file), isImage: file.type.startsWith("image/") })),
+        [newSkuMedia],
+    );
+
+    useEffect(() => {
+        return () => {
+            for (const preview of skuMediaPreviews) URL.revokeObjectURL(preview.url);
+        };
+    }, [skuMediaPreviews]);
+
+    const appendSkuMedia = (files: FileList | null) => {
+        if (!files?.length) return;
+        const selected = Array.from(files);
+        const invalid = selected.find((file) => !ALLOWED_MEDIA_MIME.has(file.type));
+        if (invalid) {
+            toast.error("Arquivo inválido. Use JPG, PNG, WEBP, MP4, MOV ou WEBM.");
+            return;
+        }
+        setNewSkuMedia((prev) => {
+            const map = new Map(prev.map((file) => [`${file.name}-${file.size}-${file.lastModified}`, file]));
+            for (const file of selected) {
+                map.set(`${file.name}-${file.size}-${file.lastModified}`, file);
+            }
+            return Array.from(map.values());
+        });
+    };
+
+    const removeSkuMedia = (index: number) => {
+        setNewSkuMedia((prev) => prev.filter((_, i) => i !== index));
+    };
 
     // ─── Edit dialogs ──────────────────
     const [editCat, setEditCat] = useState<any>(null);
@@ -85,18 +124,35 @@ export default function CadastrosPage() {
 
     // ─── Mutations: SKUs ───────────────
     const createSku = useMutation({
-        mutationFn: (data: any) => apiClient.post("/catalog/skus", data, fetchOpts),
-        onSuccess: () => { toast.success("SKU criado!"); qc.invalidateQueries({ queryKey: ["skus"] }); setNewSku({ name: "", brand: "", barcode: "", categoryId: "" }); },
+        mutationFn: async (data: any) => {
+            if (data.files?.length) {
+                const formData = new FormData();
+                formData.append("name", data.name);
+                if (data.brand) formData.append("brand", data.brand);
+                if (data.barcode) formData.append("barcode", data.barcode);
+                if (data.description) formData.append("description", data.description);
+                formData.append("categoryId", data.categoryId);
+                for (const file of data.files as File[]) formData.append("files", file);
+                return apiClient.upload("/catalog/skus", formData, fetchOpts);
+            }
+            return apiClient.post("/catalog/skus", data, fetchOpts);
+        },
+        onSuccess: () => {
+            toast.success("Item criado!");
+            qc.invalidateQueries({ queryKey: ["skus"] });
+            setNewSku({ name: "", brand: "", barcode: "", categoryId: "" });
+            setNewSkuMedia([]);
+        },
         onError: (e: any) => toast.error(e.message),
     });
     const updateSku = useMutation({
         mutationFn: (data: any) => apiClient.put(`/catalog/skus/${data.id}`, { name: data.name, brand: data.brand, barcode: data.barcode, categoryId: data.categoryId }, fetchOpts),
-        onSuccess: () => { toast.success("SKU atualizado!"); qc.invalidateQueries({ queryKey: ["skus"] }); setEditSku(null); },
+        onSuccess: () => { toast.success("Item atualizado!"); qc.invalidateQueries({ queryKey: ["skus"] }); setEditSku(null); },
         onError: (e: any) => toast.error(e.message),
     });
     const deleteSku = useMutation({
         mutationFn: (id: string) => apiClient.delete(`/catalog/skus/${id}`, fetchOpts),
-        onSuccess: () => { toast.success("SKU excluído!"); qc.invalidateQueries({ queryKey: ["skus"] }); setDeleteConfirm(null); },
+        onSuccess: () => { toast.success("Item excluído!"); qc.invalidateQueries({ queryKey: ["skus"] }); setDeleteConfirm(null); },
         onError: (e: any) => toast.error(e.message),
     });
 
@@ -163,7 +219,7 @@ export default function CadastrosPage() {
 
     const tabs = [
         { key: "categories", label: "Categorias", icon: Layers },
-        { key: "skus", label: "SKUs", icon: Tag },
+        { key: "skus", label: "Itens", icon: Tag },
         { key: "locations", label: "Locais", icon: MapPin },
         { key: "suppliers", label: "Fornecedores", icon: Truck },
         { key: "movementTypes", label: "Tipos de Mov.", icon: Database },
@@ -226,9 +282,9 @@ export default function CadastrosPage() {
             {tab === "skus" && (
                 <div className="space-y-4">
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                        <CardHeader><CardTitle className="text-white">Novo SKU</CardTitle></CardHeader>
+                        <CardHeader><CardTitle className="text-white">Novo Item</CardTitle></CardHeader>
                         <CardContent>
-                            <form onSubmit={(e) => { e.preventDefault(); createSku.mutate(newSku); }} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <form onSubmit={(e) => { e.preventDefault(); createSku.mutate({ ...newSku, files: newSkuMedia }); }} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label className="text-[var(--zyllen-muted)]">Nome</Label>
                                     <Input value={newSku.name} onChange={(e) => setNewSku({ ...newSku, name: e.target.value })} placeholder="Nome do item..." required className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
@@ -247,9 +303,75 @@ export default function CadastrosPage() {
                                     <Label className="text-[var(--zyllen-muted)]">Código de barras</Label>
                                     <Input value={newSku.barcode} onChange={(e) => setNewSku({ ...newSku, barcode: e.target.value })} placeholder="Opcional" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                                 </div>
+                                {canUploadMedia && (
+                                    <div className="md:col-span-2 space-y-3">
+                                        <Label className="text-[var(--zyllen-muted)]">Mídia (opcional)</Label>
+                                        <div className="flex flex-wrap gap-2">
+                                            <input
+                                                ref={skuMediaFilesInputRef}
+                                                type="file"
+                                                accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                                                multiple
+                                                onChange={(e) => {
+                                                    appendSkuMedia(e.target.files);
+                                                    e.currentTarget.value = "";
+                                                }}
+                                                className="sr-only"
+                                            />
+                                            <input
+                                                ref={skuMediaCameraInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                capture="environment"
+                                                onChange={(e) => {
+                                                    appendSkuMedia(e.target.files);
+                                                    e.currentTarget.value = "";
+                                                }}
+                                                className="sr-only"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="border-[var(--zyllen-border)] text-white hover:bg-white/5 gap-2"
+                                                onClick={() => skuMediaFilesInputRef.current?.click()}
+                                            >
+                                                <Upload size={14} /> Adicionar foto/vídeo
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="border-[var(--zyllen-border)] text-white hover:bg-white/5 gap-2"
+                                                onClick={() => skuMediaCameraInputRef.current?.click()}
+                                            >
+                                                <Camera size={14} /> Tirar foto agora
+                                            </Button>
+                                        </div>
+                                        {skuMediaPreviews.length > 0 && (
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                {skuMediaPreviews.map((preview, index) => (
+                                                    <div key={`${preview.file.name}-${preview.file.lastModified}-${index}`} className="relative rounded-lg border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] p-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeSkuMedia(index)}
+                                                            className="absolute top-1 right-1 z-10 flex items-center justify-center size-5 rounded-full bg-red-500 text-white hover:bg-red-400"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                        {preview.isImage ? (
+                                                            <img src={preview.url} alt={preview.file.name} className="h-24 w-full object-cover rounded" />
+                                                        ) : (
+                                                            <video src={preview.url} className="h-24 w-full object-cover rounded" controls />
+                                                        )}
+                                                        <p className="text-[11px] text-[var(--zyllen-muted)] truncate mt-2">{preview.file.name}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="md:col-span-2">
                                     <Button type="submit" variant="highlight" disabled={createSku.isPending} className="w-full">
-                                        <Plus size={16} /> {createSku.isPending ? "Criando..." : "Criar SKU"}
+                                        <Plus size={16} /> {createSku.isPending ? (newSkuMedia.length ? "Enviando mídia..." : "Criando...") : "Criar item"}
                                     </Button>
                                 </div>
                             </form>
@@ -257,7 +379,7 @@ export default function CadastrosPage() {
                     </Card>
 
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                        <CardHeader><CardTitle className="text-white">SKUs Cadastrados</CardTitle></CardHeader>
+                        <CardHeader><CardTitle className="text-white">Itens Cadastrados</CardTitle></CardHeader>
                         <CardContent>
                             {skus?.data?.length ? (
                                 <div className="overflow-x-auto">
@@ -442,7 +564,7 @@ export default function CadastrosPage() {
             {/* Edit SKU */}
             <Dialog open={!!editSku} onOpenChange={(o) => !o && setEditSku(null)}>
                 <DialogContent onClose={() => setEditSku(null)} className="border-[var(--zyllen-border)]">
-                    <DialogHeader><DialogTitle>Editar SKU</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>Editar item</DialogTitle></DialogHeader>
                     <DialogBody>
                         <div className="space-y-4">
                             <div className="space-y-2">

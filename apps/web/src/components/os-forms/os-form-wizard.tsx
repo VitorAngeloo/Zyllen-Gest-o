@@ -16,8 +16,9 @@ import {
     SuporteRemotoFormFields,
     ManutencaoTelaSalaFormFields,
 } from "./os-form-fields";
-import type { MediaAttachment } from "./media-uploader";
+import type { MediaAttachment, LocalMediaFile } from "./media-uploader";
 import { apiClient } from "@web/lib/api-client";
+import { useAuthedFetch } from "@web/lib/auth-context";
 
 // Map form type to its field component
 const FORM_FIELD_COMPONENTS: Record<OsFormType, React.ComponentType<any>> = {
@@ -63,6 +64,7 @@ export interface OsFormSubmitData {
     endedAt?: string;
     scheduledDate?: string;
     formData: Record<string, unknown>;
+    localFiles?: File[];
 }
 
 type WizardStep = "select-type" | "fill-form";
@@ -81,7 +83,7 @@ const BRAZILIAN_STATES: { uf: string; name: string }[] = [
 ];
 
 const IBGE_API = "https://servicodados.ibge.gov.br/api/v1/localidades/estados";
-const NOMINATIM_API = "https://nominatim.openstreetmap.org/search";
+const NOMINATIM_REVERSE_API = "https://nominatim.openstreetmap.org/reverse";
 
 const inputCls = "bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white placeholder:text-[var(--zyllen-muted)]/50";
 const selectCls = "w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm";
@@ -121,16 +123,18 @@ export function OsFormWizard({
 
     // Attachments (photos/videos)
     const [attachments, setAttachments] = useState<MediaAttachment[]>([]);
+    const [localFiles, setLocalFiles] = useState<LocalMediaFile[]>([]);
     const osId = initialData?.id;
     const apiBasePath = userContext === "contractor" ? "/contractor/maintenance" : "/maintenance";
+    const authFetch = useAuthedFetch();
 
     const fetchAttachments = useCallback(async () => {
         if (!osId) return;
         try {
-            const res = await apiClient.get<{ data: MediaAttachment[] }>(`${apiBasePath}/${osId}/attachments`);
+            const res = await apiClient.get<{ data: MediaAttachment[] }>(`${apiBasePath}/${osId}/attachments`, authFetch);
             setAttachments(res.data || []);
         } catch { /* ignore — OS may not have attachments */ }
-    }, [osId, apiBasePath]);
+    }, [osId, apiBasePath, authFetch]);
 
     useEffect(() => {
         if (osId) fetchAttachments();
@@ -140,6 +144,7 @@ export function OsFormWizard({
     const [cities, setCities] = useState<string[]>([]);
     const [loadingCities, setLoadingCities] = useState(false);
     const [locatingAddress, setLocatingAddress] = useState(false);
+    const [locationError, setLocationError] = useState<string | null>(null);
 
     const config = selectedType ? OS_FORM_CONFIG[selectedType] : null;
     const FormFieldsComponent = selectedType ? FORM_FIELD_COMPONENTS[selectedType] : null;
@@ -174,27 +179,41 @@ export function OsFormWizard({
 
     const handleCityChange = (city: string) => {
         setClientCity(city);
-        if (city && clientState) {
-            setLocation(`${city} - ${clientState}, Brasil`);
-        }
     };
 
-    // Auto-locate via Nominatim (OpenStreetMap)
+    // Auto-locate via GPS + reverse geocoding (OpenStreetMap)
     const autoLocate = async () => {
-        if (!clientCity || !clientState) return;
+        setLocationError(null);
+        if (typeof window === "undefined" || !navigator.geolocation) {
+            setLocationError("Seu dispositivo não suporta geolocalização.");
+            return;
+        }
+
         setLocatingAddress(true);
         try {
-            const query = encodeURIComponent(`${clientCity}, ${clientState}, Brasil`);
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(
+                    resolve,
+                    reject,
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+                );
+            });
+
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
             const res = await fetch(
-                `${NOMINATIM_API}?q=${query}&format=json&limit=1&accept-language=pt-BR`,
+                `${NOMINATIM_REVERSE_API}?lat=${lat}&lon=${lon}&format=json&accept-language=pt-BR`,
                 { headers: { "User-Agent": "ZyllenGestao/1.0" } },
             );
             const data = await res.json();
-            if (data?.[0]?.display_name) {
-                setLocation(data[0].display_name);
+            if (data?.display_name) {
+                setLocation(data.display_name);
+                return;
             }
+
+            setLocation(`${lat.toFixed(6)}, ${lon.toFixed(6)}`);
         } catch {
-            // keep current value on failure
+            setLocationError("Não foi possível obter a localização pelo GPS. Verifique a permissão de localização.");
         } finally {
             setLocatingAddress(false);
         }
@@ -226,17 +245,26 @@ export function OsFormWizard({
         startedAt: startedAt || undefined,
         endedAt: endedAt || undefined,
         formData,
+        localFiles: localFiles.length > 0 ? localFiles.map((item) => item.file) : undefined,
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedType || readOnly) return;
         await onSubmit(buildSubmitData());
+        if (localFiles.length > 0) {
+            setLocalFiles([]);
+            if (osId) await fetchAttachments();
+        }
     };
 
     const handleSaveDraft = async () => {
         if (!selectedType || !onSaveDraft || readOnly) return;
         await onSaveDraft(buildSubmitData());
+        if (localFiles.length > 0) {
+            setLocalFiles([]);
+            if (osId) await fetchAttachments();
+        }
     };
 
     // ── Step 1: Select form type ──
@@ -359,18 +387,18 @@ export function OsFormWizard({
                             </>
                         )}
 
-                        {/* Localização — auto-fill from state+city */}
+                        {/* Localização — auto-fill from GPS */}
                         <div className="space-y-2">
                             <Label className="text-[var(--zyllen-muted)]">Localização (Endereço)</Label>
                             <div className="flex gap-2">
                                 <Input
-                                    placeholder="Endereço completo — preenchido automaticamente"
+                                    placeholder="Endereço completo — preenchido automaticamente pelo GPS"
                                     value={location}
                                     onChange={(e) => setLocation(e.target.value)}
                                     readOnly={readOnly}
                                     className={`${inputCls} flex-1`}
                                 />
-                                {!readOnly && clientCity && clientState && (
+                                {!readOnly && (
                                     <Button
                                         type="button"
                                         variant="outline"
@@ -378,12 +406,15 @@ export function OsFormWizard({
                                         onClick={autoLocate}
                                         disabled={locatingAddress}
                                         className="border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white shrink-0 h-9 px-3"
-                                        title="Buscar endereço automático via OpenStreetMap"
+                                        title="Usar localização atual do GPS"
                                     >
                                         {locatingAddress ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
                                     </Button>
                                 )}
                             </div>
+                            {locationError && (
+                                <p className="text-xs text-red-400">{locationError}</p>
+                            )}
                         </div>
 
                         {/* Contato no Local (Responsável) — campos atômicos */}
@@ -466,6 +497,9 @@ export function OsFormWizard({
                                 attachments={attachments}
                                 onRefreshAttachments={fetchAttachments}
                                 apiBasePath={apiBasePath}
+                                localFiles={localFiles}
+                                onLocalFilesChange={setLocalFiles}
+                                editMode={editMode}
                             />
                         )}
                     </CardContent>

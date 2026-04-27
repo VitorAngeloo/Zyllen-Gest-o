@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import {
     Package, ScanBarcode, Headset, Wrench, AlertCircle, CheckCircle2, XCircle,
     Users, Key, ShieldCheck, Database, Building2, Tag, Plus, X, Pencil,
-    FileText, ShoppingCart, MessageSquareText, LayoutDashboard, HardHat, GripVertical,
+    FileText, ShoppingCart, MessageSquareText, LayoutDashboard, HardHat, GripVertical, ClipboardList,
     Clock, UserCheck, Shield, Timer, ArrowRightLeft, Check,
 } from "lucide-react";
 import Link from "next/link";
@@ -60,20 +60,21 @@ function getAttentionLevel(count: number) {
 
 /* ─── All available shortcuts ─── */
 const ALL_SHORTCUTS = [
+    { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, color: "text-indigo-400", bg: "bg-indigo-400/10", perm: "dashboard.view" },
     { id: "chamados-ti", label: "Meus Chamados TI", href: "/dashboard/chamados-ti", icon: MessageSquareText, color: "text-cyan-400", bg: "bg-cyan-400/10" },
     { id: "chamados", label: "Chamados", href: "/dashboard/chamados", icon: Headset, color: "text-amber-400", bg: "bg-amber-400/10", perm: "tickets.view" },
     { id: "minhas-os", label: "Minhas OS", href: "/dashboard/minhas-os", icon: FileText, color: "text-teal-400", bg: "bg-teal-400/10", perm: "maintenance.view" },
-    { id: "manutencao", label: "Manutenção", href: "/dashboard/manutencao", icon: Wrench, color: "text-purple-400", bg: "bg-purple-400/10", perm: "maintenance.view" },
+    { id: "manutencao", label: "Abertura de OS", href: "/dashboard/manutencao", icon: Wrench, color: "text-purple-400", bg: "bg-purple-400/10", perm: "maintenance.view" },
+    { id: "acompanhamento", label: "Acompanhamento", href: "/dashboard/acompanhamento", icon: ClipboardList, color: "text-cyan-300", bg: "bg-cyan-300/10" },
     { id: "estoque", label: "Estoque", href: "/dashboard/estoque", icon: Package, color: "text-blue-400", bg: "bg-blue-400/10", perm: "inventory.view" },
-    { id: "patrimonio", label: "Patrimônio", href: "/dashboard/patrimonio", icon: ScanBarcode, color: "text-[var(--zyllen-highlight)]", bg: "bg-[var(--zyllen-highlight)]/10", perm: "assets.view" },
-    { id: "compras", label: "Compras", href: "/dashboard/compras", icon: ShoppingCart, color: "text-lime-400", bg: "bg-lime-400/10", perm: "purchases.view" },
+    { id: "cadastros", label: "Cadastro", href: "/dashboard/cadastros", icon: Database, color: "text-orange-400", bg: "bg-orange-400/10", perm: "catalog.view" },
+    { id: "patrimonio", label: "Patrimonio", href: "/dashboard/patrimonio", icon: ScanBarcode, color: "text-[var(--zyllen-highlight)]", bg: "bg-[var(--zyllen-highlight)]/10", perm: "assets.view" },
     { id: "etiquetas", label: "Etiquetas", href: "/dashboard/etiquetas", icon: Tag, color: "text-pink-400", bg: "bg-pink-400/10", perm: "labels.view" },
-    { id: "saidas", label: "Saídas", href: "/dashboard/saidas", icon: Package, color: "text-red-400", bg: "bg-red-400/10", perm: "inventory.view" },
+    { id: "compras", label: "Compras", href: "/dashboard/compras", icon: ShoppingCart, color: "text-lime-400", bg: "bg-lime-400/10", perm: "purchases.view" },
     { id: "clientes", label: "Clientes", href: "/dashboard/clientes", icon: Building2, color: "text-sky-400", bg: "bg-sky-400/10", perm: "settings.view" },
-    { id: "terceirizados", label: "Terceirizados", href: "/dashboard/terceirizados", icon: HardHat, color: "text-yellow-400", bg: "bg-yellow-400/10", perm: "settings.view" },
+    { id: "terceirizados", label: "Parceiros", href: "/dashboard/terceirizados", icon: HardHat, color: "text-yellow-400", bg: "bg-yellow-400/10", perm: "settings.view" },
     { id: "colaboradores", label: "Colaboradores", href: "/dashboard/colaboradores", icon: Users, color: "text-emerald-400", bg: "bg-emerald-400/10", perm: "access.view" },
     { id: "permissoes", label: "Permissões", href: "/dashboard/permissoes", icon: Key, color: "text-rose-400", bg: "bg-rose-400/10", perm: "access.manage" },
-    { id: "cadastros", label: "Cadastros", href: "/dashboard/cadastros", icon: Database, color: "text-orange-400", bg: "bg-orange-400/10", perm: "catalog.view" },
     { id: "acesso", label: "Acesso", href: "/dashboard/acesso", icon: ShieldCheck, color: "text-violet-400", bg: "bg-violet-400/10", perm: "access.view" },
 ];
 
@@ -119,6 +120,7 @@ export default function DashboardPage() {
     const canViewTickets = hasPermission("tickets.view");
     const canViewMaintenance = hasPermission("maintenance.view");
     const canViewInventory = hasPermission("inventory.view");
+    const isInternos = user?.type === "internal" && "role" in (user ?? {}) && (user as any).role?.name === "Internos";
 
     const userRole = user?.type === "internal" && "role" in user ? (user as any).role?.name : null;
     const isManagerOrAdmin = userRole === "Administrador" || userRole === "Gestor";
@@ -223,16 +225,26 @@ export default function DashboardPage() {
     });
 
     const approveMut = useMutation({
-        mutationFn: (id: string) => apiClient.post(`/inventory/approvals/${id}/approve`, {}, fetchOpts),
+        mutationFn: ({ id, pin }: { id: string; pin: string }) => apiClient.post(`/inventory/approvals/${id}/approve`, { pin }, fetchOpts),
         onSuccess: () => { toast.success(TOASTS.approved); qc.invalidateQueries({ queryKey: ["approvals"] }); qc.invalidateQueries({ queryKey: ["balances"] }); },
         onError: (e: any) => toast.error(e.message),
     });
 
     const rejectMut = useMutation({
-        mutationFn: (id: string) => apiClient.post(`/inventory/approvals/${id}/reject`, {}, fetchOpts),
+        mutationFn: ({ id, pin }: { id: string; pin: string }) => apiClient.post(`/inventory/approvals/${id}/reject`, { pin }, fetchOpts),
         onSuccess: () => { toast.success(TOASTS.rejected); qc.invalidateQueries({ queryKey: ["approvals"] }); },
         onError: (e: any) => toast.error(e.message),
     });
+
+    const requestApprovalPin = () => {
+        const pin = window.prompt("Digite seu PIN de 4 dígitos para aprovar/rejeitar:")?.trim() ?? "";
+        if (!pin) return null;
+        if (!/^\d{4}$/.test(pin)) {
+            toast.error("PIN inválido. Informe 4 dígitos numéricos.");
+            return null;
+        }
+        return pin;
+    };
 
     /* ─── Client attention monitor (last 7 days) ─── */
     const clientAttention = useMemo(() => {
@@ -299,7 +311,10 @@ export default function DashboardPage() {
     }, [inProgressTickets?.data, isManagerOrAdmin, user?.id]);
 
     /* ─── Shortcut helpers ─── */
-    const availableShortcuts = ALL_SHORTCUTS.filter((s) => !s.perm || hasPermission(s.perm));
+    const availableShortcuts = ALL_SHORTCUTS.filter((s) => {
+        if (isInternos && s.id === "dashboard" && s.perm === "dashboard.view") return false;
+        return !s.perm || hasPermission(s.perm);
+    });
     const activeShortcuts = shortcutIds
         .map((id) => availableShortcuts.find((s) => s.id === id))
         .filter(Boolean) as typeof ALL_SHORTCUTS;
@@ -353,10 +368,18 @@ export default function DashboardPage() {
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <Button size="sm" variant="ghost" className="text-green-400 hover:text-green-300 hover:bg-green-400/10 h-8 w-8 p-0" onClick={() => approveMut.mutate(req.id)} disabled={approveMut.isPending || rejectMut.isPending}>
+                                        <Button size="sm" variant="ghost" className="text-green-400 hover:text-green-300 hover:bg-green-400/10 h-8 w-8 p-0" onClick={() => {
+                                            const pin = requestApprovalPin();
+                                            if (!pin) return;
+                                            approveMut.mutate({ id: req.id, pin });
+                                        }} disabled={approveMut.isPending || rejectMut.isPending}>
                                             <CheckCircle2 size={18} />
                                         </Button>
-                                        <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10 h-8 w-8 p-0" onClick={() => rejectMut.mutate(req.id)} disabled={approveMut.isPending || rejectMut.isPending}>
+                                        <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10 h-8 w-8 p-0" onClick={() => {
+                                            const pin = requestApprovalPin();
+                                            if (!pin) return;
+                                            rejectMut.mutate({ id: req.id, pin });
+                                        }} disabled={approveMut.isPending || rejectMut.isPending}>
                                             <XCircle size={18} />
                                         </Button>
                                     </div>

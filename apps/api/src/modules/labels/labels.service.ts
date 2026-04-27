@@ -4,6 +4,25 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
+type LabelDataContractV1 = {
+    contractVersion: 'v1';
+    layoutVersion: '1';
+    templateId: string | null;
+    assetId: string;
+    assetCode: string;
+    skuId: string;
+    skuCode: string;
+    skuName: string;
+    description: string;
+    brand?: string | null;
+    barcode?: string | null;
+    barcodeValue: string;
+    qrContent: string;
+    category: string;
+    location: string;
+    status: string;
+};
+
 @Injectable()
 export class LabelsService {
     constructor(private readonly prisma: PrismaService) { }
@@ -68,16 +87,36 @@ export class LabelsService {
         });
         if (!asset) throw new NotFoundException('Patrimônio não encontrado');
 
-        return {
+        const description = asset.sku.description ?? asset.sku.name;
+        const barcodeValue = asset.assetCode;
+        const qrContent = JSON.stringify({
+            contractVersion: 'v1',
+            assetId: asset.id,
             assetCode: asset.assetCode,
+            skuId: asset.skuId,
+            skuCode: asset.sku.skuCode,
+        });
+
+        const payload: LabelDataContractV1 = {
+            contractVersion: 'v1',
+            layoutVersion: '1',
+            templateId: null,
+            assetId: asset.id,
+            assetCode: asset.assetCode,
+            skuId: asset.skuId,
             skuCode: asset.sku.skuCode,
             skuName: asset.sku.name,
+            description,
             brand: asset.sku.brand,
             barcode: asset.sku.barcode,
+            barcodeValue,
+            qrContent,
             category: asset.sku.category.name,
             location: asset.currentLocation?.name ?? 'Sem local',
             status: asset.status,
         };
+
+        return payload;
     }
 
     // ── Label Templates CRUD ──

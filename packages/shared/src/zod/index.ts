@@ -185,9 +185,9 @@ export const updateSupplierSchema = z.object({
 
 // ── Stock Movement ──
 export const createStockEntrySchema = z.object({
-    skuId: z.string().uuid('SKU ID inválido'),
-    toLocationId: z.string().uuid('Location ID inválido'),
-    qty: z.number().int().positive('Quantidade deve ser um inteiro positivo'),
+    skuId: z.string().uuid('ID do item inválido'),
+    toLocationId: z.string().uuid('Location ID inválido').optional(),
+    qty: z.coerce.number().int().positive('Quantidade deve ser um inteiro positivo'),
     movementTypeId: z.string().uuid('Movement Type ID inválido'),
     pin: z.string().length(4).regex(/^\d{4}$/, 'PIN inválido'),
     reason: z.string().optional(),
@@ -195,9 +195,9 @@ export const createStockEntrySchema = z.object({
 });
 
 export const createStockExitSchema = z.object({
-    skuId: z.string().uuid('SKU ID inválido'),
+    skuId: z.string().uuid('ID do item inválido'),
     fromLocationId: z.string().uuid('Location ID inválido'),
-    qty: z.number().int().positive('Quantidade deve ser um inteiro positivo'),
+    qty: z.coerce.number().int().positive('Quantidade deve ser um inteiro positivo'),
     movementTypeId: z.string().uuid('Movement Type ID inválido'),
     pin: z.string().length(4).regex(/^\d{4}$/, 'PIN inválido'),
     reason: z.string().optional(),
@@ -206,11 +206,11 @@ export const createStockExitSchema = z.object({
 
 export const createStockMovementSchema = z.object({
     typeId: z.string().uuid('Movement Type ID inválido'),
-    skuId: z.string().uuid('SKU ID inválido'),
+    skuId: z.string().uuid('ID do item inválido'),
     assetId: z.string().uuid('Asset ID inválido').optional(),
     fromLocationId: z.string().uuid('Location ID inválido').optional(),
     toLocationId: z.string().uuid('Location ID inválido').optional(),
-    qty: z.number().int().positive('Quantidade deve ser positiva'),
+    qty: z.coerce.number().int().positive('Quantidade deve ser positiva'),
     pin: z.string().length(4, 'PIN deve ter exatamente 4 dígitos').regex(/^\d{4}$/, 'PIN deve conter apenas números'),
     reason: z.string().optional(),
 });
@@ -245,6 +245,20 @@ export const closeTicketWithPinSchema = z.object({
     resolutionNotes: z.string().min(10, 'Descrição do atendimento deve ter pelo menos 10 caracteres'),
 });
 
+export const createTicketRatingSchema = z.object({
+    rating: z.number().int().min(1, 'A nota mínima é 1 estrela').max(5, 'A nota máxima é 5 estrelas'),
+    comment: z.string().max(2000, 'O comentário pode ter no máximo 2000 caracteres').optional(),
+}).superRefine((data, ctx) => {
+    const comment = data.comment?.trim() ?? '';
+    if (data.rating <= 3 && comment.length < 10) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Para notas de 1 a 3 estrelas, descreva o atendimento com pelo menos 10 caracteres',
+            path: ['comment'],
+        });
+    }
+});
+
 export const reassignTicketSchema = z.object({
     pin: z.string().length(4, 'PIN deve ter 4 dígitos'),
     assignedToId: z.string().uuid('User ID inválido'),
@@ -259,7 +273,7 @@ export const createTicketMessageSchema = z.object({
 });
 
 export const updatePurchaseStatusSchema = z.object({
-    status: z.enum(['DRAFT', 'APPROVED', 'ORDERED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED']),
+    status: z.enum(['DRAFT', 'SENT', 'PARTIAL', 'COMPLETED', 'CANCELLED']),
 });
 
 export const reversalReasonSchema = z.object({
@@ -312,7 +326,7 @@ export const createPermissionSchema = z.object({
 
 // ── Asset ──
 export const createAssetSchema = z.object({
-    skuId: z.string().uuid('SKU ID inválido'),
+    skuId: z.string().uuid('ID do item inválido'),
     currentLocationId: z.string().uuid('Location ID inválido').optional(),
 });
 
@@ -410,7 +424,7 @@ export const updateMaintenanceStatusSchema = z.object({
 export const createPurchaseOrderSchema = z.object({
     supplierId: z.string().uuid('Supplier ID inválido'),
     items: z.array(z.object({
-        skuId: z.string().uuid('SKU ID inválido'),
+        skuId: z.string().uuid('ID do item inválido'),
         qtyOrdered: z.number().int().positive('Quantidade deve ser positiva'),
     })).min(1, 'Pedido deve ter pelo menos 1 item'),
 });
@@ -418,7 +432,7 @@ export const createPurchaseOrderSchema = z.object({
 export const receivePurchaseOrderSchema = z.object({
     locationId: z.string().uuid('Location ID inválido'),
     items: z.array(z.object({
-        skuId: z.string().uuid('SKU ID inválido'),
+        skuId: z.string().uuid('ID do item inválido'),
         qtyReceived: z.number().int().positive('Quantidade deve ser positiva'),
         divergenceNote: z.string().optional(),
     })).min(1, 'Deve receber pelo menos 1 item'),
@@ -484,7 +498,7 @@ export const updateChecklistItemSchema = z.object({
 
 // ── Product Exit ──
 export const createProductExitSchema = z.object({
-    skuId: z.string().uuid('SKU ID inválido'),
+    skuId: z.string().uuid('ID do item inválido'),
     locationId: z.string().uuid('Location ID inválido'),
     quantity: z.number().int().positive('Quantidade deve ser um inteiro positivo'),
     reason: z.string().optional(),

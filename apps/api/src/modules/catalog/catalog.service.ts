@@ -79,7 +79,7 @@ export class CatalogService {
                 where,
                 include: {
                     category: { select: { id: true, name: true } },
-                    _count: { select: { assets: true } },
+                    _count: { select: { assets: true, mediaAttachments: true } },
                 },
                 orderBy: { name: 'asc' },
                 ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
@@ -95,13 +95,38 @@ export class CatalogService {
             include: {
                 category: true,
                 assets: { select: { id: true, assetCode: true, status: true } },
+                mediaAttachments: {
+                    select: {
+                        id: true,
+                        fileName: true,
+                        filePath: true,
+                        mimeType: true,
+                        mediaType: true,
+                        createdAt: true,
+                        uploadedBy: { select: { id: true, name: true } },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
         });
-        if (!sku) throw new NotFoundException('SKU não encontrado');
+        if (!sku) throw new NotFoundException('Item não encontrado');
         return sku;
     }
 
-    async createSkuItem(data: { name: string; description?: string; brand?: string; barcode?: string; categoryId: string }) {
+    async createSkuItem(data: {
+        name: string;
+        description?: string;
+        brand?: string;
+        barcode?: string;
+        categoryId: string;
+        attachments?: {
+            fileName: string;
+            filePath: string;
+            mimeType: string;
+            mediaType: string;
+            uploadedById: string;
+        }[];
+    }) {
         // Verify category exists
         const category = await this.prisma.category.findUnique({ where: { id: data.categoryId } });
         if (!category) throw new NotFoundException('Categoria não encontrada');
@@ -109,9 +134,50 @@ export class CatalogService {
         // Generate unique 6-digit SKU code
         const skuCode = await this.generateUniqueSku();
 
-        return this.prisma.skuItem.create({
-            data: { ...data, skuCode },
-            include: { category: { select: { id: true, name: true } } },
+        return this.prisma.$transaction(async (tx) => {
+            const skuItem = await tx.skuItem.create({
+                data: {
+                    name: data.name,
+                    description: data.description,
+                    brand: data.brand,
+                    barcode: data.barcode,
+                    categoryId: data.categoryId,
+                    skuCode,
+                },
+            });
+
+            if (data.attachments?.length) {
+                await tx.itemMediaAttachment.createMany({
+                    data: data.attachments.map((att) => ({
+                        skuId: skuItem.id,
+                        stockMovementId: null,
+                        fileName: att.fileName,
+                        filePath: att.filePath,
+                        mimeType: att.mimeType,
+                        mediaType: att.mediaType,
+                        uploadedById: att.uploadedById,
+                    })),
+                });
+            }
+
+            return tx.skuItem.findUnique({
+                where: { id: skuItem.id },
+                include: {
+                    category: { select: { id: true, name: true } },
+                    mediaAttachments: {
+                        select: {
+                            id: true,
+                            fileName: true,
+                            filePath: true,
+                            mimeType: true,
+                            mediaType: true,
+                            createdAt: true,
+                            uploadedBy: { select: { id: true, name: true } },
+                        },
+                        orderBy: { createdAt: 'desc' },
+                    },
+                },
+            });
         });
     }
 
@@ -131,7 +197,7 @@ export class CatalogService {
     async deleteSkuItem(id: string) {
         const sku = await this.findSkuById(id);
         if (sku.assets.length > 0) {
-            throw new ConflictException('Não é possível excluir SKU com patrimônios vinculados');
+            throw new ConflictException('Não é possível excluir item com patrimônios vinculados');
         }
         return this.prisma.skuItem.delete({ where: { id } });
     }
@@ -144,6 +210,6 @@ export class CatalogService {
             const existing = await this.prisma.skuItem.findUnique({ where: { skuCode: code } });
             if (!existing) return code;
         }
-        throw new ConflictException('Não foi possível gerar um SKU único. Tente novamente.');
+        throw new ConflictException('Não foi possível gerar um código de item único. Tente novamente.');
     }
 }

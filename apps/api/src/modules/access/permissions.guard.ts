@@ -16,7 +16,7 @@ export class PermissionsGuard implements CanActivate {
     ) { }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
-        const requiredPermission = this.reflector.getAllAndOverride<string>(
+        const requiredPermission = this.reflector.getAllAndOverride<string | string[]>(
             PERMISSION_KEY,
             [context.getHandler(), context.getClass()],
         );
@@ -38,19 +38,25 @@ export class PermissionsGuard implements CanActivate {
             return true;
         }
 
-        const [screen, action] = requiredPermission.split('.');
-        const hasPermission = await this.accessService.userHasPermission(
-            user.id,
-            screen,
-            action,
-        );
+        const requiredPermissions = Array.isArray(requiredPermission)
+            ? requiredPermission
+            : [requiredPermission];
 
-        if (!hasPermission) {
-            throw new ForbiddenException(
-                `Sem permissão para ${screen}.${action}`,
+        for (const permission of requiredPermissions) {
+            const [screen, action] = permission.split('.');
+            const hasPermission = await this.accessService.userHasPermission(
+                user.id,
+                screen,
+                action,
             );
+
+            if (hasPermission) {
+                return true;
+            }
         }
 
-        return true;
+        throw new ForbiddenException(
+            `Sem permissão para uma das opções: ${requiredPermissions.join(' ou ')}`,
+        );
     }
 }
