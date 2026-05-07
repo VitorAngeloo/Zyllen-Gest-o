@@ -127,6 +127,50 @@ const FORM_FIELDS_BY_TYPE: Record<OsFormType, string[]> = {
     ],
 };
 
+const normalizeFormType = (value: string): string => {
+    return value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^A-Za-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .toUpperCase();
+};
+
+const FORM_TYPE_ALIASES: Record<string, OsFormType> = {
+    TERCEIRIZADO: "TERCEIRIZADO",
+    INSTALACAO_SALA: "INSTALACAO_SALA",
+    INSTALACAO_TELA: "INSTALACAO_TELA",
+    DESINSTALACAO: "DESINSTALACAO",
+    SUPORTE_REMOTO: "SUPORTE_REMOTO",
+    MANUTENCAO_TELA_SALA: "MANUTENCAO_TELA_SALA",
+    MANUTENCAO: "MANUTENCAO_TELA_SALA",
+};
+
+function resolveFormType(formType: OsFormType | string | undefined, formData: Record<string, unknown>): OsFormType | undefined {
+    const raw = typeof formType === "string" ? formType.trim() : "";
+    if (raw) {
+        const normalized = normalizeFormType(raw);
+        const direct = FORM_TYPE_ALIASES[normalized];
+        if (direct) return direct;
+    }
+
+    // Legacy safety: infer by best overlap when type is inconsistent.
+    const keys = new Set(Object.keys(formData));
+    let bestType: OsFormType | undefined;
+    let bestScore = 0;
+
+    (Object.keys(FORM_FIELDS_BY_TYPE) as OsFormType[]).forEach((type) => {
+        const expected = FORM_FIELDS_BY_TYPE[type];
+        const score = expected.reduce((acc, key) => (keys.has(key) ? acc + 1 : acc), 0);
+        if (score > bestScore) {
+            bestScore = score;
+            bestType = type;
+        }
+    });
+
+    return bestScore > 0 ? bestType : undefined;
+}
+
 export interface OsFieldRow {
     key: string;
     label: string;
@@ -156,12 +200,8 @@ export function formatFieldValue(value: unknown): string {
 
 export function getOsFieldRows(formType: OsFormType | string | undefined, formData: Record<string, unknown> | null | undefined): OsFieldRow[] {
     const safeData = formData && typeof formData === "object" ? formData : {};
-    const typedForm = (formType || "") as OsFormType;
-    const expectedKeys = FORM_FIELDS_BY_TYPE[typedForm] || [];
-
-    // Show only fields that belong to the selected OS form type.
-    // If form type is unknown, fallback to showing available keys.
-    const allKeys = expectedKeys.length > 0 ? expectedKeys : Object.keys(safeData);
+    const resolvedType = resolveFormType(formType, safeData);
+    const allKeys = resolvedType ? FORM_FIELDS_BY_TYPE[resolvedType] || [] : [];
 
     return allKeys.map((key) => {
         const rawValue = safeData[key as keyof typeof safeData];
