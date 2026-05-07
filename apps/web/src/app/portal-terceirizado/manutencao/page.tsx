@@ -203,9 +203,11 @@ function ContractorMaintenanceInner() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <CardTitle className="text-white">
-                                    {selectedOS.osNumber}
+                                    {selectedOS.clientName || "Cliente"}
                                 </CardTitle>
-                                <p className="text-xs text-[var(--zyllen-muted)] mt-1">{formTypeLabel}</p>
+                                <p className="text-xs text-[var(--zyllen-muted)] mt-1">
+                                    {selectedOS.osNumber ? `${selectedOS.osNumber} · ${formTypeLabel}` : formTypeLabel}
+                                </p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <span
@@ -359,14 +361,14 @@ function ContractorMaintenanceInner() {
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2">
                                                     <p className="text-sm font-medium text-white truncate">
-                                                        {os.osNumber}
+                                                        {os.clientName || "Cliente"}
                                                     </p>
                                                     <Badge variant="outline" className="text-[10px] shrink-0">
                                                         {formLabel}
                                                     </Badge>
                                                 </div>
                                                 <p className="text-xs text-[var(--zyllen-muted)]">
-                                                    {os.clientName && `${os.clientName} · `}
+                                                    {os.osNumber && `${os.osNumber} · `}
                                                     {new Date(os.createdAt).toLocaleDateString("pt-BR")} · {statusCfg.label}
                                                 </p>
                                             </div>

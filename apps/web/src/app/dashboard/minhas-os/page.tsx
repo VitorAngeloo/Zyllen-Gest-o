@@ -181,8 +181,10 @@ export default function MinhasOsPage() {
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <div>
-                                <CardTitle className="text-white">{selectedOS.osNumber}</CardTitle>
-                                <p className="text-sm text-[var(--zyllen-muted)] mt-1">{formTypeLabel}</p>
+                                <CardTitle className="text-white">{selectedOS.clientName || "Cliente"}</CardTitle>
+                                <p className="text-sm text-[var(--zyllen-muted)] mt-1">
+                                    {selectedOS.osNumber ? `${selectedOS.osNumber} · ${formTypeLabel}` : formTypeLabel}
+                                </p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
@@ -382,12 +384,12 @@ export default function MinhasOsPage() {
                                         <div className="flex items-center gap-3">
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-white font-semibold text-sm">{os.osNumber}</span>
+                                                    <span className="text-white font-semibold text-sm">{os.clientName || "Cliente"}</span>
                                                     <Badge variant={stCfg.variant} className="text-xs">{stCfg.label}</Badge>
                                                 </div>
                                                 <p className="text-xs text-[var(--zyllen-muted)] mt-1">
+                                                    {os.osNumber && `${os.osNumber} · `}
                                                     {formLabel}
-                                                    {os.clientName && ` · ${os.clientName}`}
                                                     {(os.openedBy?.name || os.openedByContractor?.name) && listTab !== "mine" && ` · ${os.openedBy?.name || os.openedByContractor?.name}`}
                                                 </p>
                                             </div>
