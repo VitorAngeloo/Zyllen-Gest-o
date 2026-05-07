@@ -200,8 +200,10 @@ export default function ManutencaoPage() {
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <div>
-                                <CardTitle className="text-white">{selectedOS.osNumber || "OS"}</CardTitle>
-                                <p className="text-xs text-[var(--zyllen-muted)] mt-1">{formTypeLabel}</p>
+                                <CardTitle className="text-white">{selectedOS.clientName || "Cliente"}</CardTitle>
+                                <p className="text-xs text-[var(--zyllen-muted)] mt-1">
+                                    {selectedOS.osNumber ? `${selectedOS.osNumber} · ${formTypeLabel}` : formTypeLabel}
+                                </p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Badge variant={stCfg.variant}>{stCfg.label}</Badge>
@@ -367,7 +369,7 @@ export default function ManutencaoPage() {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-[var(--zyllen-border)]">
-                                        <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Nº OS / Cliente</th>
+                                        <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Cliente / Nº OS</th>
                                         <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Tipo</th>
                                         <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Patrimônio</th>
                                         <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Status</th>
@@ -385,8 +387,8 @@ export default function ManutencaoPage() {
                                                 onClick={() => { setSelectedOS(os); setTab("detail"); }}
                                             >
                                                 <td className="py-3 text-xs">
-                                                    <p className="font-mono text-[var(--zyllen-highlight)]">{os.osNumber || "—"}</p>
-                                                    <p className="text-[var(--zyllen-muted)] truncate max-w-[220px]" title={os.clientName || "—"}>{os.clientName || "—"}</p>
+                                                    <p className="text-[var(--zyllen-highlight)] truncate max-w-[220px]" title={os.clientName || "—"}>{os.clientName || "—"}</p>
+                                                    <p className="font-mono text-[var(--zyllen-muted)]">{os.osNumber || "—"}</p>
                                                 </td>
                                                 <td className="py-3 text-white text-xs">{typeLabel}</td>
                                                 <td className="py-3 font-mono text-xs text-white">{os.asset?.assetCode || "—"}</td>
