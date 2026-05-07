@@ -201,7 +201,8 @@ export function formatFieldValue(value: unknown): string {
 export function getOsFieldRows(formType: OsFormType | string | undefined, formData: Record<string, unknown> | null | undefined): OsFieldRow[] {
     const safeData = formData && typeof formData === "object" ? formData : {};
     const resolvedType = resolveFormType(formType, safeData);
-    const allKeys = resolvedType ? FORM_FIELDS_BY_TYPE[resolvedType] || [] : [];
+    const expectedKeys = resolvedType ? FORM_FIELDS_BY_TYPE[resolvedType] || [] : [];
+    const allKeys = expectedKeys.filter((key) => Object.prototype.hasOwnProperty.call(safeData, key));
 
     return allKeys.map((key) => {
         const rawValue = safeData[key as keyof typeof safeData];
