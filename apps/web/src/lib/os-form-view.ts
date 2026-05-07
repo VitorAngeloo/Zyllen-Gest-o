@@ -158,8 +158,10 @@ export function getOsFieldRows(formType: OsFormType | string | undefined, formDa
     const safeData = formData && typeof formData === "object" ? formData : {};
     const typedForm = (formType || "") as OsFormType;
     const expectedKeys = FORM_FIELDS_BY_TYPE[typedForm] || [];
-    const extraKeys = Object.keys(safeData).filter((key) => !expectedKeys.includes(key));
-    const allKeys = [...expectedKeys, ...extraKeys];
+
+    // Show only fields that belong to the selected OS form type.
+    // If form type is unknown, fallback to showing available keys.
+    const allKeys = expectedKeys.length > 0 ? expectedKeys : Object.keys(safeData);
 
     return allKeys.map((key) => {
         const rawValue = safeData[key as keyof typeof safeData];

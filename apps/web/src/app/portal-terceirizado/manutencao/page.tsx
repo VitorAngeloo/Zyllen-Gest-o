@@ -14,6 +14,7 @@ import type { OsFormSubmitData } from "@web/components/os-forms";
 import { OS_FORM_CONFIG } from "@web/components/os-forms";
 import type { OsFormType } from "@web/components/os-forms";
 import { printOsPdf } from "@web/lib/os-pdf";
+import { getOsFieldRows } from "@web/lib/os-form-view";
 
 interface MaintenanceOS {
     id: string;
@@ -188,6 +189,7 @@ function ContractorMaintenanceInner() {
     if (view === "detail" && selectedOS) {
         const statusCfg = STATUS_CONFIG[selectedOS.status] || STATUS_CONFIG.OPEN;
         const formTypeLabel = OS_FORM_CONFIG[selectedOS.formType as OsFormType]?.label || selectedOS.formType;
+        const formRows = getOsFieldRows(selectedOS.formType, selectedOS.formData);
 
         return (
             <div className="space-y-6">
@@ -279,14 +281,22 @@ function ContractorMaintenanceInner() {
                         </div>
 
                         {/* Display form-specific data */}
-                        {selectedOS.formData && Object.keys(selectedOS.formData).length > 0 && (
+                        {formRows.length > 0 && (
                             <div>
                                 <span className="text-sm text-[var(--zyllen-muted)]">Dados do Formulário:</span>
                                 <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                                    {Object.entries(selectedOS.formData).map(([key, value]) => (
-                                        <div key={key} className="bg-white/5 rounded-md px-3 py-2">
-                                            <span className="text-[var(--zyllen-muted)] text-xs">{key}:</span>
-                                            <p className="text-white text-sm">{String(value)}</p>
+                                    {formRows.map((row) => (
+                                        <div key={row.key} className="bg-white/5 rounded-md px-3 py-2">
+                                            <span className="text-[var(--zyllen-muted)] text-xs">{row.label}:</span>
+                                            {row.isSignature ? (
+                                                <div className="mt-2 rounded-md border border-[var(--zyllen-border)] bg-white p-2">
+                                                    <img src={row.rawValue as string} alt={row.label} className="w-full h-24 object-contain" />
+                                                </div>
+                                            ) : (
+                                                <p className={`text-sm ${row.isEmpty ? "text-[var(--zyllen-muted)] italic" : "text-white"}`}>
+                                                    {row.displayValue}
+                                                </p>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
