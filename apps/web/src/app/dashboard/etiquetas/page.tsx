@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFoo
 import { Textarea } from "@web/components/ui/textarea";
 import { Select, SelectOption } from "@web/components/ui/select";
 import { toast } from "sonner";
-import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, Download } from "lucide-react";
+import QRCode from "react-qr-code";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
@@ -206,24 +207,60 @@ export default function EtiquetasPage() {
                                     </div>
                                 </div>
 
-                                {/* Preview border box */}
+                                {/* Label Preview */}
                                 <div className="border-2 border-dashed border-[var(--zyllen-border)] rounded-lg p-6 text-center mb-4">
-                                    <p className="text-[var(--zyllen-muted)] text-sm mb-2">Preview da Etiqueta</p>
-                                    <div className="inline-block bg-white text-black rounded p-4 text-left">
-                                        <p className="font-bold text-lg">{labelData.contract.assetCode}</p>
-                                        <p className="text-sm">{labelData.contract.skuName}</p>
-                                        <p className="text-xs text-gray-500 font-mono">{labelData.contract.skuCode}</p>
+                                    <p className="text-[var(--zyllen-muted)] text-sm mb-4">Preview da Etiqueta</p>
+                                    <div
+                                        id="label-print-area"
+                                        className="inline-block bg-white text-black rounded-lg p-4 text-left shadow-lg"
+                                        style={{ minWidth: 220 }}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className="shrink-0 bg-white p-1 rounded border border-gray-200">
+                                                <QRCode
+                                                    value={labelData.contract.qrContent}
+                                                    size={72}
+                                                    level="M"
+                                                />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="font-bold text-base font-mono tracking-wider leading-tight">
+                                                    {labelData.contract.assetCode}
+                                                </p>
+                                                <p className="text-sm font-medium mt-0.5 leading-tight">
+                                                    {labelData.contract.skuName}
+                                                </p>
+                                                <p className="text-xs text-gray-500 font-mono mt-1">
+                                                    SKU {labelData.contract.skuCode}
+                                                </p>
+                                                {labelData.contract.location && labelData.contract.location !== "Sem local" && (
+                                                    <p className="text-xs text-gray-400 mt-0.5 leading-tight">
+                                                        {labelData.contract.location}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <Button
-                                    variant="highlight"
-                                    className="w-full"
-                                    onClick={() => printMut.mutate(labelData.asset.id)}
-                                    disabled={printMut.isPending}
-                                >
-                                    <Printer size={16} /> {printMut.isPending ? "Registrando..." : "Registrar Impressão"}
-                                </Button>
+                                <div className="flex gap-3">
+                                    <Button
+                                        variant="highlight"
+                                        className="flex-1"
+                                        onClick={() => printMut.mutate(labelData.asset.id)}
+                                        disabled={printMut.isPending}
+                                    >
+                                        <Printer size={16} /> {printMut.isPending ? "Registrando..." : "Registrar Impressão"}
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        className="border-[var(--zyllen-border)] text-white hover:bg-white/5 gap-2"
+                                        onClick={() => window.print()}
+                                        title="Imprimir página"
+                                    >
+                                        <Download size={16} /> Imprimir
+                                    </Button>
+                                </div>
                             </CardContent>
                         </Card>
                     )}
