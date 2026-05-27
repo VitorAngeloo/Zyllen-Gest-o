@@ -119,8 +119,11 @@ export class ScheduleController {
 
     @Delete(':id')
     @RequirePermission('schedule.delete')
-    async cancel(@Param('id') id: string) {
-        const result = await this.scheduleService.cancel(id);
+    async cancel(
+        @Param('id') id: string,
+        @Query('cancelSeries') cancelSeries?: string,
+    ) {
+        const result = await this.scheduleService.cancel(id, cancelSeries === 'true');
         return result;
     }
 }

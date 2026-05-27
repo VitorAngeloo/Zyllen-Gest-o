@@ -17,7 +17,7 @@ import { Label } from "@web/components/ui/label";
 import { toast } from "sonner";
 import {
     AlertTriangle, CheckCircle2, Loader2,
-    CalendarDays, User, Building2, Clock,
+    CalendarDays, User, Building2, Clock, Repeat,
 } from "lucide-react";
 const SCHEDULE_TYPES = ["INSTALLATION", "MAINTENANCE", "REMOVAL", "SUPPORT", "OTHER"] as const;
 type ScheduleType = (typeof SCHEDULE_TYPES)[number];
@@ -151,6 +151,14 @@ export function ScheduleFormDialog({
     const [pendingConflicts, setPendingConflicts] = useState<ConflictRow[]>([]);
     const [isChecking, setIsChecking] = useState(false);
 
+    // Recurrence state (only used when creating)
+    const [recurEnabled, setRecurEnabled] = useState(false);
+    const [recurType, setRecurType] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("WEEKLY");
+    const [recurInterval, setRecurInterval] = useState(1);
+    const [recurEndType, setRecurEndType] = useState<"count" | "date">("count");
+    const [recurCount, setRecurCount] = useState(4);
+    const [recurEndDate, setRecurEndDate] = useState("");
+
     const isEditing = !!editingSchedule;
 
     // Populate form when dialog opens
@@ -159,6 +167,12 @@ export function ScheduleFormDialog({
             setForm(EMPTY_FORM);
             setStep("form");
             setPendingConflicts([]);
+            setRecurEnabled(false);
+            setRecurType("WEEKLY");
+            setRecurInterval(1);
+            setRecurEndType("count");
+            setRecurCount(4);
+            setRecurEndDate("");
             return;
         }
         if (editingSchedule) {
@@ -181,8 +195,8 @@ export function ScheduleFormDialog({
     // ── Data fetching ────────────────────────────────────────────────────────
 
     const { data: installersRes, isLoading: loadingInstallers } = useQuery({
-        queryKey: ["schedule-installers-all"],
-        queryFn: () => apiClient.get<{ data: Installer[] }>("/schedule/installers", fetchOpts),
+        queryKey: ["schedule-installers", "active-only"],
+        queryFn: () => apiClient.get<{ data: Installer[] }>("/schedule/installers?onlyActive=true", fetchOpts),
         enabled: open,
     });
 
@@ -218,6 +232,15 @@ export function ScheduleFormDialog({
                 projectId: data.projectId || undefined,
                 address: data.address || undefined,
                 notes: data.notes || undefined,
+                ...(recurEnabled && {
+                    recurrence: {
+                        type: recurType,
+                        interval: recurInterval,
+                        ...(recurEndType === "count"
+                            ? { count: recurCount }
+                            : { endDate: new Date(recurEndDate + "T23:59:59").toISOString() }),
+                    },
+                }),
             }, fetchOpts),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["schedules"] });
@@ -272,6 +295,12 @@ export function ScheduleFormDialog({
         if (!form.endDate) return "Data de término é obrigatória";
         if (new Date(form.startDate) >= new Date(form.endDate)) return "Data de término deve ser após a de início";
         if (form.installerIds.length === 0) return "Selecione pelo menos 1 técnico";
+        if (!isEditing && recurEnabled) {
+            if (recurEndType === "date" && !recurEndDate) return "Informe a data de término da recorrência";
+            if (recurEndType === "date" && new Date(recurEndDate) <= new Date(form.startDate.slice(0, 10))) {
+                return "Data de término da recorrência deve ser posterior ao início";
+            }
+        }
         return null;
     }
 
@@ -455,9 +484,21 @@ export function ScheduleFormDialog({
                                     </select>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label className="text-[var(--zyllen-muted)] text-xs">
-                                        Projeto {!form.companyId && <span className="opacity-50">(selecione empresa primeiro)</span>}
-                                    </Label>
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-[var(--zyllen-muted)] text-xs">
+                                            Projeto {!form.companyId && <span className="opacity-50">(selecione empresa primeiro)</span>}
+                                        </Label>
+                                        {form.companyId && projects.length === 0 && (
+                                            <a
+                                                href="/dashboard/clientes"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[10px] text-[var(--zyllen-highlight)] hover:underline"
+                                            >
+                                                + Cadastrar projeto
+                                            </a>
+                                        )}
+                                    </div>
                                     <select
                                         className={selectCls}
                                         value={form.projectId}
@@ -465,7 +506,7 @@ export function ScheduleFormDialog({
                                         disabled={!form.companyId || projects.length === 0}
                                     >
                                         <option value="">
-                                            {!form.companyId ? "—" : projects.length === 0 ? "Nenhum projeto" : "Selecionar projeto…"}
+                                            {!form.companyId ? "—" : projects.length === 0 ? "Nenhum projeto cadastrado" : "Selecionar projeto…"}
                                         </option>
                                         {projects.map((p) => (
                                             <option key={p.id} value={p.id}>{p.name}</option>
@@ -552,6 +593,112 @@ export function ScheduleFormDialog({
                                     </div>
                                 )}
                             </div>
+
+                            {/* Recurrence — only when creating */}
+                            {!isEditing && (
+                                <div className="border-t border-[var(--zyllen-border)] pt-4 space-y-3">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={recurEnabled}
+                                            onChange={(e) => setRecurEnabled(e.target.checked)}
+                                            className="accent-[var(--zyllen-highlight)] w-4 h-4"
+                                        />
+                                        <Repeat className="w-3.5 h-3.5 text-[var(--zyllen-muted)]" />
+                                        <span className="text-sm text-[var(--zyllen-muted)]">Repetir agendamento</span>
+                                    </label>
+
+                                    {recurEnabled && (
+                                        <div className="rounded-lg border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] p-4 space-y-4">
+                                            {/* Type + Interval */}
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[var(--zyllen-muted)] text-xs">Frequência</Label>
+                                                    <select
+                                                        className={selectCls}
+                                                        value={recurType}
+                                                        onChange={(e) => setRecurType(e.target.value as typeof recurType)}
+                                                    >
+                                                        <option value="DAILY">Diário</option>
+                                                        <option value="WEEKLY">Semanal</option>
+                                                        <option value="MONTHLY">Mensal</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[var(--zyllen-muted)] text-xs">Intervalo</Label>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[var(--zyllen-muted)] text-xs shrink-0">A cada</span>
+                                                        <Input
+                                                            type="number"
+                                                            min={1}
+                                                            max={365}
+                                                            className={`${inputCls} w-16 text-center`}
+                                                            value={recurInterval}
+                                                            onChange={(e) => setRecurInterval(Math.max(1, parseInt(e.target.value) || 1))}
+                                                        />
+                                                        <span className="text-[var(--zyllen-muted)] text-xs shrink-0">
+                                                            {recurType === "DAILY" ? "dias" : recurType === "WEEKLY" ? "sem." : "meses"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* End condition */}
+                                            <div className="space-y-2">
+                                                <Label className="text-[var(--zyllen-muted)] text-xs">Terminar</Label>
+                                                <div className="space-y-2">
+                                                    <label className="flex items-center gap-3 cursor-pointer">
+                                                        <input
+                                                            type="radio"
+                                                            checked={recurEndType === "count"}
+                                                            onChange={() => setRecurEndType("count")}
+                                                            className="accent-[var(--zyllen-highlight)]"
+                                                        />
+                                                        <span className="text-sm text-white whitespace-nowrap">Após</span>
+                                                        <Input
+                                                            type="number"
+                                                            min={2}
+                                                            max={52}
+                                                            disabled={recurEndType !== "count"}
+                                                            className={`${inputCls} w-16 text-center`}
+                                                            value={recurCount}
+                                                            onChange={(e) => setRecurCount(Math.max(2, Math.min(52, parseInt(e.target.value) || 2)))}
+                                                        />
+                                                        <span className="text-sm text-[var(--zyllen-muted)] whitespace-nowrap">ocorrências</span>
+                                                    </label>
+
+                                                    <label className="flex items-center gap-3 cursor-pointer">
+                                                        <input
+                                                            type="radio"
+                                                            checked={recurEndType === "date"}
+                                                            onChange={() => setRecurEndType("date")}
+                                                            className="accent-[var(--zyllen-highlight)]"
+                                                        />
+                                                        <span className="text-sm text-white whitespace-nowrap">Até</span>
+                                                        <input
+                                                            type="date"
+                                                            disabled={recurEndType !== "date"}
+                                                            className={`rounded-md border px-3 py-1.5 text-sm ${inputCls} disabled:opacity-40`}
+                                                            value={recurEndDate}
+                                                            min={form.startDate.slice(0, 10)}
+                                                            onChange={(e) => setRecurEndDate(e.target.value)}
+                                                        />
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            {/* Preview */}
+                                            <p className="text-[var(--zyllen-highlight)] text-xs font-medium">
+                                                {recurEndType === "count"
+                                                    ? `✓ ${recurCount} agendamentos no total`
+                                                    : recurEndDate
+                                                        ? `✓ Repetições até ${new Intl.DateTimeFormat("pt-BR").format(new Date(recurEndDate + "T12:00:00"))}`
+                                                        : "Selecione a data de término"}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </DialogBody>
 
                         <DialogFooter>

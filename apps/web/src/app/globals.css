@@ -308,3 +308,33 @@ body {
   border-color: var(--zyllen-border);
   color: #fff;
 }
+
+/* ── Mobile responsive ────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .zyllen-calendar .fc-header-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .zyllen-calendar .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+  }
+
+  .zyllen-calendar .fc-button {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .zyllen-calendar .fc-toolbar-title {
+    font-size: 0.95rem;
+    text-align: center;
+  }
+
+  .zyllen-calendar .fc-daygrid-day-number {
+    font-size: 0.75rem;
+  }
+}

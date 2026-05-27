@@ -4,9 +4,11 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
-import type { EventClickArg, EventContentArg, DateSelectArg } from "@fullcalendar/core";
-import type { DateClickArg } from "@fullcalendar/interaction";
+import type { EventClickArg, EventContentArg, DateSelectArg, EventDropArg } from "@fullcalendar/core";
+import type { DateClickArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import ptBrLocale from "@fullcalendar/core/locales/pt-br";
+import { apiClient } from "@web/lib/api-client";
+import { toast } from "sonner";
 
 // ── Types (mirrors page.tsx) ──────────────────────────────────────────────────
 
@@ -66,9 +68,11 @@ interface AgendaCalendarProps {
     schedules: CalendarSchedule[];
     onEventClick: (schedule: CalendarSchedule) => void;
     onDateSelect: (start: string, end: string) => void;
+    fetchOpts: Record<string, any>;
+    onScheduleUpdated: () => void;
 }
 
-export default function AgendaCalendar({ schedules, onEventClick, onDateSelect }: AgendaCalendarProps) {
+export default function AgendaCalendar({ schedules, onEventClick, onDateSelect, fetchOpts, onScheduleUpdated }: AgendaCalendarProps) {
     const events = schedules.map((s) => ({
         id: s.id,
         title: s.title,
@@ -78,6 +82,7 @@ export default function AgendaCalendar({ schedules, onEventClick, onDateSelect }
         borderColor: "transparent",
         textColor: "#ffffff",
         classNames: s.status === "CANCELLED" ? ["fc-event-cancelled"] : [],
+        editable: s.status !== "CANCELLED" && s.status !== "DONE",
         extendedProps: { schedule: s },
     }));
 
@@ -110,6 +115,29 @@ export default function AgendaCalendar({ schedules, onEventClick, onDateSelect }
             }
         }
         onDateSelect(toLocalDatetimeStr(start), toLocalDatetimeStr(end));
+    }
+
+    async function applyDateChange(scheduleId: string, start: Date, end: Date | null, info: { revert: () => void }) {
+        try {
+            await apiClient.put(`/schedule/${scheduleId}`, {
+                startDate: start.toISOString(),
+                endDate: (end ?? new Date(start.getTime() + 60 * 60 * 1000)).toISOString(),
+            }, fetchOpts);
+            onScheduleUpdated();
+        } catch {
+            info.revert();
+            toast.error("Erro ao mover agendamento");
+        }
+    }
+
+    function handleEventDrop(info: EventDropArg) {
+        const s: CalendarSchedule = info.event.extendedProps.schedule;
+        applyDateChange(s.id, info.event.start!, info.event.end, info);
+    }
+
+    function handleEventResize(info: EventResizeDoneArg) {
+        const s: CalendarSchedule = info.event.extendedProps.schedule;
+        applyDateChange(s.id, info.event.start!, info.event.end, info);
     }
 
     function renderEventContent(arg: EventContentArg) {
@@ -153,6 +181,9 @@ export default function AgendaCalendar({ schedules, onEventClick, onDateSelect }
                 events={events}
                 eventClick={handleEventClick}
                 dateClick={handleDateClick}
+                editable
+                eventDrop={handleEventDrop}
+                eventResize={handleEventResize}
                 selectable
                 select={handleSelect}
                 unselectAuto

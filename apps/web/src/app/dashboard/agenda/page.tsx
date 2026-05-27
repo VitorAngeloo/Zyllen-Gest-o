@@ -7,11 +7,15 @@ import { useAuthedFetch, useAuth } from "@web/lib/auth-context";
 import { Card, CardContent } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
+import {
+    Dialog, DialogContent, DialogHeader, DialogTitle,
+    DialogBody, DialogFooter,
+} from "@web/components/ui/dialog";
 import { toast } from "sonner";
 import {
     CalendarDays, Users, Search, Save, CheckCircle2,
     Clock, MapPin, User, Building2, Pencil,
-    ToggleLeft, ToggleRight,
+    ToggleLeft, ToggleRight, Repeat,
 } from "lucide-react";
 import { ScheduleFormDialog } from "./schedule-form-dialog";
 import type { CalendarSchedule } from "./agenda-calendar";
@@ -53,6 +57,7 @@ interface Schedule {
     notes: string | null;
     companyId: string | null;
     projectId: string | null;
+    parentScheduleId: string | null;
     companyName: string | null;
     projectName: string | null;
     createdByName: string | null;
@@ -228,6 +233,12 @@ export default function AgendaPage() {
     const [filterStatus, setFilterStatus] = useState("");
     const [filterType, setFilterType] = useState("");
 
+    // Calendar installer filter (Phase 6)
+    const [calFilterInstallers, setCalFilterInstallers] = useState<string[]>([]);
+
+    // Cancel series dialog (Phase 6)
+    const [cancelTarget, setCancelTarget] = useState<Schedule | null>(null);
+
     const canManageInstallers = hasPermission("schedule.manage_installers");
     const canCreate = hasPermission("schedule.create");
     const canUpdate = hasPermission("schedule.update");
@@ -237,7 +248,7 @@ export default function AgendaPage() {
     const { data: installersRes, isLoading: loadingInstallers } = useQuery({
         queryKey: ["schedule-installers"],
         queryFn: () => apiClient.get<{ data: Installer[] }>("/schedule/installers", fetchOpts),
-        enabled: tab === "instaladores",
+        enabled: tab === "instaladores" || tab === "calendario",
     });
 
     const { data: schedulesRes, isLoading: loadingSchedules } = useQuery({
@@ -270,10 +281,11 @@ export default function AgendaPage() {
     });
 
     const cancelScheduleMut = useMutation({
-        mutationFn: (id: string) => apiClient.delete(`/schedule/${id}`, fetchOpts),
-        onSuccess: () => {
+        mutationFn: ({ id, cancelSeries }: { id: string; cancelSeries: boolean }) =>
+            apiClient.delete(`/schedule/${id}${cancelSeries ? "?cancelSeries=true" : ""}`, fetchOpts),
+        onSuccess: (_, vars) => {
             qc.invalidateQueries({ queryKey: ["schedules"] });
-            toast.success("Agendamento cancelado");
+            toast.success(vars.cancelSeries ? "Série cancelada" : "Agendamento cancelado");
         },
         onError: (err: any) => toast.error(err?.message ?? "Erro ao cancelar"),
     });
@@ -282,6 +294,12 @@ export default function AgendaPage() {
 
     const installers = installersRes?.data ?? [];
     const schedules = schedulesRes?.data ?? [];
+
+    // Filtered schedules for the calendar (by selected installer chips)
+    const calendarSchedules =
+        calFilterInstallers.length > 0
+            ? schedules.filter((s) => s.installers.some((i) => calFilterInstallers.includes(i.id)))
+            : schedules;
 
     const filteredInstallers = search
         ? installers.filter((i) => normalize(i.name).includes(normalize(search)) || normalize(i.email).includes(normalize(search)))
@@ -450,6 +468,11 @@ export default function AgendaPage() {
                                                         <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--zyllen-bg-dark)] text-[var(--zyllen-muted)] border border-[var(--zyllen-border)]">
                                                             {TYPE_LABELS[schedule.type] ?? schedule.type}
                                                         </span>
+                                                        {schedule.parentScheduleId && (
+                                                            <span className="flex items-center gap-1 text-xs text-[var(--zyllen-muted)]" title="Agendamento recorrente">
+                                                                <Repeat className="w-3 h-3" />
+                                                            </span>
+                                                        )}
                                                     </div>
 
                                                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--zyllen-muted)]">
@@ -510,8 +533,10 @@ export default function AgendaPage() {
                                                             variant="ghost"
                                                             className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
                                                             onClick={() => {
-                                                                if (confirm(`Cancelar "${schedule.title}"?`)) {
-                                                                    cancelScheduleMut.mutate(schedule.id);
+                                                                if (schedule.parentScheduleId) {
+                                                                    setCancelTarget(schedule);
+                                                                } else if (confirm(`Cancelar "${schedule.title}"?`)) {
+                                                                    cancelScheduleMut.mutate({ id: schedule.id, cancelSeries: false });
                                                                 }
                                                             }}
                                                             disabled={cancelScheduleMut.isPending}
@@ -532,11 +557,57 @@ export default function AgendaPage() {
 
             {/* ── CALENDÁRIO TAB ── */}
             {tab === "calendario" && (
-                <AgendaCalendar
-                    schedules={schedulesRes?.data ?? []}
-                    onEventClick={(s) => openEdit(s as unknown as Schedule)}
-                    onDateSelect={(start, end) => openCreate({ start, end })}
-                />
+                <>
+                    {/* Installer filter chips */}
+                    {installers.length > 0 && (
+                        <div className="flex flex-wrap gap-2 items-center">
+                            <span className="text-xs text-[var(--zyllen-muted)]">Filtrar:</span>
+                            {installers.map((inst) => {
+                                const active = calFilterInstallers.includes(inst.id);
+                                return (
+                                    <button
+                                        key={inst.id}
+                                        onClick={() =>
+                                            setCalFilterInstallers((prev) =>
+                                                active
+                                                    ? prev.filter((id) => id !== inst.id)
+                                                    : [...prev, inst.id],
+                                            )
+                                        }
+                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                                            active
+                                                ? "border-transparent text-[#1E1E1E] shadow-md"
+                                                : "border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white hover:border-white/30"
+                                        }`}
+                                        style={active ? { backgroundColor: inst.agendaColor ?? DEFAULT_COLOR } : {}}
+                                    >
+                                        <span
+                                            className="w-2 h-2 rounded-full shrink-0"
+                                            style={{ backgroundColor: inst.agendaColor ?? DEFAULT_COLOR }}
+                                        />
+                                        {inst.name}
+                                    </button>
+                                );
+                            })}
+                            {calFilterInstallers.length > 0 && (
+                                <button
+                                    onClick={() => setCalFilterInstallers([])}
+                                    className="text-xs text-[var(--zyllen-muted)] hover:text-white px-1"
+                                >
+                                    Limpar
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    <AgendaCalendar
+                        schedules={calendarSchedules}
+                        onEventClick={(s) => openEdit(s as unknown as Schedule)}
+                        onDateSelect={(start, end) => openCreate({ start, end })}
+                        fetchOpts={fetchOpts}
+                        onScheduleUpdated={() => qc.invalidateQueries({ queryKey: ["schedules"] })}
+                    />
+                </>
             )}
 
             {/* ── FORM DIALOG ── */}
@@ -548,6 +619,46 @@ export default function AgendaPage() {
                 fetchOpts={fetchOpts}
                 onSuccess={() => qc.invalidateQueries({ queryKey: ["schedules"] })}
             />
+
+            {/* ── CANCEL SERIES DIALOG ── */}
+            <Dialog open={!!cancelTarget} onOpenChange={(open) => { if (!open) setCancelTarget(null); }}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Repeat className="w-4 h-4 text-red-400" />
+                            Cancelar agendamento recorrente
+                        </DialogTitle>
+                    </DialogHeader>
+                    <DialogBody>
+                        <p className="text-sm text-[var(--zyllen-muted)]">
+                            <span className="text-white font-medium">&quot;{cancelTarget?.title}&quot;</span>{" "}
+                            faz parte de uma série recorrente. O que deseja cancelar?
+                        </p>
+                    </DialogBody>
+                    <DialogFooter className="flex-col gap-2 sm:flex-col">
+                        <Button
+                            className="w-full bg-[var(--zyllen-bg-dark)] border border-red-500/40 text-red-400 hover:bg-red-500/10"
+                            onClick={() => {
+                                if (cancelTarget) cancelScheduleMut.mutate({ id: cancelTarget.id, cancelSeries: false });
+                                setCancelTarget(null);
+                            }}
+                            disabled={cancelScheduleMut.isPending}
+                        >
+                            Só este agendamento
+                        </Button>
+                        <Button
+                            className="w-full bg-red-600 hover:bg-red-500 text-white"
+                            onClick={() => {
+                                if (cancelTarget) cancelScheduleMut.mutate({ id: cancelTarget.id, cancelSeries: true });
+                                setCancelTarget(null);
+                            }}
+                            disabled={cancelScheduleMut.isPending}
+                        >
+                            Cancelar toda a série
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* ── INSTALADORES TAB ── */}
             {tab === "instaladores" && (

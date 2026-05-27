@@ -126,6 +126,34 @@ export class ScheduleService {
         return schedule;
     }
 
+    private generateInstances(
+        startDate: Date,
+        endDate: Date,
+        recurrence: { type: string; interval: number; count?: number; endDate?: string },
+    ): Array<{ startDate: Date; endDate: Date }> {
+        const instances: Array<{ startDate: Date; endDate: Date }> = [];
+        const durationMs = endDate.getTime() - startDate.getTime();
+        const recEndDate = recurrence.endDate ? new Date(recurrence.endDate) : null;
+        // -1 because the parent schedule is occurrence #1
+        const maxChildren = recurrence.count ? recurrence.count - 1 : 104;
+
+        let current = new Date(startDate);
+        while (instances.length < maxChildren) {
+            const next = new Date(current);
+            if (recurrence.type === 'DAILY') {
+                next.setDate(next.getDate() + recurrence.interval);
+            } else if (recurrence.type === 'WEEKLY') {
+                next.setDate(next.getDate() + recurrence.interval * 7);
+            } else {
+                next.setMonth(next.getMonth() + recurrence.interval);
+            }
+            if (recEndDate && next > recEndDate) break;
+            instances.push({ startDate: next, endDate: new Date(next.getTime() + durationMs) });
+            current = next;
+        }
+        return instances;
+    }
+
     async create(
         data: {
             title: string;
@@ -137,6 +165,7 @@ export class ScheduleService {
             companyId?: string;
             projectId?: string;
             installerIds: string[];
+            recurrence?: { type: string; interval: number; count?: number; endDate?: string };
         },
         createdById: string,
     ) {
@@ -167,6 +196,57 @@ export class ScheduleService {
                 VALUES (${scheduleId}, ${installerId})
                 ON CONFLICT ("scheduleId", "installerId") DO NOTHING
             `;
+        }
+
+        if (data.recurrence) {
+            const rec = data.recurrence;
+
+            await this.prisma.$executeRaw`
+                INSERT INTO "ScheduleRecurrence" ("scheduleId", type, interval, count, "endDate")
+                VALUES (
+                    ${scheduleId},
+                    ${rec.type},
+                    ${rec.interval},
+                    ${rec.count ?? null},
+                    ${rec.endDate ? new Date(rec.endDate) : null}
+                )
+            `;
+
+            const instances = this.generateInstances(
+                new Date(data.startDate),
+                new Date(data.endDate),
+                rec,
+            );
+
+            for (const inst of instances) {
+                const childRows = await this.prisma.$queryRaw<[{ id: string }]>`
+                    INSERT INTO "Schedule" (
+                        title, type, status, "startDate", "endDate",
+                        address, notes, "companyId", "projectId", "createdById", "parentScheduleId"
+                    ) VALUES (
+                        ${data.title},
+                        ${data.type},
+                        'SCHEDULED',
+                        ${inst.startDate},
+                        ${inst.endDate},
+                        ${data.address ?? null},
+                        ${data.notes ?? null},
+                        ${data.companyId ?? null},
+                        ${data.projectId ?? null},
+                        ${createdById},
+                        ${scheduleId}
+                    )
+                    RETURNING id
+                `;
+                const childId = childRows[0].id;
+                for (const installerId of data.installerIds) {
+                    await this.prisma.$executeRaw`
+                        INSERT INTO "ScheduleInstaller" ("scheduleId", "installerId")
+                        VALUES (${childId}, ${installerId})
+                        ON CONFLICT ("scheduleId", "installerId") DO NOTHING
+                    `;
+                }
+            }
         }
 
         return this.findById(scheduleId);
@@ -221,8 +301,19 @@ export class ScheduleService {
         return this.findById(id);
     }
 
-    async cancel(id: string) {
-        await this.findById(id);
+    async cancel(id: string, cancelSeries = false) {
+        const schedule = await this.findById(id);
+
+        if (cancelSeries) {
+            const rootId = (schedule as any).parentScheduleId ?? id;
+            await this.prisma.$executeRaw`
+                UPDATE "Schedule"
+                SET status = 'CANCELLED', "updatedAt" = NOW()
+                WHERE id = ${rootId} OR "parentScheduleId" = ${rootId}
+            `;
+            return { message: 'Série de agendamentos cancelada' };
+        }
+
         await this.prisma.$executeRaw`
             UPDATE "Schedule" SET status = 'CANCELLED', "updatedAt" = NOW() WHERE id = ${id}
         `;

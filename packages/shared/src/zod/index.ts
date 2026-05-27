@@ -539,6 +539,13 @@ export const SCHEDULE_STATUS_LABELS: Record<ScheduleStatus, string> = {
     CANCELLED: 'Cancelado',
 };
 
+export const scheduleRecurrenceInputSchema = z.object({
+    type: z.enum(['DAILY', 'WEEKLY', 'MONTHLY'] as const),
+    interval: z.number().int().min(1).max(365).default(1),
+    count: z.number().int().min(2).max(104).optional(),
+    endDate: z.string().optional(),
+});
+
 export const createScheduleSchema = z.object({
     title: z.string().min(1, 'Título é obrigatório'),
     type: z.enum(SCHEDULE_TYPES).default('INSTALLATION'),
@@ -549,6 +556,7 @@ export const createScheduleSchema = z.object({
     companyId: z.string().uuid('Company ID inválido').optional(),
     projectId: z.string().uuid('Project ID inválido').optional(),
     installerIds: z.array(z.string().uuid('Installer ID inválido')).min(1, 'Pelo menos 1 instalador é obrigatório'),
+    recurrence: scheduleRecurrenceInputSchema.optional(),
 });
 
 export const updateScheduleSchema = z.object({
