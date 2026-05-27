@@ -33,6 +33,7 @@ import {
     createMovementTypeSchema,
     reversalReasonSchema,
 } from '@zyllen/shared';
+import { UpdateMovementTypeDto } from './dto/update-movement-type.dto';
 
 const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'media', 'inventory-entry');
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -203,7 +204,7 @@ export class InventoryController {
 
     @Put('movement-types/:id')
     @RequirePermission('settings.manage')
-    async updateMovementType(@Param('id') id: string, @Body() body: { name?: string; requiresApproval?: boolean; isFinalWriteOff?: boolean; setsAssetStatus?: string }) {
+    async updateMovementType(@Param('id') id: string, @Body() body: UpdateMovementTypeDto) {
         const data = await this.inventoryService.updateMovementType(id, body);
         return { data, message: 'Tipo atualizado' };
     }

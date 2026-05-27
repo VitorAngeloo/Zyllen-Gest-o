@@ -10,8 +10,12 @@ import {
     UseGuards,
     Get,
     Request,
+    Req,
+    Res,
     BadRequestException,
+    UnauthorizedException,
 } from '@nestjs/common';
+import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -24,6 +28,7 @@ import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
 import { updateInternalUserSchema } from '@zyllen/shared';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -36,16 +41,49 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     @UseGuards(ThrottlerGuard)
     @Throttle({ auth: { ttl: 60000, limit: 5 } })
-    async login(@Body() dto: LoginDto) {
-        return this.authService.loginInternal(dto.email, dto.password);
+    async login(
+        @Body() dto: LoginDto,
+        @Res({ passthrough: true }) res: ExpressResponse,
+    ) {
+        const result = await this.authService.loginInternal(dto.email, dto.password);
+
+        // Store refresh token in httpOnly cookie — XSS cannot read it
+        res.cookie('refresh_token', result.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            path: '/auth/refresh',
+        });
+
+        return result; // Still returns refreshToken in body for backwards compatibility
     }
 
     @Post('refresh')
     @HttpCode(HttpStatus.OK)
     @UseGuards(ThrottlerGuard)
     @Throttle({ auth: { ttl: 60000, limit: 10 } })
-    async refresh(@Body() dto: RefreshTokenDto): Promise<{ accessToken: string }> {
-        return this.authService.refresh(dto.refreshToken);
+    async refresh(
+        @Body() dto: RefreshTokenDto,
+        @Req() req: ExpressRequest,
+    ): Promise<{ accessToken: string }> {
+        // Prefer httpOnly cookie; fall back to body for existing clients
+        const token = (req.cookies as Record<string, string>)?.refresh_token ?? dto.refreshToken;
+        if (!token) throw new UnauthorizedException('Refresh token não fornecido');
+        return this.authService.refresh(token);
+    }
+
+    @Post('logout')
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(HttpStatus.OK)
+    async logout(@Res({ passthrough: true }) res: ExpressResponse) {
+        res.clearCookie('refresh_token', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/auth/refresh',
+        });
+        return { message: 'Logout realizado com sucesso' };
     }
 
     @Post('users')
@@ -68,10 +106,11 @@ export class AuthController {
     }
 
     @Post('setup-pin')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ThrottlerGuard, JwtAuthGuard)
+    @Throttle({ auth: { ttl: 60_000, limit: 5 } })
     @HttpCode(HttpStatus.OK)
-    async setupPin(@Request() req: any, @Body() body: { pin: string }) {
-        await this.authService.setupPin(req.user.id, body.pin);
+    async setupPin(@Request() req: any, @Body() dto: ValidatePinDto) {
+        await this.authService.setupPin(req.user.id, dto.pin);
         return { message: 'PIN definido com sucesso' };
     }
 
@@ -143,20 +182,20 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     async updateMyProfile(
         @Request() req: any,
-        @Body() body: { name?: string; currentPassword?: string; password?: string },
+        @Body() dto: UpdateMyProfileDto,
     ) {
-        if (body.password && !body.currentPassword) {
+        if (dto.password && !dto.currentPassword) {
             throw new BadRequestException(
                 'Senha atual é obrigatória para alterar senha',
             );
         }
-        if (body.currentPassword) {
-            await this.authService.verifyCurrentPassword(req.user.id, body.currentPassword);
+        if (dto.currentPassword) {
+            await this.authService.verifyCurrentPassword(req.user.id, dto.currentPassword);
         }
 
-        const allowed: any = {};
-        if (body.name) allowed.name = body.name;
-        if (body.password) allowed.password = body.password;
+        const allowed: { name?: string; password?: string } = {};
+        if (dto.name) allowed.name = dto.name;
+        if (dto.password) allowed.password = dto.password;
         const data = await this.authService.updateInternalUser(req.user.id, allowed);
         return { data, message: 'Perfil atualizado' };
     }
@@ -175,5 +214,14 @@ export class AuthController {
     async validatePin(@Request() req: any, @Body() dto: ValidatePinDto) {
         const valid = await this.authService.validatePin(req.user.id, dto.pin);
         return { valid };
+    }
+
+    @Post('users/:id/reset-pin')
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @RequirePermission('access.manage')
+    @HttpCode(HttpStatus.OK)
+    async resetPin(@Param('id') id: string) {
+        const data = await this.authService.resetPin(id);
+        return { data, message: 'PIN resetado com sucesso' };
     }
 }

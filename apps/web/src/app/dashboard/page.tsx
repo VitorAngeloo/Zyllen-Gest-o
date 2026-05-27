@@ -499,12 +499,14 @@ export default function DashboardPage() {
                                 {openTickets.data.map((t: any) => (
                                     <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] hover:border-amber-500/30 transition-colors">
                                         <div className="min-w-0 flex-1">
-                                            <p className="text-sm text-white truncate font-medium">
-                                                {t.source === "INTERNAL"
-                                                    ? (t.internalUser?.name || "Colaborador")
-                                                    : (t.externalUser?.name || "Cliente")}
-                                            </p>
+                                            <p className="text-sm text-white truncate font-medium">{t.title || "Sem título"}</p>
                                             <div className="flex items-center gap-2 mt-0.5">
+                                                <p className="text-xs text-white/80 truncate">
+                                                    {t.source === "INTERNAL"
+                                                        ? (t.internalUser?.name || "Colaborador")
+                                                        : (t.externalUser?.name || "Cliente")}
+                                                </p>
+                                                <span className="text-[10px] text-[var(--zyllen-muted)]">•</span>
                                                 <p className="text-xs text-[var(--zyllen-muted)] truncate">
                                                     {t.source === "INTERNAL"
                                                         ? (t.internalUser?.sector || "Sem setor")

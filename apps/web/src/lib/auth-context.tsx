@@ -57,6 +57,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     const logout = useCallback(() => {
+        // Ask backend to clear the httpOnly refresh_token cookie
+        const accessToken = localStorage.getItem("accessToken");
+        if (accessToken) {
+            fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/auth/logout`, {
+                method: "POST",
+                credentials: "include",
+                headers: { Authorization: `Bearer ${accessToken}` },
+            }).catch(() => { /* non-blocking */ });
+        }
+
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("userType");

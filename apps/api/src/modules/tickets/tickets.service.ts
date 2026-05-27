@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
+import { decryptCPFSafe } from '../../lib/cpf-crypto';
+import { TicketStatus } from '@zyllen/shared';
 
 const TICKET_INCLUDE = {
     company: true,
@@ -55,20 +57,22 @@ export class TicketsService {
         const slaHours = data.priority === 'HIGH' ? 24 : data.priority === 'LOW' ? 72 : 48;
         const slaDueAt = new Date(Date.now() + slaHours * 60 * 60 * 1000);
 
-        return this.prisma.ticket.create({
-            data: {
-                title: data.title,
-                description: data.description,
-                companyId: data.companyId,
-                externalUserId: data.externalUserId,
-                priority: data.priority ?? 'MEDIUM',
-                slaDueAt,
-            },
-            include: {
-                company: { select: { name: true } },
-                externalUser: { select: { name: true, email: true } },
-            },
-        });
+        return this.prisma.retry(() =>
+            this.prisma.ticket.create({
+                data: {
+                    title: data.title,
+                    description: data.description,
+                    companyId: data.companyId,
+                    externalUserId: data.externalUserId,
+                    priority: data.priority ?? 'MEDIUM',
+                    slaDueAt,
+                },
+                include: {
+                    company: { select: { name: true } },
+                    externalUser: { select: { name: true, email: true } },
+                },
+            }),
+        );
     }
 
     // ── Create ticket with attachments (external user) ──
@@ -138,7 +142,7 @@ export class TicketsService {
         const ticket = await this.prisma.ticket.findFirst({
             where: {
                 externalUserId,
-                status: { in: ['OPEN', 'IN_PROGRESS', 'WAITING_CLIENT'] },
+                status: { in: [TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_CLIENT] },
             },
             orderBy: { createdAt: 'desc' },
             include: {
@@ -192,13 +196,16 @@ export class TicketsService {
             include: TICKET_INCLUDE,
         });
         if (!ticket) throw new NotFoundException('Chamado não encontrado');
+        if (ticket.externalUser?.cpf) {
+            return { ...ticket, externalUser: { ...ticket.externalUser, cpf: decryptCPFSafe(ticket.externalUser.cpf) } };
+        }
         return ticket;
     }
 
     // ── Triage: assign to internal user ──
     async assign(ticketId: string, assignedToId: string) {
         const ticket = await this.findById(ticketId);
-        if (ticket.status === 'CLOSED') throw new BadRequestException('Chamado já encerrado');
+        if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException('Chamado já encerrado');
 
         const user = await this.prisma.internalUser.findUnique({ where: { id: assignedToId } });
         if (!user) throw new NotFoundException('Usuário interno não encontrado');
@@ -207,7 +214,7 @@ export class TicketsService {
             where: { id: ticketId },
             data: {
                 assignedToInternalUserId: assignedToId,
-                status: 'IN_PROGRESS',
+                status: TicketStatus.IN_PROGRESS,
                 firstResponseAt: ticket.firstResponseAt ?? new Date(),
             },
         });
@@ -221,7 +228,7 @@ export class TicketsService {
     // ── Assign with PIN (self or delegate) ──
     async assignWithPin(ticketId: string, userId: string, roleName: string, pin: string, assignedToId?: string) {
         const ticket = await this.findById(ticketId);
-        if (ticket.status === 'CLOSED') throw new BadRequestException('Chamado encerrado não pode ser alterado');
+        if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException('Chamado encerrado não pode ser alterado');
 
         // Only admin/gestor can delegate to another user
         const targetId = assignedToId && this.isAdminOrGestor(roleName) ? assignedToId : userId;
@@ -236,7 +243,7 @@ export class TicketsService {
             where: { id: ticketId },
             data: {
                 assignedToInternalUserId: targetId,
-                status: 'IN_PROGRESS',
+                status: TicketStatus.IN_PROGRESS,
                 firstResponseAt: ticket.firstResponseAt ?? new Date(),
             },
             include: { company: { select: { name: true } }, assignedTo: { select: { name: true } } },
@@ -246,7 +253,7 @@ export class TicketsService {
     // ── Close with PIN + resolution notes ──
     async closeWithPin(ticketId: string, userId: string, roleName: string, pin: string, resolutionNotes: string) {
         const ticket = await this.findById(ticketId);
-        if (ticket.status === 'CLOSED') throw new BadRequestException('Chamado já está encerrado');
+        if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException('Chamado já está encerrado');
 
         // Regular user can only close tickets assigned to them; admin/gestor can close any
         if (!this.isAdminOrGestor(roleName) && ticket.assignedToInternalUserId !== userId) {
@@ -264,7 +271,7 @@ export class TicketsService {
         return this.prisma.ticket.update({
             where: { id: ticketId },
             data: {
-                status: 'CLOSED',
+                status: TicketStatus.CLOSED,
                 resolutionNotes,
                 closedAt: now,
                 elapsedSeconds,
@@ -279,7 +286,7 @@ export class TicketsService {
         }
 
         const ticket = await this.findById(ticketId);
-        if (ticket.status === 'CLOSED') throw new BadRequestException('Chamado encerrado não pode ser alterado');
+        if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException('Chamado encerrado não pode ser alterado');
 
         const valid = await this.authService.validatePin(userId, pin);
         if (!valid) throw new ForbiddenException('PIN inválido');
@@ -291,7 +298,7 @@ export class TicketsService {
             where: { id: ticketId },
             data: {
                 assignedToInternalUserId: newAssignedToId,
-                status: 'IN_PROGRESS',
+                status: TicketStatus.IN_PROGRESS,
             },
             include: { company: { select: { name: true } }, assignedTo: { select: { name: true } } },
         });
@@ -306,20 +313,35 @@ export class TicketsService {
         });
     }
 
+    // Transições válidas entre estados de Ticket
+    private static readonly STATUS_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
+        [TicketStatus.OPEN]: [TicketStatus.IN_PROGRESS, TicketStatus.WAITING_CLIENT],
+        [TicketStatus.IN_PROGRESS]: [TicketStatus.WAITING_CLIENT, TicketStatus.RESOLVED, TicketStatus.CLOSED],
+        [TicketStatus.WAITING_CLIENT]: [TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.CLOSED],
+        [TicketStatus.RESOLVED]: [TicketStatus.CLOSED, TicketStatus.IN_PROGRESS],
+        [TicketStatus.CLOSED]: [],
+    };
+
     // ── Change status ──
     async changeStatus(ticketId: string, status: string) {
-        const validStatuses = ['OPEN', 'IN_PROGRESS', 'WAITING_CLIENT', 'RESOLVED', 'CLOSED'];
-        if (!validStatuses.includes(status)) {
-            throw new BadRequestException(`Status inválido. Use: ${validStatuses.join(', ')}`);
+        if (!Object.values(TicketStatus).includes(status as TicketStatus)) {
+            throw new BadRequestException(`Status inválido. Use: ${Object.values(TicketStatus).join(', ')}`);
         }
 
         const ticket = await this.findById(ticketId);
-        if (ticket.status === 'CLOSED') {
+        if (ticket.status === TicketStatus.CLOSED) {
             throw new BadRequestException('Chamado encerrado não pode ser alterado');
         }
 
+        const allowed = TicketsService.STATUS_TRANSITIONS[ticket.status as TicketStatus] ?? [];
+        if (!allowed.includes(status as TicketStatus)) {
+            throw new BadRequestException(
+                `Transição inválida: ${ticket.status} → ${status}. Permitido: ${allowed.join(', ') || 'nenhum'}`,
+            );
+        }
+
         const updateData: any = { status };
-        if (status === 'CLOSED') updateData.closedAt = new Date();
+        if (status === TicketStatus.CLOSED) updateData.closedAt = new Date();
 
         return this.prisma.ticket.update({
             where: { id: ticketId },
@@ -330,7 +352,7 @@ export class TicketsService {
     // ── Add message ──
     async addMessage(ticketId: string, authorId: string, authorType: string, content: string) {
         const ticket = await this.findById(ticketId);
-        if (ticket.status === 'CLOSED') throw new BadRequestException('Chamado encerrado não aceita novas mensagens');
+        if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException('Chamado encerrado não aceita novas mensagens');
         return this.prisma.ticketMessage.create({
             data: { ticketId, authorId, authorType, content },
         });
@@ -342,7 +364,7 @@ export class TicketsService {
         if (ticket.source !== 'INTERNAL' || ticket.internalUserId !== userId) {
             throw new ForbiddenException('Sem permissão para enviar mensagem neste chamado');
         }
-        if (ticket.status === 'CLOSED') throw new BadRequestException('Chamado encerrado não aceita novas mensagens');
+        if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException('Chamado encerrado não aceita novas mensagens');
         return this.prisma.ticketMessage.create({
             data: { ticketId, authorId: userId, authorType: 'external', content },
         });
@@ -354,7 +376,7 @@ export class TicketsService {
             where: {
                 source: 'INTERNAL',
                 internalUserId,
-                status: 'CLOSED',
+                status: TicketStatus.CLOSED,
                 rating: { is: null },
             },
             include: {
@@ -383,7 +405,7 @@ export class TicketsService {
         if (ticket.internalUserId !== internalUserId) {
             throw new ForbiddenException('Apenas o colaborador vinculado ao chamado pode avaliar');
         }
-        if (ticket.status !== 'CLOSED') {
+        if (ticket.status !== TicketStatus.CLOSED) {
             throw new BadRequestException('A avaliação só pode ser enviada após a finalização do chamado');
         }
         if (ticket.rating) {

@@ -5,13 +5,15 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
-import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
+import { Public } from '../auth/public.decorator';
 import { MaintenanceService } from './maintenance.service';
+import { MaintenanceMediaStorageService } from './maintenance-media-storage.service';
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
 import { createMaintenanceSchema, updateMaintenanceStatusSchema, updateOsFormDataSchema } from '@zyllen/shared';
 
@@ -34,7 +36,10 @@ const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktim
 @Controller('maintenance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class MaintenanceController {
-    constructor(private readonly maintenanceService: MaintenanceService) { }
+    constructor(
+        private readonly maintenanceService: MaintenanceService,
+        private readonly mediaStorageService: MaintenanceMediaStorageService,
+    ) { }
 
     @Get('my-orders')
     @RequirePermission('maintenance.view')
@@ -123,12 +128,33 @@ export class MaintenanceController {
                 throw new BadRequestException(`Tipo de arquivo não permitido: ${file.originalname}. Use imagens (JPEG, PNG, GIF, WebP, BMP) ou vídeos (MP4, WebM, MOV, AVI).`);
             }
         }
-        const attachments = files.map((f) => ({
-            fileName: f.originalname,
-            filePath: f.filename,
-            mimeType: f.mimetype,
-        }));
-        await this.maintenanceService.addAttachments(id, attachments, req.user.id);
+
+        const attachments: { fileName: string; filePath: string; mimeType?: string }[] = [];
+        const storedPaths: string[] = [];
+
+        try {
+            for (const file of files) {
+                const storedPath = await this.mediaStorageService.storeUploadedFile(file, id, UPLOAD_DIR);
+                storedPaths.push(storedPath);
+                attachments.push({
+                    fileName: file.originalname,
+                    filePath: storedPath,
+                    mimeType: file.mimetype,
+                });
+            }
+
+            await this.maintenanceService.addAttachments(id, attachments, req.user.id);
+        } catch (error) {
+            for (const storedPath of storedPaths) {
+                try {
+                    await this.mediaStorageService.deleteStoredFile(storedPath, UPLOAD_DIR);
+                } catch {
+                    // Ignore rollback cleanup errors and keep original failure.
+                }
+            }
+            throw error;
+        }
+
         const all = await this.maintenanceService.findAttachments(id);
         return { data: all, message: `${files.length} arquivo(s) enviado(s)` };
     }
@@ -141,7 +167,7 @@ export class MaintenanceController {
     }
 
     @Get(':id/attachments/:attachmentId/file')
-    @RequirePermission('maintenance.view')
+    @Public()
     async serveFile(
         @Param('id') id: string,
         @Param('attachmentId') attachmentId: string,
@@ -151,7 +177,13 @@ export class MaintenanceController {
         const att = attachments.find((a) => a.id === attachmentId);
         if (!att) throw new BadRequestException('Anexo não encontrado');
 
-        const filePath = join(UPLOAD_DIR, att.filePath);
+        const source = await this.mediaStorageService.resolveServeSource(att.filePath, UPLOAD_DIR);
+
+        if (source.type === 'redirect') {
+            return res.redirect(source.url);
+        }
+
+        const filePath = source.filePath;
         if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
 
         if (att.mimeType) res.setHeader('Content-Type', att.mimeType);
@@ -166,11 +198,7 @@ export class MaintenanceController {
         @Param('attachmentId') attachmentId: string,
     ) {
         const att = await this.maintenanceService.deleteAttachment(id, attachmentId);
-        // Try to delete the physical file
-        try {
-            const filePath = join(UPLOAD_DIR, att.filePath);
-            if (existsSync(filePath)) unlinkSync(filePath);
-        } catch { /* ignore file deletion errors */ }
+        await this.mediaStorageService.deleteStoredFile(att.filePath, UPLOAD_DIR);
         return { message: 'Anexo removido' };
     }
 }

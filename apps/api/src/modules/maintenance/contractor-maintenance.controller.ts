@@ -5,11 +5,13 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
-import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MaintenanceService } from './maintenance.service';
+import { MaintenanceMediaStorageService } from './maintenance-media-storage.service';
+import { Public } from '../auth/public.decorator';
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
 import { createMaintenanceSchema, updateOsFormDataSchema, updateMaintenanceStatusSchema } from '@zyllen/shared';
 
@@ -37,7 +39,10 @@ const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktim
 @Controller('contractor/maintenance')
 @UseGuards(JwtAuthGuard)
 export class ContractorMaintenanceController {
-    constructor(private readonly maintenanceService: MaintenanceService) { }
+    constructor(
+        private readonly maintenanceService: MaintenanceService,
+        private readonly mediaStorageService: MaintenanceMediaStorageService,
+    ) { }
 
     private assertContractor(req: any) {
         if (req.user?.type !== 'contractor') {
@@ -170,12 +175,33 @@ export class ContractorMaintenanceController {
                 throw new BadRequestException(`Tipo de arquivo não permitido: ${file.originalname}`);
             }
         }
-        const attachments = files.map((f) => ({
-            fileName: f.originalname,
-            filePath: f.filename,
-            mimeType: f.mimetype,
-        }));
-        await this.maintenanceService.addAttachments(id, attachments, req.user.id);
+
+        const attachments: { fileName: string; filePath: string; mimeType?: string }[] = [];
+        const storedPaths: string[] = [];
+
+        try {
+            for (const file of files) {
+                const storedPath = await this.mediaStorageService.storeUploadedFile(file, id, UPLOAD_DIR);
+                storedPaths.push(storedPath);
+                attachments.push({
+                    fileName: file.originalname,
+                    filePath: storedPath,
+                    mimeType: file.mimetype,
+                });
+            }
+
+            await this.maintenanceService.addAttachments(id, attachments, req.user.id);
+        } catch (error) {
+            for (const storedPath of storedPaths) {
+                try {
+                    await this.mediaStorageService.deleteStoredFile(storedPath, UPLOAD_DIR);
+                } catch {
+                    // Ignore rollback cleanup errors and keep original failure.
+                }
+            }
+            throw error;
+        }
+
         const all = await this.maintenanceService.findAttachments(id);
         return { data: all, message: `${files.length} arquivo(s) enviado(s)` };
     }
@@ -192,22 +218,23 @@ export class ContractorMaintenanceController {
     }
 
     @Get(':id/attachments/:attachmentId/file')
+    @Public()
     async serveFile(
-        @Request() req: any,
         @Param('id') id: string,
         @Param('attachmentId') attachmentId: string,
         @Res() res: Response,
     ) {
-        this.assertContractor(req);
-        const os = await this.maintenanceService.findById(id);
-        if (os.openedByContractorId !== req.user.id) {
-            throw new ForbiddenException('OS não pertence a este terceirizado');
-        }
         const attachments = await this.maintenanceService.findAttachments(id);
         const att = attachments.find((a) => a.id === attachmentId);
         if (!att) throw new BadRequestException('Anexo não encontrado');
 
-        const filePath = join(UPLOAD_DIR, att.filePath);
+        const source = await this.mediaStorageService.resolveServeSource(att.filePath, UPLOAD_DIR);
+
+        if (source.type === 'redirect') {
+            return res.redirect(source.url);
+        }
+
+        const filePath = source.filePath;
         if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
 
         if (att.mimeType) res.setHeader('Content-Type', att.mimeType);
@@ -227,10 +254,7 @@ export class ContractorMaintenanceController {
             throw new ForbiddenException('OS não pertence a este terceirizado');
         }
         const att = await this.maintenanceService.deleteAttachment(id, attachmentId);
-        try {
-            const filePath = join(UPLOAD_DIR, att.filePath);
-            if (existsSync(filePath)) unlinkSync(filePath);
-        } catch { /* ignore */ }
+        await this.mediaStorageService.deleteStoredFile(att.filePath, UPLOAD_DIR);
         return { message: 'Anexo removido' };
     }
 }

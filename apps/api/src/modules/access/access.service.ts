@@ -1,6 +1,7 @@
 import {
     Injectable,
     NotFoundException,
+    BadRequestException,
     ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -8,6 +9,34 @@ import { PrismaService } from '../../prisma/prisma.service';
 @Injectable()
 export class AccessService {
     constructor(private readonly prisma: PrismaService) { }
+
+    // ═══════════════════════════════════════════
+    // PERMISSION CACHE (in-memory, 60s TTL)
+    // ═══════════════════════════════════════════
+
+    private readonly permissionCache = new Map<string, { permissions: string[]; expiresAt: number }>();
+    private readonly CACHE_TTL_MS = 60_000;
+
+    private getCachedPermissions(userId: string): string[] | null {
+        const cached = this.permissionCache.get(userId);
+        if (!cached || Date.now() > cached.expiresAt) {
+            this.permissionCache.delete(userId);
+            return null;
+        }
+        return cached.permissions;
+    }
+
+    private setCachedPermissions(userId: string, permissions: string[]): void {
+        this.permissionCache.set(userId, { permissions, expiresAt: Date.now() + this.CACHE_TTL_MS });
+    }
+
+    clearPermissionCache(userId?: string): void {
+        if (userId) {
+            this.permissionCache.delete(userId);
+        } else {
+            this.permissionCache.clear();
+        }
+    }
 
     // ═══════════════════════════════════════════
     // ROLES
@@ -22,6 +51,7 @@ export class AccessService {
                 _count: { select: { users: true } },
             },
             orderBy: { name: 'asc' },
+            take: 100,
         });
     }
 
@@ -118,6 +148,19 @@ export class AccessService {
     ) {
         await this.findRoleById(roleId);
 
+        // Validate all permissionIds exist before touching any data
+        if (permissionIds.length > 0) {
+            const found = await this.prisma.screenPermission.findMany({
+                where: { id: { in: permissionIds } },
+                select: { id: true },
+            });
+            if (found.length !== permissionIds.length) {
+                const foundSet = new Set(found.map((p) => p.id));
+                const missing = permissionIds.filter((id) => !foundSet.has(id));
+                throw new BadRequestException(`Permissões não encontradas: ${missing.join(', ')}`);
+            }
+        }
+
         // Remove all existing and re-assign
         await this.prisma.rolePermission.deleteMany({ where: { roleId } });
 
@@ -128,6 +171,9 @@ export class AccessService {
 
         await this.prisma.rolePermission.createMany({ data: assignments });
 
+        // Invalidate entire cache — multiple users may share this role
+        this.permissionCache.clear();
+
         return this.findRoleById(roleId);
     }
 
@@ -135,34 +181,10 @@ export class AccessService {
     // PERMISSION CHECK (used by guard)
     // ═══════════════════════════════════════════
 
-    async userHasPermission(
-        userId: string,
-        screen: string,
-        action: string,
-    ): Promise<boolean> {
-        const user = await this.prisma.internalUser.findUnique({
-            where: { id: userId },
-            include: {
-                role: {
-                    include: {
-                        permissions: {
-                            include: { screenPermission: true },
-                        },
-                    },
-                },
-            },
-        });
-
-        if (!user) return false;
-
-        return user.role.permissions.some(
-            (rp) =>
-                rp.screenPermission.screen === screen &&
-                rp.screenPermission.action === action,
-        );
-    }
-
     async getUserPermissions(userId: string): Promise<string[]> {
+        const cached = this.getCachedPermissions(userId);
+        if (cached !== null) return cached;
+
         const user = await this.prisma.internalUser.findUnique({
             where: { id: userId },
             include: {
@@ -178,8 +200,15 @@ export class AccessService {
 
         if (!user) return [];
 
-        return user.role.permissions.map(
+        const permissions = user.role.permissions.map(
             (rp) => `${rp.screenPermission.screen}.${rp.screenPermission.action}`,
         );
+        this.setCachedPermissions(userId, permissions);
+        return permissions;
+    }
+
+    async userHasPermission(userId: string, screen: string, action: string): Promise<boolean> {
+        const permissions = await this.getUserPermissions(userId);
+        return permissions.includes(`${screen}.${action}`);
     }
 }

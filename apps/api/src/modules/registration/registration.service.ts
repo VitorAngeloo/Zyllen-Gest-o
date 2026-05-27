@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { encryptCPF } from '../../lib/cpf-crypto';
 
 @Injectable()
 export class RegistrationService {
@@ -113,10 +114,11 @@ export class RegistrationService {
             throw new ConflictException('Email já cadastrado');
         }
 
-        // Check CPF uniqueness
+        // Check CPF uniqueness (compara com valor criptografado, pois a criptografia é determinística)
         if (data.cpf) {
+            const encryptedCpf = encryptCPF(data.cpf);
             const existingCpf = await this.prisma.contractorUser.findUnique({
-                where: { cpf: data.cpf },
+                where: { cpf: encryptedCpf },
             });
             if (existingCpf) throw new ConflictException('CPF já cadastrado');
         }
@@ -131,7 +133,7 @@ export class RegistrationService {
                 phone: data.phone,
                 city: data.city,
                 state: data.state,
-                cpf: data.cpf || null,
+                cpf: data.cpf ? encryptCPF(data.cpf) : null,
             },
             select: {
                 id: true,

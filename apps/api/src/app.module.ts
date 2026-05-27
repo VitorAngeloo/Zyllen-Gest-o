@@ -27,11 +27,18 @@ import { FollowupsModule } from './modules/followups/followups.module';
             isGlobal: true,
             envFilePath: '.env',
         }),
-        ThrottlerModule.forRoot([{
-            ttl: 60000,   // 1 minute window
-            limit: 10,    // max 10 requests per window
-            name: 'auth',
-        }]),
+        ThrottlerModule.forRoot([
+            {
+                name: 'auth',
+                ttl: 60_000,  // 1-minute window
+                limit: 5,     // 5 requests/min for auth endpoints
+            },
+            {
+                name: 'api',
+                ttl: 60_000,  // 1-minute window
+                limit: 60,    // 60 requests/min for general endpoints
+            },
+        ]),
         ServeStaticModule.forRoot({
             rootPath: join(__dirname, '..', 'uploads'),
             serveRoot: '/uploads',

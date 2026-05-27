@@ -12,6 +12,8 @@ import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 import { OsFormWizard, OS_FORM_CONFIG } from "@web/components/os-forms";
 import type { OsFormSubmitData, OsFormType } from "@web/components/os-forms";
+import { MediaUploader } from "@web/components/os-forms/media-uploader";
+import type { MediaAttachment } from "@web/components/os-forms/media-uploader";
 import { printOsPdf } from "@web/lib/os-pdf";
 import { getOsFieldRows } from "@web/lib/os-form-view";
 import { uploadMaintenanceAttachments } from "@web/lib/maintenance-attachments";
@@ -30,6 +32,20 @@ export default function ManutencaoPage() {
     const [tab, setTab] = useState<Tab>("list");
     const [selectedOS, setSelectedOS] = useState<any>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [detailAttachments, setDetailAttachments] = useState<MediaAttachment[]>([]);
+
+    // Fetch attachments when viewing detail
+    const fetchDetailAttachments = async (osId: string) => {
+        try {
+            const res = await apiClient.get<{ data?: MediaAttachment[] | { data?: MediaAttachment[] } }>(`/maintenance/${osId}/attachments`, fetchOpts);
+            const list = Array.isArray(res?.data)
+                ? res.data
+                : Array.isArray((res?.data as any)?.data)
+                    ? (res?.data as any).data
+                    : [];
+            setDetailAttachments(list);
+        } catch { setDetailAttachments([]); }
+    };
 
     const { data: osList, isLoading: loadingOS } = useQuery({
         queryKey: ["maintenance"],
@@ -52,9 +68,9 @@ export default function ManutencaoPage() {
         setSubmitting(true);
         try {
             const { localFiles, ...payload } = data;
-            const created = await apiClient.post<{ data?: { id?: string } }>("/maintenance", payload, fetchOpts);
+            const created = await apiClient.post<{ id?: string; data?: { id?: string; data?: { id?: string } } }>("/maintenance", payload, fetchOpts);
 
-            const createdId = created?.data?.id;
+            const createdId = created?.data?.id ?? created?.id ?? created?.data?.data?.id;
             await uploadMaintenanceAttachments("/maintenance", createdId, localFiles, fetchOpts);
 
             toast.success(TOASTS.osOpened);
@@ -112,6 +128,7 @@ export default function ManutencaoPage() {
 
     const handlePrintPdf = () => {
         if (!selectedOS) return;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
         printOsPdf({
             osNumber: selectedOS.osNumber || "OS",
             formType: OS_FORM_CONFIG[selectedOS.formType as OsFormType]?.label || selectedOS.formType || "",
@@ -130,6 +147,12 @@ export default function ManutencaoPage() {
             openedByContractor: selectedOS.openedByContractor?.name,
             formData: selectedOS.formData,
             asset: selectedOS.asset,
+            attachments: detailAttachments.map((att) => ({
+                id: att.id,
+                fileName: att.fileName,
+                mimeType: att.mimeType,
+                fileUrl: `${apiBase}/maintenance/${selectedOS.id}/attachments/${att.id}/file`,
+            })),
         });
     };
 
@@ -160,6 +183,7 @@ export default function ManutencaoPage() {
                     editMode
                     readOnly={selectedOS.status === "CLOSED"}
                     initialData={{
+                        id: selectedOS.id,
                         formType: selectedOS.formType as OsFormType,
                         notes: selectedOS.notes || "",
                         clientName: selectedOS.clientName || "",
@@ -190,8 +214,8 @@ export default function ManutencaoPage() {
         return (
             <div className="space-y-6">
                 <button
-                    onClick={() => { setTab("list"); setSelectedOS(null); }}
                     className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] hover:text-white transition-colors"
+                    onClick={() => { setTab("list"); setSelectedOS(null); setDetailAttachments([]); }}
                 >
                     <ArrowLeft size={16} /> Voltar
                 </button>
@@ -302,6 +326,21 @@ export default function ManutencaoPage() {
                             )}
                         </div>
 
+                        {/* ── Attachments ── */}
+                        {detailAttachments.length > 0 && (
+                            <div>
+                                <span className="text-sm text-[var(--zyllen-muted)]">Fotos / Vídeos:</span>
+                                <div className="mt-2">
+                                    <MediaUploader
+                                        osId={selectedOS.id}
+                                        attachments={detailAttachments}
+                                        apiBasePath="/maintenance"
+                                        readOnly
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex gap-2 pt-4 border-t border-[var(--zyllen-border)]">
                             {selectedOS.status === "OPEN" && (
                                 <Button variant="highlight" onClick={() => updateStatus.mutate({ id: selectedOS.id, status: "IN_PROGRESS" })}>
@@ -384,7 +423,7 @@ export default function ManutencaoPage() {
                                             <tr
                                                 key={os.id}
                                                 className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02] cursor-pointer"
-                                                onClick={() => { setSelectedOS(os); setTab("detail"); }}
+                                                onClick={() => { setSelectedOS(os); setTab("detail"); fetchDetailAttachments(os.id); }}
                                             >
                                                 <td className="py-3 text-xs">
                                                     <p className="text-[var(--zyllen-highlight)] truncate max-w-[220px]" title={os.clientName || "—"}>{os.clientName || "—"}</p>
@@ -395,7 +434,7 @@ export default function ManutencaoPage() {
                                                 <td className="py-3"><Badge variant={(STATUS_CONFIG[os.status] || STATUS_CONFIG.OPEN).variant}>{(STATUS_CONFIG[os.status] || STATUS_CONFIG.OPEN).label}</Badge></td>
                                                 <td className="py-3 text-[var(--zyllen-muted)] text-xs">{new Date(os.createdAt).toLocaleDateString("pt-BR")}</td>
                                                 <td className="py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                                                    <Button size="sm" variant="ghost" className="text-[var(--zyllen-muted)] text-xs" onClick={() => { setSelectedOS(os); setTab("detail"); }}>
+                                                    <Button size="sm" variant="ghost" className="text-[var(--zyllen-muted)] text-xs" onClick={() => { setSelectedOS(os); setTab("detail"); fetchDetailAttachments(os.id); }}>
                                                         <Eye size={14} />
                                                     </Button>
                                                     {os.status === "OPEN" && (

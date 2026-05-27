@@ -6,8 +6,12 @@ export async function uploadMaintenanceAttachments(
     files: File[] | undefined,
     options?: { headers?: Record<string, string> },
 ) {
-    if (!osId || !files || files.length === 0) {
+    if (!files || files.length === 0) {
         return;
+    }
+
+    if (!osId) {
+        throw new Error("Nao foi possivel identificar a OS para anexar os arquivos.");
     }
 
     const formData = new FormData();

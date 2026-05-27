@@ -89,7 +89,7 @@ export class TicketsController {
     }))
     async createInternal(
         @Request() req: any,
-        @Body() body: any,
+        @Body() body: { title?: string; description?: string; priority?: string },
         @UploadedFiles() files?: Express.Multer.File[],
     ) {
         const title = body.title?.trim();
@@ -133,7 +133,7 @@ export class TicketsController {
         },
     }))
     async create(
-        @Body() body: any,
+        @Body() body: { title?: string; description?: string; companyId?: string; externalUserId?: string; priority?: string },
         @UploadedFiles() files?: Express.Multer.File[],
     ) {
         // Validate required fields manually (multipart sends strings)
@@ -147,7 +147,8 @@ export class TicketsController {
         if (!description) throw new BadRequestException('Descrição é obrigatória');
 
         const ticket = await this.ticketsService.create({
-            title, description, companyId, externalUserId, priority,
+            title: title!, description: description!,
+            companyId: companyId!, externalUserId: externalUserId!, priority,
         });
 
         // If files were uploaded, create attachments

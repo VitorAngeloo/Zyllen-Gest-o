@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { encryptCPF, decryptCPFSafe } from '../../lib/cpf-crypto';
 
 @Injectable()
 export class ClientsService {
@@ -23,6 +24,7 @@ export class ClientsService {
         return this.prisma.company.findMany({
             include: { _count: { select: { externalUsers: true, tickets: true, projects: true } } },
             orderBy: { name: 'asc' },
+            take: 500,
         });
     }
 
@@ -103,7 +105,7 @@ export class ClientsService {
     // ═══════════════════════════════════════════
 
     async findAllContractors() {
-        return this.prisma.contractorUser.findMany({
+        const rows = await this.prisma.contractorUser.findMany({
             select: {
                 id: true,
                 name: true,
@@ -117,7 +119,9 @@ export class ClientsService {
                 _count: { select: { maintenanceOrders: true } },
             },
             orderBy: { name: 'asc' },
+            take: 500,
         });
+        return rows.map((r) => ({ ...r, cpf: decryptCPFSafe(r.cpf) }));
     }
 
     // ── Update Contractor (toggle active, etc.) ──
@@ -128,7 +132,7 @@ export class ClientsService {
         const updateData: any = {};
         if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
-        return this.prisma.contractorUser.update({
+        const updated = await this.prisma.contractorUser.update({
             where: { id },
             data: updateData,
             select: {
@@ -137,6 +141,7 @@ export class ClientsService {
                 createdAt: true, _count: { select: { maintenanceOrders: true } },
             },
         });
+        return { ...updated, cpf: decryptCPFSafe(updated.cpf) };
     }
 
     // ── Delete Contractor ──
@@ -184,15 +189,22 @@ export class ClientsService {
     // EXTERNAL USERS
     // ═══════════════════════════════════════════
 
-    async findAllExternalUsers(companyId?: string) {
-        return this.prisma.externalUser.findMany({
-            where: companyId ? { companyId } : {},
-            include: {
-                company: { select: { id: true, name: true } },
-                project: { select: { id: true, name: true } },
-            },
-            orderBy: [{ company: { name: 'asc' } }, { name: 'asc' }],
-        });
+    async findAllExternalUsers(params?: { companyId?: string; skip?: number; take?: number }) {
+        const where = params?.companyId ? { companyId: params.companyId } : {};
+        const [data, total] = await Promise.all([
+            this.prisma.externalUser.findMany({
+                where,
+                include: {
+                    company: { select: { id: true, name: true } },
+                    project: { select: { id: true, name: true } },
+                },
+                orderBy: [{ company: { name: 'asc' } }, { name: 'asc' }],
+                skip: params?.skip ?? 0,
+                take: params?.take ?? 200,
+            }),
+            this.prisma.externalUser.count({ where }),
+        ]);
+        return { data, total };
     }
 
     async createExternalUser(data: {
@@ -221,14 +233,15 @@ export class ClientsService {
         if (existing) throw new ConflictException('Email já cadastrado');
 
         if (data.cpf) {
-            const existingCpf = await this.prisma.externalUser.findUnique({ where: { cpf: data.cpf } });
+            const encryptedCpf = encryptCPF(data.cpf);
+            const existingCpf = await this.prisma.externalUser.findUnique({ where: { cpf: encryptedCpf } });
             if (existingCpf) throw new ConflictException('CPF já cadastrado');
         }
 
-        const { password, ...rest } = data;
+        const { password, cpf, ...rest } = data;
         const passwordHash = await bcrypt.hash(password, 10);
-        return this.prisma.externalUser.create({
-            data: { ...rest, passwordHash },
+        const created = await this.prisma.externalUser.create({
+            data: { ...rest, passwordHash, cpf: cpf ? encryptCPF(cpf) : null },
             select: {
                 id: true, name: true, email: true, cpf: true, phone: true,
                 position: true, city: true, state: true,
@@ -236,6 +249,7 @@ export class ClientsService {
                 project: { select: { id: true, name: true } },
             },
         });
+        return { ...created, cpf: decryptCPFSafe(created.cpf) };
     }
 
     // ── External Login ──

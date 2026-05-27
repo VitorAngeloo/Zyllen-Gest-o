@@ -24,6 +24,8 @@ export interface OsPdfData {
     openedByContractor?: string | null;
     formData?: Record<string, unknown> | null;
     asset?: { assetCode?: string; sku?: { name?: string } } | null;
+    /** Pre-computed full URLs for attachment files */
+    attachments?: Array<{ id: string; fileName: string; mimeType?: string | null; fileUrl: string }>;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -95,6 +97,10 @@ export function printOsPdf(data: OsPdfData): void {
         .signature-box { background: #fff; border: 1px solid #d1d5db; border-radius: 6px; padding: 6px; min-height: 84px; display: flex; align-items: center; justify-content: center; }
         .signature-box img { max-width: 100%; max-height: 72px; object-fit: contain; }
         .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+        .attachments-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+        .attachment-item { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
+        .attachment-item img { width: 100%; height: 160px; object-fit: cover; display: block; }
+        .attachment-item .att-name { font-size: 9px; color: #6b7280; padding: 3px 6px; background: #f9fafb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .footer { margin-top: 32px; border-top: 1px solid #ccc; padding-top: 12px; font-size: 10px; color: #888; text-align: center; }
         @media print { body { padding: 0; } .no-print { display: none; } }
     </style>
@@ -134,6 +140,24 @@ export function printOsPdf(data: OsPdfData): void {
     ` : ""}
 
     ${formDataHtml}
+
+    ${(data.attachments && data.attachments.length > 0) ? `
+    <h3>Fotos / Vídeos (${data.attachments.length})</h3>
+    <div class="attachments-grid">
+        ${data.attachments.map((att) => {
+            const isImage = att.mimeType?.startsWith('image/');
+            const isVideo = att.mimeType?.startsWith('video/');
+            return `
+            <div class="attachment-item">
+                ${isImage
+                    ? `<img src="${escapeAttr(att.fileUrl)}" alt="${escapeAttr(att.fileName)}" />`
+                    : `<div style="height:160px;background:#000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;">${isVideo ? '▶ Vídeo' : '📎 Arquivo'}</div>`
+                }
+                <div class="att-name" title="${escapeAttr(att.fileName)}">${escapeHtml(att.fileName)}</div>
+            </div>`;
+        }).join('')}
+    </div>
+    ` : ''}
 
     <div class="footer">
         Gerado em ${new Date().toLocaleString("pt-BR")} — Zyllen Gestão © ${new Date().getFullYear()}

@@ -157,9 +157,15 @@ export class ClientsController {
     @Get('users')
     @UseGuards(JwtAuthGuard, PermissionsGuard)
     @RequirePermission('settings.view')
-    async findAllExternalUsers(@Query('companyId') companyId?: string) {
-        const data = await this.clientsService.findAllExternalUsers(companyId);
-        return { data };
+    async findAllExternalUsers(
+        @Query('companyId') companyId?: string,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+    ) {
+        const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
+        const l = Math.min(200, Math.max(1, parseInt(limit ?? '50', 10) || 50));
+        const result = await this.clientsService.findAllExternalUsers({ companyId, skip: (p - 1) * l, take: l });
+        return { data: result.data, total: result.total, page: p, limit: l };
     }
 
     @Post('users')

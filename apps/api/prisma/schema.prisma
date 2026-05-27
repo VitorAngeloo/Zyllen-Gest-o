@@ -258,6 +258,10 @@ model StockMovement {
   toLocation   Location?    @relation("ToLocation", fields: [toLocationId], references: [id])
   createdBy   InternalUser  @relation(fields: [createdByInternalUserId], references: [id])
   mediaAttachments ItemMediaAttachment[]
+
+  @@index([createdByInternalUserId])
+  @@index([skuId])
+  @@index([createdAt])
 }
 
 model MovementType {
@@ -318,6 +322,11 @@ model Ticket {
   messages     TicketMessage[]
   attachments  TicketAttachment[]
   rating       TicketRating?
+
+  @@index([assignedToInternalUserId])
+  @@index([status])
+  @@index([companyId])
+  @@index([createdAt])
 }
 
 model TicketRating {
@@ -386,6 +395,11 @@ model MaintenanceOS {
   openedByContractor ContractorUser? @relation("OpenedByContractor", fields: [openedByContractorId], references: [id])
   closedBy           InternalUser?   @relation("ClosedBy", fields: [closedById], references: [id])
   attachments        MaintenanceAttachment[]
+
+  @@index([openedById])
+  @@index([openedByContractorId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model MaintenanceAttachment {
@@ -490,6 +504,10 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   user InternalUser @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 // ─── Followups (Acompanhamento) ───────────────
@@ -589,6 +607,10 @@ model ProductExit {
   sku       SkuItem      @relation(fields: [skuId], references: [id])
   location  Location     @relation(fields: [locationId], references: [id])
   createdBy InternalUser @relation(fields: [createdById], references: [id])
+
+  @@index([createdById])
+  @@index([skuId])
+  @@index([createdAt])
 }
 
 model ItemMediaAttachment {

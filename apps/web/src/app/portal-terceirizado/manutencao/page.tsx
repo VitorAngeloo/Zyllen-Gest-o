@@ -13,6 +13,8 @@ import { OsFormWizard } from "@web/components/os-forms";
 import type { OsFormSubmitData } from "@web/components/os-forms";
 import { OS_FORM_CONFIG } from "@web/components/os-forms";
 import type { OsFormType } from "@web/components/os-forms";
+import { MediaUploader } from "@web/components/os-forms/media-uploader";
+import type { MediaAttachment } from "@web/components/os-forms/media-uploader";
 import { printOsPdf } from "@web/lib/os-pdf";
 import { getOsFieldRows } from "@web/lib/os-form-view";
 
@@ -58,6 +60,19 @@ function ContractorMaintenanceInner() {
     );
     const [selectedOS, setSelectedOS] = useState<MaintenanceOS | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [detailAttachments, setDetailAttachments] = useState<MediaAttachment[]>([]);
+
+    const fetchDetailAttachments = async (osId: string) => {
+        try {
+            const res = await apiClient.get<{ data?: MediaAttachment[] | { data?: MediaAttachment[] } }>(`/contractor/maintenance/${osId}/attachments`, authFetch);
+            const list = Array.isArray(res?.data)
+                ? res.data
+                : Array.isArray((res?.data as any)?.data)
+                    ? (res?.data as any).data
+                    : [];
+            setDetailAttachments(list);
+        } catch { setDetailAttachments([]); }
+    };
 
     const fetchOrders = useCallback(async () => {
         if (!token) return;
@@ -82,9 +97,9 @@ function ContractorMaintenanceInner() {
         setSubmitting(true);
         try {
             const { localFiles, ...payload } = data;
-            const created = await apiClient.post<{ data?: { id?: string } }>("/contractor/maintenance", payload, authFetch);
+            const created = await apiClient.post<{ id?: string; data?: { id?: string; data?: { id?: string } } }>("/contractor/maintenance", payload, authFetch);
 
-            const createdId = created?.data?.id;
+            const createdId = created?.data?.id ?? created?.id ?? created?.data?.data?.id;
             await uploadMaintenanceAttachments("/contractor/maintenance", createdId, localFiles, authFetch);
 
             toast.success("OS aberta com sucesso!");
@@ -111,6 +126,7 @@ function ContractorMaintenanceInner() {
 
     const handlePrintPdf = () => {
         if (!selectedOS) return;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
         printOsPdf({
             osNumber: selectedOS.osNumber || "OS",
             formType: OS_FORM_CONFIG[selectedOS.formType as OsFormType]?.label || selectedOS.formType,
@@ -125,6 +141,12 @@ function ContractorMaintenanceInner() {
             openedBy: selectedOS.openedBy?.name || selectedOS.openedByContractor?.name || undefined,
             createdAt: selectedOS.createdAt,
             formData: selectedOS.formData || undefined,
+            attachments: detailAttachments.map((att) => ({
+                id: att.id,
+                fileName: att.fileName,
+                mimeType: att.mimeType,
+                fileUrl: `${apiBase}/contractor/maintenance/${selectedOS.id}/attachments/${att.id}/file`,
+            })),
         });
     };
 
@@ -168,6 +190,7 @@ function ContractorMaintenanceInner() {
                 editMode
                 readOnly={selectedOS.status === "CLOSED"}
                 initialData={{
+                    id: selectedOS.id,
                     formType: selectedOS.formType as OsFormType,
                     clientName: selectedOS.clientName || "",
                     clientCity: selectedOS.clientCity || "",
@@ -194,7 +217,7 @@ function ContractorMaintenanceInner() {
         return (
             <div className="space-y-6">
                 <button
-                    onClick={() => { setView("list"); setSelectedOS(null); }}
+                    onClick={() => { setView("list"); setSelectedOS(null); setDetailAttachments([]); }}
                     className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] hover:text-white transition-colors"
                 >
                     <ArrowLeft size={16} /> Voltar
@@ -303,6 +326,21 @@ function ContractorMaintenanceInner() {
                             </div>
                         )}
 
+                        {/* ── Attachments ── */}
+                        {detailAttachments.length > 0 && (
+                            <div>
+                                <span className="text-sm text-[var(--zyllen-muted)]">Fotos / Vídeos:</span>
+                                <div className="mt-2">
+                                    <MediaUploader
+                                        osId={selectedOS.id}
+                                        attachments={detailAttachments}
+                                        apiBasePath="/contractor/maintenance"
+                                        readOnly
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex gap-2 pt-4 border-t border-[var(--zyllen-border)]">
                             {selectedOS.status === "OPEN" && (
                                 <Button
@@ -362,7 +400,7 @@ function ContractorMaintenanceInner() {
                             <Card
                                 key={os.id}
                                 className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] hover:border-[var(--zyllen-highlight)]/30 transition-all cursor-pointer"
-                                onClick={() => { setSelectedOS(os); setView("detail"); }}
+                                onClick={() => { setSelectedOS(os); setView("detail"); fetchDetailAttachments(os.id); }}
                             >
                                 <CardContent className="py-4">
                                     <div className="flex items-center justify-between">

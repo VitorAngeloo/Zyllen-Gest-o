@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { randomInt } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -31,10 +32,9 @@ export class AuthService {
 
     // ── Internal Login (email + password → JWT) ──
     async loginInternal(email: string, password: string): Promise<TokenResponse> {
-        const user = await this.prisma.internalUser.findUnique({
-            where: { email },
-            include: { role: true },
-        });
+        const user = await this.prisma.retry(() =>
+            this.prisma.internalUser.findUnique({ where: { email }, include: { role: true } }),
+        );
 
         if (!user || !user.isActive) {
             throw new UnauthorizedException('Credenciais inválidas');
@@ -265,6 +265,7 @@ export class AuthService {
                 },
             },
             orderBy: { name: 'asc' },
+            take: 500,
         });
     }
 
@@ -412,6 +413,17 @@ export class AuthService {
             );
         }
 
+        // Registrar a deleção antes de apagar os logs do usuário
+        await this.prisma.auditLog.create({
+            data: {
+                action: 'USER_DELETED',
+                entityType: 'InternalUser',
+                entityId: id,
+                userId: requesterId,
+                details: { deletedUser: { name: user.name, email: user.email } },
+            },
+        });
+
         // Remove audit logs + labels, then delete user
         await this.prisma.auditLog.deleteMany({ where: { userId: id } });
         await this.prisma.labelPrintJob.deleteMany({ where: { printedById: id } });
@@ -443,7 +455,7 @@ export class AuthService {
         const existingHashes = allUsers.map((u) => u.pin4Hash).filter(Boolean) as string[];
 
         for (let i = 0; i < MAX_RETRIES; i++) {
-            const pin = String(Math.floor(Math.random() * 10_000)).padStart(4, '0');
+            const pin = String(randomInt(0, 10_000)).padStart(4, '0');
 
             // Check against existing hashes
             let pinExists = false;

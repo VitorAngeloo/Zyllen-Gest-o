@@ -2,17 +2,32 @@ import {
     Injectable,
     NotFoundException,
     BadRequestException,
+    ForbiddenException,
     ConflictException,
 } from '@nestjs/common';
+import { randomInt } from 'crypto';
 import { Prisma } from '@prisma/client';
+import { MaintenanceStatus } from '@zyllen/shared';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { decryptCPFSafe } from '../../lib/cpf-crypto';
+
+const FORM_DATA_MAX_BYTES = 64 * 1024; // 64 KB
+
+function validateFormData(formData: Record<string, unknown>): void {
+    const size = Buffer.byteLength(JSON.stringify(formData), 'utf8');
+    if (size > FORM_DATA_MAX_BYTES) {
+        throw new BadRequestException(
+            `formData excede o limite permitido de ${FORM_DATA_MAX_BYTES / 1024} KB`,
+        );
+    }
+}
 
 // OS number generator: OS-YYYYMM-XXXX
 function generateOsNumber(): string {
     const now = new Date();
     const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const rand = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    const rand = String(randomInt(0, 10_000)).padStart(4, '0');
     return `OS-${ym}-${rand}`;
 }
 
@@ -46,6 +61,8 @@ export class MaintenanceService {
             if (!asset) throw new NotFoundException('Patrimônio não encontrado');
         }
 
+        if (data.formData) validateFormData(data.formData);
+
         const formType = data.formType || 'TERCEIRIZADO';
 
         // Generate unique OS number
@@ -61,35 +78,37 @@ export class MaintenanceService {
             throw new ConflictException('Não foi possível gerar um número de OS único. Tente novamente.');
         }
 
-        const os = await this.prisma.maintenanceOS.create({
-            data: {
-                osNumber,
-                formType,
-                assetId: data.assetId ?? null,
-                openedById: data.openedById ?? null,
-                openedByContractorId: data.openedByContractorId ?? null,
-                notes: asset
-                    ? (data.notes ? `[previousStatus:${asset.status}] ${data.notes}` : `[previousStatus:${asset.status}]`)
-                    : (data.notes || null),
-                clientName: data.clientName ?? null,
-                clientCity: data.clientCity ?? null,
-                clientState: data.clientState ?? null,
-                location: data.location ?? null,
-                contactName: data.contactName ?? null,
-                contactPhone: data.contactPhone ?? null,
-                contactRole: data.contactRole ?? null,
-                startedAt: data.startedAt ? new Date(data.startedAt) : null,
-                endedAt: data.endedAt ? new Date(data.endedAt) : null,
-                scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
-                formData: data.formData ? (data.formData as Prisma.InputJsonValue) : Prisma.JsonNull,
-                status: 'OPEN',
-            },
-            include: {
-                asset: { include: { sku: { select: { skuCode: true, name: true } } } },
-                openedBy: { select: { name: true } },
-                openedByContractor: { select: { name: true } },
-            },
-        });
+        const os = await this.prisma.retry(() =>
+            this.prisma.maintenanceOS.create({
+                data: {
+                    osNumber,
+                    formType,
+                    assetId: data.assetId ?? null,
+                    openedById: data.openedById ?? null,
+                    openedByContractorId: data.openedByContractorId ?? null,
+                    notes: asset
+                        ? (data.notes ? `[previousStatus:${asset.status}] ${data.notes}` : `[previousStatus:${asset.status}]`)
+                        : (data.notes || null),
+                    clientName: data.clientName ?? null,
+                    clientCity: data.clientCity ?? null,
+                    clientState: data.clientState ?? null,
+                    location: data.location ?? null,
+                    contactName: data.contactName ?? null,
+                    contactPhone: data.contactPhone ?? null,
+                    contactRole: data.contactRole ?? null,
+                    startedAt: data.startedAt ? new Date(data.startedAt) : null,
+                    endedAt: data.endedAt ? new Date(data.endedAt) : null,
+                    scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
+                    formData: data.formData ? (data.formData as Prisma.InputJsonValue) : Prisma.JsonNull,
+                    status: MaintenanceStatus.OPEN,
+                },
+                include: {
+                    asset: { include: { sku: { select: { skuCode: true, name: true } } } },
+                    openedBy: { select: { name: true } },
+                    openedByContractor: { select: { name: true } },
+                },
+            }),
+        );
 
         // Update asset status if asset provided
         if (data.assetId && asset) {
@@ -161,15 +180,28 @@ export class MaintenanceService {
         return os;
     }
 
+    // Transições válidas entre estados de OS
+    private static readonly STATUS_TRANSITIONS: Record<MaintenanceStatus, MaintenanceStatus[]> = {
+        [MaintenanceStatus.OPEN]: [MaintenanceStatus.IN_PROGRESS, MaintenanceStatus.CLOSED],
+        [MaintenanceStatus.IN_PROGRESS]: [MaintenanceStatus.CLOSED],
+        [MaintenanceStatus.CLOSED]: [],
+    };
+
     // ── Update status ──
     async updateStatus(id: string, status: string, userId: string, notes?: string, isContractor = false) {
-        const validStatuses = ['OPEN', 'IN_PROGRESS', 'CLOSED'];
-        if (!validStatuses.includes(status)) {
-            throw new BadRequestException(`Status inválido. Use: ${validStatuses.join(', ')}`);
+        if (!Object.values(MaintenanceStatus).includes(status as MaintenanceStatus)) {
+            throw new BadRequestException(`Status inválido. Use: ${Object.values(MaintenanceStatus).join(', ')}`);
         }
 
         const os = await this.findById(id);
-        if (os.status === 'CLOSED') throw new BadRequestException('OS já encerrada');
+        if (os.status === MaintenanceStatus.CLOSED) throw new BadRequestException('OS já encerrada');
+
+        const allowed = MaintenanceService.STATUS_TRANSITIONS[os.status as MaintenanceStatus] ?? [];
+        if (!allowed.includes(status as MaintenanceStatus)) {
+            throw new BadRequestException(
+                `Transição inválida: ${os.status} → ${status}. Permitido: ${allowed.join(', ') || 'nenhum'}`,
+            );
+        }
 
         const updateData: any = { status };
         // Preserve the [previousStatus:...] tag when updating notes
@@ -177,7 +209,7 @@ export class MaintenanceService {
             const prevTag = os.notes?.match(/\[previousStatus:\w+\]/);
             updateData.notes = prevTag ? `${prevTag[0]} ${notes}` : notes;
         }
-        if (status === 'CLOSED') {
+        if (status === MaintenanceStatus.CLOSED) {
             updateData.closedById = userId;
             updateData.completedAt = new Date();
             // Restore previous asset status from the notes field (only if asset exists)
@@ -205,7 +237,7 @@ export class MaintenanceService {
         if (!isContractor) {
             await this.prisma.auditLog.create({
                 data: {
-                    action: status === 'CLOSED' ? 'MAINTENANCE_CLOSED' : 'MAINTENANCE_UPDATED',
+                    action: status === MaintenanceStatus.CLOSED ? 'MAINTENANCE_CLOSED' : 'MAINTENANCE_UPDATED',
                     entityType: 'MaintenanceOS',
                     entityId: id,
                     userId,
@@ -231,12 +263,14 @@ export class MaintenanceService {
         startedAt?: string;
         endedAt?: string;
     }, isContractor = false) {
-        const os = await this.findById(id);
-        if (os.status === 'CLOSED') throw new BadRequestException('OS já encerrada');
+        validateFormData(data.formData);
 
-        // Ownership check
+        const os = await this.findById(id);
+        if (os.status === MaintenanceStatus.CLOSED) throw new BadRequestException('OS já encerrada');
+
+        // Ownership check — contractors can only edit their own OS
         if (isContractor && os.openedByContractorId !== userId) {
-            throw new BadRequestException('OS não pertence a este terceirizado');
+            throw new ForbiddenException('OS não pertence a este terceirizado');
         }
 
         const updateData: any = {
@@ -268,7 +302,7 @@ export class MaintenanceService {
 
     // ── Find all contractors ──
     async findAllContractors() {
-        return this.prisma.contractorUser.findMany({
+        const rows = await this.prisma.contractorUser.findMany({
             select: {
                 id: true,
                 name: true,
@@ -282,7 +316,9 @@ export class MaintenanceService {
                 _count: { select: { maintenanceOrders: true } },
             },
             orderBy: { name: 'asc' },
+            take: 500,
         });
+        return rows.map((r) => ({ ...r, cpf: decryptCPFSafe(r.cpf) }));
     }
 
     // ── Attachments ──

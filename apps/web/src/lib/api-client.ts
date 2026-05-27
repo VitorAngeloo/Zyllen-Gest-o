@@ -64,11 +64,12 @@ class ApiClient {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new ApiError(
-                response.status,
-                errorData.message || response.statusText,
-                errorData,
-            );
+            // Support both new format { error: { message } } and legacy { message }
+            const message =
+                errorData?.error?.message ||
+                errorData?.message ||
+                response.statusText;
+            throw new ApiError(response.status, message, errorData);
         }
 
         if (response.status === 204) {
@@ -84,16 +85,18 @@ class ApiClient {
 
         this.refreshPromise = (async () => {
             try {
+                // credentials: 'include' sends the httpOnly refresh_token cookie automatically.
+                // Body fallback keeps compatibility with clients that still use localStorage.
                 const refreshToken =
                     typeof window !== 'undefined'
                         ? localStorage.getItem('refreshToken')
                         : null;
-                if (!refreshToken) return null;
 
                 const res = await fetch(`${this.baseUrl}/auth/refresh`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refreshToken }),
+                    credentials: 'include', // send httpOnly cookie
+                    body: JSON.stringify(refreshToken ? { refreshToken } : {}),
                 });
 
                 if (!res.ok) return null;
@@ -101,9 +104,6 @@ class ApiClient {
                 const data = await res.json();
                 if (data.accessToken) {
                     localStorage.setItem('accessToken', data.accessToken);
-                    if (data.refreshToken) {
-                        localStorage.setItem('refreshToken', data.refreshToken);
-                    }
                     // Notify auth context of the new token
                     window.dispatchEvent(new CustomEvent('auth:token-refreshed', {
                         detail: { accessToken: data.accessToken },
@@ -123,6 +123,15 @@ class ApiClient {
 
     private forceLogout() {
         if (typeof window !== 'undefined') {
+            // Best-effort: ask backend to clear the httpOnly cookie
+            fetch(`${this.baseUrl}/auth/logout`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('accessToken') ?? ''}`,
+                },
+            }).catch(() => { /* ignore — logout is client-side regardless */ });
+
             localStorage.removeItem('accessToken');
             localStorage.removeItem('refreshToken');
             window.dispatchEvent(new Event('auth:logout'));
@@ -198,7 +207,11 @@ class ApiClient {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new ApiError(response.status, errorData.message || response.statusText, errorData);
+            const message =
+                errorData?.error?.message ||
+                errorData?.message ||
+                response.statusText;
+            throw new ApiError(response.status, message, errorData);
         }
 
         return response.json();
@@ -208,12 +221,16 @@ class ApiClient {
 export class ApiError extends Error {
     status: number;
     data: unknown;
+    details: unknown;
 
     constructor(status: number, message: string, data?: unknown) {
         super(message);
         this.name = 'ApiError';
         this.status = status;
         this.data = data;
+        // Extract validation details from new { error: { details } } or legacy { errors }
+        const d = data as Record<string, unknown> | undefined;
+        this.details = (d?.error as Record<string, unknown> | undefined)?.details ?? d?.errors;
     }
 }
 

@@ -131,8 +131,13 @@ export function OsFormWizard({
     const fetchAttachments = useCallback(async () => {
         if (!osId) return;
         try {
-            const res = await apiClient.get<{ data: MediaAttachment[] }>(`${apiBasePath}/${osId}/attachments`, authFetch);
-            setAttachments(res.data || []);
+            const res = await apiClient.get<{ data?: MediaAttachment[] | { data?: MediaAttachment[] } }>(`${apiBasePath}/${osId}/attachments`, authFetch);
+            const list = Array.isArray(res?.data)
+                ? res.data
+                : Array.isArray((res?.data as any)?.data)
+                    ? (res?.data as any).data
+                    : [];
+            setAttachments(list);
         } catch { /* ignore — OS may not have attachments */ }
     }, [osId, apiBasePath, authFetch]);
 

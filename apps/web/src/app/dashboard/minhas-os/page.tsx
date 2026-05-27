@@ -14,6 +14,9 @@ import { OS_FORM_CONFIG } from "@web/components/os-forms";
 import type { OsFormType, OsFormSubmitData } from "@web/components/os-forms";
 import { OsFormWizard } from "@web/components/os-forms";
 import { getOsFieldRows } from "@web/lib/os-form-view";
+import { uploadMaintenanceAttachments } from "@web/lib/maintenance-attachments";
+import { MediaUploader } from "@web/components/os-forms/media-uploader";
+import type { MediaAttachment } from "@web/components/os-forms/media-uploader";
 
 type View = "list" | "detail" | "edit";
 type ListTab = "mine" | "collaborators" | "contractors";
@@ -33,6 +36,21 @@ export default function MinhasOsPage() {
     const [listTab, setListTab] = useState<ListTab>("mine");
     const [statusFilter, setStatusFilter] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [detailAttachments, setDetailAttachments] = useState<MediaAttachment[]>([]);
+
+    const fetchDetailAttachments = async (osId: string) => {
+        try {
+            const res = await apiClient.get<{ data?: MediaAttachment[] | { data?: MediaAttachment[] } }>(`/maintenance/${osId}/attachments`, fetchOpts);
+            const list = Array.isArray(res?.data)
+                ? res.data
+                : Array.isArray((res?.data as any)?.data)
+                    ? (res?.data as any).data
+                    : [];
+            setDetailAttachments(list);
+        } catch {
+            setDetailAttachments([]);
+        }
+    };
 
     const isAdmin = hasPermission("access.manage");
 
@@ -69,7 +87,9 @@ export default function MinhasOsPage() {
         if (!selectedOS) return;
         setSubmitting(true);
         try {
-            await apiClient.put(`/maintenance/${selectedOS.id}/form-data`, data, fetchOpts);
+            const { localFiles, ...payload } = data;
+            await apiClient.put(`/maintenance/${selectedOS.id}/form-data`, payload, fetchOpts);
+            await uploadMaintenanceAttachments("/maintenance", selectedOS.id, localFiles, fetchOpts);
             toast.success("Rascunho salvo");
             qc.invalidateQueries({ queryKey: ["my-orders"] });
             qc.invalidateQueries({ queryKey: ["maintenance-all"] });
@@ -100,6 +120,7 @@ export default function MinhasOsPage() {
 
     const handlePrintPdf = () => {
         if (!selectedOS) return;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
         printOsPdf({
             osNumber: selectedOS.osNumber || "OS",
             formType: OS_FORM_CONFIG[selectedOS.formType as OsFormType]?.label || selectedOS.formType,
@@ -114,6 +135,12 @@ export default function MinhasOsPage() {
             openedBy: selectedOS.openedBy?.name || selectedOS.openedByContractor?.name,
             createdAt: selectedOS.createdAt,
             formData: selectedOS.formData,
+            attachments: detailAttachments.map((att) => ({
+                id: att.id,
+                fileName: att.fileName,
+                mimeType: att.mimeType,
+                fileUrl: `${apiBase}/maintenance/${selectedOS.id}/attachments/${att.id}/file`,
+            })),
         });
     };
 
@@ -121,7 +148,9 @@ export default function MinhasOsPage() {
         if (!selectedOS) return;
         setSubmitting(true);
         try {
-            await apiClient.put(`/maintenance/${selectedOS.id}/form-data`, data, fetchOpts);
+            const { localFiles, ...payload } = data;
+            await apiClient.put(`/maintenance/${selectedOS.id}/form-data`, payload, fetchOpts);
+            await uploadMaintenanceAttachments("/maintenance", selectedOS.id, localFiles, fetchOpts);
             toast.success("OS atualizada");
             qc.invalidateQueries({ queryKey: ["my-orders"] });
             qc.invalidateQueries({ queryKey: ["maintenance-all"] });
@@ -142,6 +171,7 @@ export default function MinhasOsPage() {
                 editMode
                 readOnly={selectedOS.status === "CLOSED"}
                 initialData={{
+                    id: selectedOS.id,
                     formType: selectedOS.formType as OsFormType,
                     clientName: selectedOS.clientName || "",
                     clientCity: selectedOS.clientCity || "",
@@ -171,7 +201,7 @@ export default function MinhasOsPage() {
         return (
             <div className="space-y-6">
                 <button
-                    onClick={() => { setView("list"); setSelectedOS(null); }}
+                    onClick={() => { setView("list"); setSelectedOS(null); setDetailAttachments([]); }}
                     className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] hover:text-white transition-colors"
                 >
                     <ArrowLeft size={16} /> Voltar
@@ -258,6 +288,20 @@ export default function MinhasOsPage() {
                                 <p className="text-[var(--zyllen-muted)] text-sm italic mt-2">Sem campos definidos para este tipo de formulário.</p>
                             )}
                         </div>
+
+                        {detailAttachments.length > 0 && (
+                            <div>
+                                <span className="text-sm text-[var(--zyllen-muted)]">Fotos / Vídeos:</span>
+                                <div className="mt-2">
+                                    <MediaUploader
+                                        osId={selectedOS.id}
+                                        attachments={detailAttachments}
+                                        apiBasePath="/maintenance"
+                                        readOnly
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex gap-2 pt-4 border-t border-[var(--zyllen-border)]">
                             {selectedOS.status !== "CLOSED" && (
@@ -377,7 +421,7 @@ export default function MinhasOsPage() {
                             <Card
                                 key={os.id}
                                 className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] hover:border-[var(--zyllen-highlight)]/30 cursor-pointer transition-colors"
-                                onClick={() => { setSelectedOS(os); setView("detail"); }}
+                                onClick={() => { setSelectedOS(os); setView("detail"); fetchDetailAttachments(os.id); }}
                             >
                                 <CardContent className="py-4">
                                     <div className="flex items-center justify-between">

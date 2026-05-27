@@ -36,3 +36,6 @@ apps/api/prisma/migrations/**/migration_lock.toml
 # Coverage
 coverage/
 .vercel
+
+# User uploads (runtime files — not versioned)
+apps/api/uploads/

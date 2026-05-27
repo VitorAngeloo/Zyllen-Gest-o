@@ -3,6 +3,7 @@ import {
     NotFoundException,
     ConflictException,
 } from '@nestjs/common';
+import { randomInt } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -192,20 +193,49 @@ export class AssetsService {
                 include: { category: { select: { id: true, name: true } } },
             });
 
-            // 2. Create N Assets
-            const assets = [];
-            for (let i = 0; i < data.quantity; i++) {
-                const assetCode = await this.generateNextAssetCode(tx);
-                const createdAsset = await tx.asset.create({
-                    data: {
-                        assetCode,
-                        skuId: skuItem.id,
-                        currentLocationId: data.locationId,
-                        status: 'ATIVO',
-                    },
+            // 2. Create N Assets — batch sequence increment to avoid N+1
+            let sequence = await tx.assetCodeSequence.findUnique({
+                where: { id: this.assetCodeSequenceId },
+            });
+            if (!sequence) {
+                const existingAssets = await tx.asset.findMany({ select: { assetCode: true } });
+                let maxExistingCodeNumber = 0;
+                for (const a of existingAssets) {
+                    const match = /^SKY-(\d+)$/.exec(a.assetCode);
+                    if (match) {
+                        const parsed = Number(match[1]);
+                        if (Number.isFinite(parsed) && parsed > maxExistingCodeNumber) maxExistingCodeNumber = parsed;
+                    }
+                }
+                sequence = await tx.assetCodeSequence.create({
+                    data: { id: this.assetCodeSequenceId, currentValue: maxExistingCodeNumber },
                 });
-                assets.push(createdAsset);
             }
+            sequence = await tx.assetCodeSequence.update({
+                where: { id: this.assetCodeSequenceId },
+                data: { currentValue: { increment: data.quantity } },
+            });
+            const endValue = sequence.currentValue;
+            const startValue = endValue - data.quantity + 1;
+            const assetCodes = Array.from({ length: data.quantity }, (_, i) =>
+                `SKY-${String(startValue + i).padStart(5, '0')}`,
+            );
+            const collision = await tx.asset.findFirst({
+                where: { assetCode: { in: assetCodes } },
+                select: { assetCode: true },
+            });
+            if (collision) {
+                throw new ConflictException('Código de patrimônio duplicado detectado. Tente novamente.');
+            }
+            await tx.asset.createMany({
+                data: assetCodes.map((assetCode) => ({
+                    assetCode,
+                    skuId: skuItem.id,
+                    currentLocationId: data.locationId,
+                    status: 'ATIVO',
+                })),
+            });
+            const assets = assetCodes;
 
             // 3. Create StockBalance
             await tx.stockBalance.upsert({
@@ -217,7 +247,7 @@ export class AssetsService {
             return {
                 sku: skuItem,
                 assetsCreated: assets.length,
-                assetCodes: assets.map((a) => a.assetCode),
+                assetCodes: assets,
                 location: location.name,
             };
         });
@@ -348,7 +378,7 @@ export class AssetsService {
     private async generateUniqueSkuCode(): Promise<string> {
         const MAX_RETRIES = 100;
         for (let i = 0; i < MAX_RETRIES; i++) {
-            const code = String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0');
+            const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
             const existing = await this.prisma.skuItem.findUnique({ where: { skuCode: code } });
             if (!existing) return code;
         }

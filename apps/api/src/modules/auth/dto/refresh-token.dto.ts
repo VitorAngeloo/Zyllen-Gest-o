@@ -1,6 +1,8 @@
-import { IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class RefreshTokenDto {
-    @IsString({ message: 'Refresh token é obrigatório' })
-    refreshToken!: string;
+    // Optional: token can arrive via httpOnly cookie (preferred) or body (backwards compat)
+    @IsOptional()
+    @IsString()
+    refreshToken?: string;
 }
