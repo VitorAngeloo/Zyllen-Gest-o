@@ -543,7 +543,7 @@ export function ScheduleFormDialog({
                             {/* Installers */}
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)] text-xs">
-                                    Técnicos * {form.installerIds.length > 0 && (
+                                    Técnicos ativos * {form.installerIds.length > 0 && (
                                         <span className="text-[var(--zyllen-highlight)] ml-1">
                                             ({form.installerIds.length} selecionado{form.installerIds.length > 1 ? "s" : ""})
                                         </span>
