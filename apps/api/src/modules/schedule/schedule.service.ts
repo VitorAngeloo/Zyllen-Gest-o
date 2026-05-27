@@ -229,6 +229,36 @@ export class ScheduleService {
         return { message: 'Agendamento cancelado' };
     }
 
+    async checkConflicts(params: {
+        installerIds: string[];
+        startDate: string;
+        endDate: string;
+        excludeScheduleId?: string;
+    }) {
+        const { installerIds, startDate, endDate, excludeScheduleId } = params;
+        if (!installerIds.length) return [];
+
+        const excludeClause = excludeScheduleId
+            ? Prisma.sql`AND s.id != ${excludeScheduleId}`
+            : Prisma.empty;
+
+        return this.prisma.$queryRaw<any[]>`
+            SELECT
+                s.id, s.title, s."startDate", s."endDate", s.status,
+                u.id AS "installerId", u.name AS "installerName"
+            FROM "Schedule" s
+            JOIN "ScheduleInstaller" si ON si."scheduleId" = s.id
+            JOIN "InternalUser" u ON si."installerId" = u.id
+            WHERE
+                si."installerId" = ANY(${installerIds}::text[])
+                AND s.status != 'CANCELLED'
+                AND s."startDate" < ${new Date(endDate)}
+                AND s."endDate" > ${new Date(startDate)}
+                ${excludeClause}
+            ORDER BY s."startDate" ASC
+        `;
+    }
+
     async findInstallers(onlyActive?: boolean) {
         const whereClause = onlyActive
             ? Prisma.sql`WHERE "isActive" = true AND "agendaActive" = true`

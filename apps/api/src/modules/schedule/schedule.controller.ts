@@ -71,6 +71,25 @@ export class ScheduleController {
         return { data: result.data, total: result.total, page: p, limit: l };
     }
 
+    @Get('conflicts')
+    @RequirePermission('schedule.view')
+    async checkConflicts(
+        @Query('installerIds') installerIds: string,
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Query('excludeId') excludeId?: string,
+    ) {
+        const ids = (installerIds ?? '').split(',').filter(Boolean);
+        if (!ids.length || !startDate || !endDate) return { data: [] };
+        const data = await this.scheduleService.checkConflicts({
+            installerIds: ids,
+            startDate,
+            endDate,
+            excludeScheduleId: excludeId,
+        });
+        return { data };
+    }
+
     @Get(':id')
     @RequirePermission('schedule.view')
     async findById(@Param('id') id: string) {

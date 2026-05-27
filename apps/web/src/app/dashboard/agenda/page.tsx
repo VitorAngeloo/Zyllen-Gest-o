@@ -3,16 +3,16 @@ import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
 import { useAuthedFetch, useAuth } from "@web/lib/auth-context";
-import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
+import { Card, CardContent } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
-import { Badge } from "@web/components/ui/badge";
 import { Input } from "@web/components/ui/input";
 import { toast } from "sonner";
 import {
     CalendarDays, Users, Search, Save, CheckCircle2,
-    Clock, MapPin, User, Building2, ChevronRight,
+    Clock, MapPin, User, Building2, Pencil,
     ToggleLeft, ToggleRight,
 } from "lucide-react";
+import { ScheduleFormDialog } from "./schedule-form-dialog";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +40,8 @@ interface Schedule {
     endDate: string;
     address: string | null;
     notes: string | null;
+    companyId: string | null;
+    projectId: string | null;
     companyName: string | null;
     projectName: string | null;
     createdByName: string | null;
@@ -206,12 +208,17 @@ export default function AgendaPage() {
     const [search, setSearch] = useState("");
     const [savingId, setSavingId] = useState<string | null>(null);
 
+    // Form dialog state
+    const [formOpen, setFormOpen] = useState(false);
+    const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+
     // Schedule filters
     const [filterStatus, setFilterStatus] = useState("");
     const [filterType, setFilterType] = useState("");
 
     const canManageInstallers = hasPermission("schedule.manage_installers");
     const canCreate = hasPermission("schedule.create");
+    const canUpdate = hasPermission("schedule.update");
 
     // ── Data fetching ────────────────────────────────────────────────────────
 
@@ -309,7 +316,7 @@ export default function AgendaPage() {
                 {tab === "agendamentos" && canCreate && (
                     <Button
                         className="bg-[var(--zyllen-highlight)] hover:bg-[var(--zyllen-highlight)]/80 text-white"
-                        onClick={() => toast.info("Criação de agendamentos disponível em breve (Fase 3)")}
+                        onClick={() => { setEditingSchedule(null); setFormOpen(true); }}
                     >
                         + Novo Agendamento
                     </Button>
@@ -458,21 +465,34 @@ export default function AgendaPage() {
                                                 </div>
 
                                                 {/* Right: actions */}
-                                                {schedule.status !== "CANCELLED" && schedule.status !== "DONE" && hasPermission("schedule.delete") && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 shrink-0"
-                                                        onClick={() => {
-                                                            if (confirm(`Cancelar "${schedule.title}"?`)) {
-                                                                cancelScheduleMut.mutate(schedule.id);
-                                                            }
-                                                        }}
-                                                        disabled={cancelScheduleMut.isPending}
-                                                    >
-                                                        Cancelar
-                                                    </Button>
-                                                )}
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    {canUpdate && schedule.status !== "CANCELLED" && schedule.status !== "DONE" && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="text-[var(--zyllen-muted)] hover:text-white hover:bg-[var(--zyllen-bg-dark)]"
+                                                            onClick={() => { setEditingSchedule(schedule); setFormOpen(true); }}
+                                                        >
+                                                            <Pencil className="w-3.5 h-3.5 mr-1" />
+                                                            Editar
+                                                        </Button>
+                                                    )}
+                                                    {schedule.status !== "CANCELLED" && schedule.status !== "DONE" && hasPermission("schedule.delete") && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                                            onClick={() => {
+                                                                if (confirm(`Cancelar "${schedule.title}"?`)) {
+                                                                    cancelScheduleMut.mutate(schedule.id);
+                                                                }
+                                                            }}
+                                                            disabled={cancelScheduleMut.isPending}
+                                                        >
+                                                            Cancelar
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </div>
                                         </CardContent>
                                     </Card>
@@ -482,6 +502,15 @@ export default function AgendaPage() {
                     )}
                 </>
             )}
+
+            {/* ── FORM DIALOG ── */}
+            <ScheduleFormDialog
+                open={formOpen}
+                onOpenChange={setFormOpen}
+                editingSchedule={editingSchedule}
+                fetchOpts={fetchOpts}
+                onSuccess={() => qc.invalidateQueries({ queryKey: ["schedules"] })}
+            />
 
             {/* ── INSTALADORES TAB ── */}
             {tab === "instaladores" && (
