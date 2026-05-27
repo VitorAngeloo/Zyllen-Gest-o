@@ -20,6 +20,7 @@ import { LabelsModule } from './modules/labels/labels.module';
 import { RegistrationModule } from './modules/registration/registration.module';
 import { ProductExitsModule } from './modules/product-exits/product-exits.module';
 import { FollowupsModule } from './modules/followups/followups.module';
+import { ScheduleModule } from './modules/schedule/schedule.module';
 
 @Module({
     imports: [
@@ -60,6 +61,7 @@ import { FollowupsModule } from './modules/followups/followups.module';
         RegistrationModule,
         ProductExitsModule,
         FollowupsModule,
+        ScheduleModule,
     ],
     controllers: [AppController],
 })

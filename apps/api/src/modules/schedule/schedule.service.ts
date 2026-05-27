@@ -1,0 +1,265 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+
+@Injectable()
+export class ScheduleService {
+    constructor(private readonly prisma: PrismaService) {}
+
+    async findAll(params: {
+        startDate?: string;
+        endDate?: string;
+        installerId?: string;
+        status?: string;
+        type?: string;
+        companyId?: string;
+        skip?: number;
+        take?: number;
+    }) {
+        const { skip = 0, take = 50 } = params;
+
+        const conditions: Prisma.Sql[] = [];
+
+        if (params.startDate) {
+            conditions.push(Prisma.sql`s."startDate" >= ${new Date(params.startDate)}`);
+        }
+        if (params.endDate) {
+            conditions.push(Prisma.sql`s."endDate" <= ${new Date(params.endDate)}`);
+        }
+        if (params.status) {
+            conditions.push(Prisma.sql`s.status = ${params.status}`);
+        }
+        if (params.type) {
+            conditions.push(Prisma.sql`s.type = ${params.type}`);
+        }
+        if (params.companyId) {
+            conditions.push(Prisma.sql`s."companyId" = ${params.companyId}`);
+        }
+        if (params.installerId) {
+            conditions.push(Prisma.sql`EXISTS (
+                SELECT 1 FROM "ScheduleInstaller" si
+                WHERE si."scheduleId" = s.id AND si."installerId" = ${params.installerId}
+            )`);
+        }
+
+        const whereClause =
+            conditions.length > 0
+                ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+                : Prisma.empty;
+
+        const schedules = await this.prisma.$queryRaw<any[]>`
+            SELECT
+                s.*,
+                c.name AS "companyName",
+                p.name AS "projectName",
+                cb.name AS "createdByName"
+            FROM "Schedule" s
+            LEFT JOIN "Company"       c  ON s."companyId"   = c.id
+            LEFT JOIN "Project"       p  ON s."projectId"   = p.id
+            LEFT JOIN "InternalUser"  cb ON s."createdById" = cb.id
+            ${whereClause}
+            ORDER BY s."startDate" ASC
+            LIMIT ${take} OFFSET ${skip}
+        `;
+
+        const [countRow] = await this.prisma.$queryRaw<[{ count: bigint }]>`
+            SELECT COUNT(*)::bigint AS count FROM "Schedule" s
+            ${whereClause}
+        `;
+
+        if (schedules.length > 0) {
+            const ids = schedules.map((s) => s.id);
+            const installers = await this.prisma.$queryRaw<any[]>`
+                SELECT si."scheduleId", u.id, u.name, u."agendaColor"
+                FROM "ScheduleInstaller" si
+                JOIN "InternalUser" u ON si."installerId" = u.id
+                WHERE si."scheduleId" = ANY(${ids}::text[])
+            `;
+
+            const installerMap = new Map<string, any[]>();
+            for (const inst of installers) {
+                if (!installerMap.has(inst.scheduleId)) installerMap.set(inst.scheduleId, []);
+                installerMap.get(inst.scheduleId)!.push({
+                    id: inst.id,
+                    name: inst.name,
+                    agendaColor: inst.agendaColor,
+                });
+            }
+            for (const s of schedules) {
+                s.installers = installerMap.get(s.id) ?? [];
+            }
+        }
+
+        return { data: schedules, total: Number(countRow.count) };
+    }
+
+    async findById(id: string) {
+        const rows = await this.prisma.$queryRaw<any[]>`
+            SELECT
+                s.*,
+                c.name AS "companyName",
+                p.name AS "projectName",
+                cb.name AS "createdByName"
+            FROM "Schedule" s
+            LEFT JOIN "Company"       c  ON s."companyId"   = c.id
+            LEFT JOIN "Project"       p  ON s."projectId"   = p.id
+            LEFT JOIN "InternalUser"  cb ON s."createdById" = cb.id
+            WHERE s.id = ${id}
+        `;
+
+        if (!rows[0]) throw new NotFoundException('Agendamento não encontrado');
+        const schedule = rows[0];
+
+        const installers = await this.prisma.$queryRaw<any[]>`
+            SELECT u.id, u.name, u.email, u.sector, u."agendaColor"
+            FROM "ScheduleInstaller" si
+            JOIN "InternalUser" u ON si."installerId" = u.id
+            WHERE si."scheduleId" = ${id}
+        `;
+        schedule.installers = installers;
+
+        const recRows = await this.prisma.$queryRaw<any[]>`
+            SELECT * FROM "ScheduleRecurrence" WHERE "scheduleId" = ${id}
+        `;
+        schedule.recurrence = recRows[0] ?? null;
+
+        return schedule;
+    }
+
+    async create(
+        data: {
+            title: string;
+            type: string;
+            startDate: string;
+            endDate: string;
+            address?: string;
+            notes?: string;
+            companyId?: string;
+            projectId?: string;
+            installerIds: string[];
+        },
+        createdById: string,
+    ) {
+        const idRows = await this.prisma.$queryRaw<[{ id: string }]>`
+            INSERT INTO "Schedule" (
+                title, type, status, "startDate", "endDate",
+                address, notes, "companyId", "projectId", "createdById"
+            ) VALUES (
+                ${data.title},
+                ${data.type},
+                'SCHEDULED',
+                ${new Date(data.startDate)},
+                ${new Date(data.endDate)},
+                ${data.address ?? null},
+                ${data.notes ?? null},
+                ${data.companyId ?? null},
+                ${data.projectId ?? null},
+                ${createdById}
+            )
+            RETURNING id
+        `;
+
+        const scheduleId = idRows[0].id;
+
+        for (const installerId of data.installerIds) {
+            await this.prisma.$executeRaw`
+                INSERT INTO "ScheduleInstaller" ("scheduleId", "installerId")
+                VALUES (${scheduleId}, ${installerId})
+                ON CONFLICT ("scheduleId", "installerId") DO NOTHING
+            `;
+        }
+
+        return this.findById(scheduleId);
+    }
+
+    async update(
+        id: string,
+        data: {
+            title?: string;
+            type?: string;
+            status?: string;
+            startDate?: string;
+            endDate?: string;
+            address?: string | null;
+            notes?: string | null;
+            companyId?: string | null;
+            projectId?: string | null;
+            installerIds?: string[];
+        },
+    ) {
+        await this.findById(id);
+
+        const setClauses: Prisma.Sql[] = [Prisma.sql`"updatedAt" = NOW()`];
+
+        if (data.title !== undefined) setClauses.push(Prisma.sql`title = ${data.title}`);
+        if (data.type !== undefined) setClauses.push(Prisma.sql`type = ${data.type}`);
+        if (data.status !== undefined) setClauses.push(Prisma.sql`status = ${data.status}`);
+        if (data.startDate !== undefined) setClauses.push(Prisma.sql`"startDate" = ${new Date(data.startDate)}`);
+        if (data.endDate !== undefined) setClauses.push(Prisma.sql`"endDate" = ${new Date(data.endDate)}`);
+        if (data.address !== undefined) setClauses.push(Prisma.sql`address = ${data.address}`);
+        if (data.notes !== undefined) setClauses.push(Prisma.sql`notes = ${data.notes}`);
+        if (data.companyId !== undefined) setClauses.push(Prisma.sql`"companyId" = ${data.companyId}`);
+        if (data.projectId !== undefined) setClauses.push(Prisma.sql`"projectId" = ${data.projectId}`);
+
+        if (setClauses.length > 1) {
+            await this.prisma.$executeRaw`
+                UPDATE "Schedule" SET ${Prisma.join(setClauses, ', ')} WHERE id = ${id}
+            `;
+        }
+
+        if (data.installerIds !== undefined) {
+            await this.prisma.$executeRaw`DELETE FROM "ScheduleInstaller" WHERE "scheduleId" = ${id}`;
+            for (const installerId of data.installerIds) {
+                await this.prisma.$executeRaw`
+                    INSERT INTO "ScheduleInstaller" ("scheduleId", "installerId")
+                    VALUES (${id}, ${installerId})
+                    ON CONFLICT ("scheduleId", "installerId") DO NOTHING
+                `;
+            }
+        }
+
+        return this.findById(id);
+    }
+
+    async cancel(id: string) {
+        await this.findById(id);
+        await this.prisma.$executeRaw`
+            UPDATE "Schedule" SET status = 'CANCELLED', "updatedAt" = NOW() WHERE id = ${id}
+        `;
+        return { message: 'Agendamento cancelado' };
+    }
+
+    async findInstallers(onlyActive?: boolean) {
+        const whereClause = onlyActive
+            ? Prisma.sql`WHERE "isActive" = true AND "agendaActive" = true`
+            : Prisma.sql`WHERE "isActive" = true`;
+
+        const rows = await this.prisma.$queryRaw<any[]>`
+            SELECT id, name, email, sector, "agendaColor", "agendaActive"
+            FROM "InternalUser"
+            ${whereClause}
+            ORDER BY name ASC
+        `;
+        return rows;
+    }
+
+    async updateInstallerSettings(userId: string, data: { agendaColor?: string; agendaActive?: boolean }) {
+        const setClauses: Prisma.Sql[] = [];
+
+        if (data.agendaColor !== undefined) setClauses.push(Prisma.sql`"agendaColor" = ${data.agendaColor}`);
+        if (data.agendaActive !== undefined) setClauses.push(Prisma.sql`"agendaActive" = ${data.agendaActive}`);
+
+        if (setClauses.length > 0) {
+            await this.prisma.$executeRaw`
+                UPDATE "InternalUser" SET ${Prisma.join(setClauses, ', ')} WHERE id = ${userId}
+            `;
+        }
+
+        const rows = await this.prisma.$queryRaw<any[]>`
+            SELECT id, name, email, sector, "agendaColor", "agendaActive"
+            FROM "InternalUser" WHERE id = ${userId}
+        `;
+        if (!rows[0]) throw new NotFoundException('Usuário não encontrado');
+        return rows[0];
+    }
+}
