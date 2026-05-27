@@ -36,7 +36,7 @@ interface Installer {
     name: string;
     sector: string | null;
     agendaColor: string | null;
-    agendaActive: boolean | null;
+    agendaActive: boolean | number | string | null;
 }
 
 interface Company {
@@ -216,7 +216,10 @@ export function ScheduleFormDialog({
         enabled: open && !!form.companyId,
     });
 
-    const installers = (installersRes?.data ?? []).filter((i) => i.agendaActive);
+    const installers = (installersRes?.data ?? []).filter((i) => {
+        const v = i.agendaActive;
+        return v === true || v === 1 || String(v).toLowerCase() === 'true';
+    });
     const companies = companiesRes?.data ?? [];
     const projects = projectsRes?.data ?? [];
 
