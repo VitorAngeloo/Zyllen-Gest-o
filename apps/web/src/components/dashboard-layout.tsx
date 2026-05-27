@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
     LayoutDashboard, Package, ScanBarcode, ShoppingCart,
     Headset, Wrench, Database, ShieldCheck, LogOut, ChevronLeft, Menu,
-    Tag, Building2, Users, UserCircle, Key, X, FileText, HardHat, MessageSquareText, ClipboardList, Star
+    Tag, Building2, Users, UserCircle, Key, X, FileText, HardHat, MessageSquareText, ClipboardList, Star, CalendarDays
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@web/lib/utils";
@@ -33,6 +33,7 @@ const NAV_ITEMS: { label: string; href: string; icon: any; perm?: string }[] = [
     { label: "Minhas OS", href: "/dashboard/minhas-os", icon: FileText, perm: "maintenance.view" },
     { label: "Abertura de OS", href: "/dashboard/manutencao", icon: Wrench, perm: "maintenance.view" },
     { label: "Acompanhamento", href: "/dashboard/acompanhamento", icon: ClipboardList },
+    { label: "Agenda", href: "/dashboard/agenda", icon: CalendarDays, perm: "schedule.view" },
     { label: "Estoque", href: "/dashboard/estoque", icon: Package, perm: "inventory.view" },
     { label: "Cadastro", href: "/dashboard/cadastros", icon: Database, perm: "catalog.view" },
     { label: "Patrimonio", href: "/dashboard/patrimonio", icon: ScanBarcode, perm: "assets.view" },
