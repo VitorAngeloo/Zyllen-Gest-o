@@ -1,0 +1,38 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            echo "==> Pulling latest code..."
+            git pull origin master
+
+            echo "==> Building and restarting containers..."
+            docker compose build --no-cache
+            docker compose up -d --remove-orphans
+
+            echo "==> Cleaning up unused Docker images..."
+            docker image prune -f
+
+            echo "==> Deploy concluido!"
+            docker compose ps
