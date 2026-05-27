@@ -216,7 +216,7 @@ export function ScheduleFormDialog({
         enabled: open && !!form.companyId,
     });
 
-    const installers = installersRes?.data ?? [];
+    const installers = (installersRes?.data ?? []).filter((i) => i.agendaActive);
     const companies = companiesRes?.data ?? [];
     const projects = projectsRes?.data ?? [];
 
