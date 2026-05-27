@@ -62,6 +62,58 @@ export class LabelsService {
         return printJob;
     }
 
+    // ── Register batch print jobs ──
+    async registerPrintBatch(data: { assetIds: string[]; printedById: string }) {
+        const assets = await this.prisma.asset.findMany({
+            where: { id: { in: data.assetIds } },
+            include: {
+                sku: { include: { category: true } },
+                currentLocation: true,
+            },
+        });
+
+        if (assets.length === 0) throw new NotFoundException('Nenhum patrimônio encontrado');
+
+        // Create all print jobs in one transaction
+        await this.prisma.$transaction(async (tx) => {
+            await tx.labelPrintJob.createMany({
+                data: assets.map((a) => ({ assetId: a.id, printedById: data.printedById })),
+            });
+            await tx.auditLog.createMany({
+                data: assets.map((a) => ({
+                    action: 'LABEL_PRINTED_BATCH',
+                    entityType: 'Asset',
+                    entityId: a.id,
+                    userId: data.printedById,
+                    details: { assetCode: a.assetCode, skuCode: a.sku.skuCode },
+                })),
+            });
+        });
+
+        // Return label data for each asset so the frontend can render the print sheet
+        const labelData = assets.map((asset) => {
+            const qrContent = JSON.stringify({
+                contractVersion: 'v1',
+                assetId: asset.id,
+                assetCode: asset.assetCode,
+                skuId: asset.skuId,
+                skuCode: asset.sku.skuCode,
+            });
+            return {
+                assetId: asset.id,
+                assetCode: asset.assetCode,
+                skuCode: asset.sku.skuCode,
+                skuName: asset.sku.name,
+                category: asset.sku.category.name,
+                location: asset.currentLocation?.name ?? 'Sem local',
+                status: asset.status,
+                qrContent,
+            };
+        });
+
+        return { count: assets.length, labelData };
+    }
+
     // ── List print history ──
     async findAll(params?: { assetId?: string }) {
         return this.prisma.labelPrintJob.findMany({

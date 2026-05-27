@@ -9,7 +9,7 @@ import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
-import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Plus, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, AlertTriangle, MapPin, RefreshCw } from "lucide-react";
+import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Plus, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, AlertTriangle, MapPin, RefreshCw, FileDown } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import Link from "next/link";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
@@ -230,6 +230,27 @@ export default function EstoquePage() {
     const entryIsAsset = selectedEntrySku?.trackingMode === "ASSET";
     const selectedExitSku = skus?.data?.find((s: any) => s.id === exitForm.skuId);
     const exitIsAsset = selectedExitSku?.trackingMode === "ASSET";
+
+    const exportCSV = () => {
+        if (!balances?.data?.length) return;
+        const belowIds = new Set((stats?.data?.belowMinStock ?? []).map((i: any) => i.id));
+        const header = ["Código", "Item", "Local", "Quantidade", "Situação"];
+        const rows = balances.data.map((b: any) => [
+            b.sku?.skuCode ?? "",
+            `"${(b.sku?.name ?? "").replace(/"/g, '""')}"`,
+            `"${(b.location?.name ?? "").replace(/"/g, '""')}"`,
+            b.quantity,
+            belowIds.has(b.sku?.id) ? "Abaixo do mínimo" : "OK",
+        ]);
+        const csv = [header.join(","), ...rows.map((r) => r.join(","))].join("\n");
+        const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `estoque-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
 
     const tabs = [
         { key: "balances", label: "Saldos", icon: Package },
@@ -598,12 +619,21 @@ export default function EstoquePage() {
                         <h2 className="text-base font-semibold text-white flex items-center gap-2">
                             <BarChart2 size={18} className="text-[var(--zyllen-highlight)]" /> Relatórios de Estoque
                         </h2>
-                        <button
-                            onClick={() => refetchStats()}
-                            className="flex items-center gap-1.5 text-xs text-[var(--zyllen-muted)] hover:text-white transition-colors"
-                        >
-                            <RefreshCw size={13} /> Atualizar
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={exportCSV}
+                                disabled={!balances?.data?.length}
+                                className="flex items-center gap-1.5 text-xs text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                <FileDown size={13} /> Exportar CSV
+                            </button>
+                            <button
+                                onClick={() => refetchStats()}
+                                className="flex items-center gap-1.5 text-xs text-[var(--zyllen-muted)] hover:text-white transition-colors"
+                            >
+                                <RefreshCw size={13} /> Atualizar
+                            </button>
+                        </div>
                     </div>
 
                     {loadingStats ? (

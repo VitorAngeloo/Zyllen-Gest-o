@@ -12,12 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFoo
 import { Textarea } from "@web/components/ui/textarea";
 import { Select, SelectOption } from "@web/components/ui/select";
 import { toast } from "sonner";
-import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, Download } from "lucide-react";
+import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, Download, Layers, X, CheckSquare } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
-type Tab = "print" | "history" | "templates";
+type Tab = "print" | "batch" | "history" | "templates";
 
 type LabelDataContractV1 = {
     contractVersion: "v1";
@@ -52,6 +52,11 @@ export default function EtiquetasPage() {
     const [assetCode, setAssetCode] = useState("");
     const [labelData, setLabelData] = useState<SelectedLabelData | null>(null);
 
+    // Batch state
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [batchSearch, setBatchSearch] = useState("");
+    const [batchLabelData, setBatchLabelData] = useState<any[] | null>(null);
+
     // Template form
     const [newTemplate, setNewTemplate] = useState({ name: "", layout: "" });
     const [editTemplate, setEditTemplate] = useState<any>(null);
@@ -74,6 +79,12 @@ export default function EtiquetasPage() {
         queryKey: ["assets"],
         queryFn: () => apiClient.get<{ data: any[] }>("/assets", fetchOpts),
         enabled: tab === "print",
+    });
+
+    const { data: allAssets, isLoading: loadingAllAssets } = useQuery({
+        queryKey: ["assets-batch"],
+        queryFn: () => apiClient.get<{ data: any[]; total: number }>("/assets?limit=100", fetchOpts),
+        enabled: tab === "batch",
     });
 
     // ─── Lookup asset for label ─────────
@@ -99,6 +110,32 @@ export default function EtiquetasPage() {
         onError: (e: any) => toast.error(e.message),
     });
 
+    const batchPrintMut = useMutation({
+        mutationFn: (assetIds: string[]) => apiClient.post<{ data: { count: number; labelData: any[] } }>("/labels/print-batch", { assetIds }, fetchOpts),
+        onSuccess: (result: any) => {
+            setBatchLabelData(result.data.labelData);
+            toast.success(`${result.data.count} impressões registradas`);
+            qc.invalidateQueries({ queryKey: ["label-history"] });
+            setSelectedIds(new Set());
+            setTimeout(() => handleBatchPrint(result.data.labelData), 300);
+        },
+        onError: (e: any) => toast.error(e.message),
+    });
+
+    const handleBatchPrint = (labels: any[]) => {
+        const style = document.createElement("style");
+        style.id = "__batch_print_style__";
+        style.innerHTML = `@media print { body > *:not(#batch-print-sheet) { display: none !important; } #batch-print-sheet { display: grid !important; position: fixed; inset: 0; z-index: 99999; background: white; } }`;
+        document.head.appendChild(style);
+        window.print();
+        setTimeout(() => {
+            const el = document.getElementById("__batch_print_style__");
+            if (el) el.remove();
+        }, 1000);
+    };
+
+    const normalize = (s: string) => s?.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") ?? "";
+
     const createTemplate = useMutation({
         mutationFn: (data: any) => apiClient.post("/labels/templates", data, fetchOpts),
         onSuccess: () => { toast.success("Template criado!"); qc.invalidateQueries({ queryKey: ["label-templates"] }); setNewTemplate({ name: "", layout: "" }); },
@@ -119,6 +156,7 @@ export default function EtiquetasPage() {
 
     const tabs = [
         { key: "print", label: "Imprimir", icon: Printer },
+        { key: "batch", label: "Lote", icon: Layers },
         { key: "history", label: "Histórico", icon: History },
         { key: "templates", label: "Templates", icon: FileText },
     ];
@@ -299,6 +337,162 @@ export default function EtiquetasPage() {
                             </CardContent>
                         </Card>
                     ) : null}
+                </div>
+            )}
+
+            {/* ═══ LOTE ═══ */}
+            {tab === "batch" && (
+                <div className="space-y-4">
+                    {/* Toolbar */}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="relative flex-1 min-w-[200px]">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                            <Input
+                                value={batchSearch}
+                                onChange={(e) => setBatchSearch(e.target.value)}
+                                placeholder="Filtrar por código ou nome..."
+                                className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-8 h-9 text-sm font-mono"
+                            />
+                        </div>
+                        {selectedIds.size > 0 && (
+                            <Button
+                                variant="highlight"
+                                className="gap-2"
+                                onClick={() => batchPrintMut.mutate(Array.from(selectedIds))}
+                                disabled={batchPrintMut.isPending}
+                            >
+                                <Printer size={15} />
+                                {batchPrintMut.isPending ? "Registrando..." : `Imprimir ${selectedIds.size} etiqueta${selectedIds.size > 1 ? "s" : ""}`}
+                            </Button>
+                        )}
+                        {selectedIds.size > 0 && (
+                            <button
+                                onClick={() => setSelectedIds(new Set())}
+                                className="text-xs text-[var(--zyllen-muted)] hover:text-white flex items-center gap-1"
+                            >
+                                <X size={13} /> Limpar seleção
+                            </button>
+                        )}
+                    </div>
+
+                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                            <CardTitle className="text-white text-sm flex items-center gap-2">
+                                <Layers size={16} className="text-[var(--zyllen-highlight)]" />
+                                Selecionar Patrimônios
+                                {allAssets?.total != null && (
+                                    <span className="text-[var(--zyllen-muted)] font-normal">({allAssets.total} total)</span>
+                                )}
+                            </CardTitle>
+                            {allAssets?.data?.length ? (
+                                <button
+                                    className="text-xs text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)] flex items-center gap-1 transition-colors"
+                                    onClick={() => {
+                                        const visible = (allAssets?.data ?? []).filter((a: any) => {
+                                            if (!batchSearch.trim()) return true;
+                                            const q = normalize(batchSearch);
+                                            return normalize(a.assetCode).includes(q) || normalize(a.sku?.name ?? "").includes(q);
+                                        });
+                                        const allVisibleSelected = visible.every((a: any) => selectedIds.has(a.id));
+                                        if (allVisibleSelected) {
+                                            const next = new Set(selectedIds);
+                                            visible.forEach((a: any) => next.delete(a.id));
+                                            setSelectedIds(next);
+                                        } else {
+                                            const next = new Set(selectedIds);
+                                            visible.forEach((a: any) => next.add(a.id));
+                                            setSelectedIds(next);
+                                        }
+                                    }}
+                                >
+                                    <CheckSquare size={13} /> Selecionar todos visíveis
+                                </button>
+                            ) : null}
+                        </CardHeader>
+                        <CardContent>
+                            {loadingAllAssets ? (
+                                <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="flex items-center gap-3"><div className="size-4 rounded bg-[var(--zyllen-border)]" /><div className="h-4 flex-1 rounded bg-[var(--zyllen-border)]" /></div>)}</div>
+                            ) : allAssets?.data?.length ? (() => {
+                                const filtered = batchSearch.trim()
+                                    ? allAssets.data.filter((a: any) => {
+                                        const q = normalize(batchSearch);
+                                        return normalize(a.assetCode).includes(q) || normalize(a.sku?.name ?? "").includes(q);
+                                    })
+                                    : allAssets.data;
+                                return filtered.length ? (
+                                    <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+                                        <table className="w-full text-sm">
+                                            <thead className="sticky top-0 bg-[var(--zyllen-bg)] z-10">
+                                                <tr className="border-b border-[var(--zyllen-border)]">
+                                                    <th className="w-8 py-2" />
+                                                    <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium">Código</th>
+                                                    <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium">Item</th>
+                                                    <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium">Status</th>
+                                                    <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium">Local</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {filtered.map((a: any) => {
+                                                    const checked = selectedIds.has(a.id);
+                                                    return (
+                                                        <tr
+                                                            key={a.id}
+                                                            className={`border-b border-[var(--zyllen-border)]/40 cursor-pointer transition-colors ${checked ? "bg-[var(--zyllen-highlight)]/5" : "hover:bg-white/[0.02]"}`}
+                                                            onClick={() => {
+                                                                const next = new Set(selectedIds);
+                                                                checked ? next.delete(a.id) : next.add(a.id);
+                                                                setSelectedIds(next);
+                                                            }}
+                                                        >
+                                                            <td className="py-2.5 pl-1">
+                                                                <div className={`size-4 rounded border-2 flex items-center justify-center ${checked ? "bg-[var(--zyllen-highlight)] border-[var(--zyllen-highlight)]" : "border-[var(--zyllen-border)]"}`}>
+                                                                    {checked && <svg viewBox="0 0 10 10" className="w-2.5 h-2.5 text-[var(--zyllen-bg)]" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1.5 5l2.5 2.5 5-5" /></svg>}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-2.5 font-mono text-[var(--zyllen-highlight)] text-xs">{a.assetCode}</td>
+                                                            <td className="py-2.5 text-white">{a.sku?.name}</td>
+                                                            <td className="py-2.5">
+                                                                <Badge variant={a.status === "ATIVO" ? "success" : a.status === "EM_MANUTENCAO" ? "warning" : a.status === "BAIXADO" ? "destructive" : "default"}>
+                                                                    {a.status === "ATIVO" ? "Ativo" : a.status === "EM_USO" ? "Em Uso" : a.status === "EM_MANUTENCAO" ? "Em Manutenção" : "Baixado"}
+                                                                </Badge>
+                                                            </td>
+                                                            <td className="py-2.5 text-[var(--zyllen-muted)] text-xs">{a.currentLocation?.name ?? "—"}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <p className="text-center py-8 text-[var(--zyllen-muted)] text-sm">Nenhum patrimônio encontrado para "{batchSearch}"</p>
+                                );
+                            })() : (
+                                <p className="text-center py-8 text-[var(--zyllen-muted)] text-sm">Nenhum patrimônio cadastrado</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            {/* ═══ BATCH PRINT SHEET (visible only on print) ═══ */}
+            {batchLabelData && batchLabelData.length > 0 && (
+                <div
+                    id="batch-print-sheet"
+                    style={{ display: "none", gridTemplateColumns: "repeat(3, 1fr)", gap: "4mm", padding: "8mm", background: "white" }}
+                >
+                    {batchLabelData.map((label: any) => (
+                        <div key={label.assetId} style={{ border: "1px solid #ddd", borderRadius: 4, padding: "3mm", display: "flex", gap: "3mm", alignItems: "flex-start", breakInside: "avoid", pageBreakInside: "avoid" }}>
+                            <QRCode value={label.qrContent} size={64} level="M" style={{ flexShrink: 0 }} />
+                            <div style={{ minWidth: 0 }}>
+                                <p style={{ fontFamily: "monospace", fontWeight: "bold", fontSize: 13, margin: 0 }}>{label.assetCode}</p>
+                                <p style={{ fontSize: 11, margin: "2px 0 0", lineHeight: 1.3 }}>{label.skuName}</p>
+                                <p style={{ fontFamily: "monospace", fontSize: 9, color: "#666", margin: "2px 0 0" }}>SKU {label.skuCode}</p>
+                                {label.location && label.location !== "Sem local" && (
+                                    <p style={{ fontSize: 9, color: "#888", margin: "1px 0 0" }}>{label.location}</p>
+                                )}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
 

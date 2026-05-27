@@ -6,7 +6,7 @@ import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { LabelsService } from './labels.service';
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
-import { printLabelSchema, createLabelTemplateSchema, updateLabelTemplateSchema } from '@zyllen/shared';
+import { printLabelSchema, printLabelBatchSchema, createLabelTemplateSchema, updateLabelTemplateSchema } from '@zyllen/shared';
 
 @Controller('labels')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -18,6 +18,13 @@ export class LabelsController {
     async registerPrint(@Request() req: any, @Body(new ZodValidationPipe(printLabelSchema)) body: { assetId: string }) {
         const data = await this.labelsService.registerPrint({ assetId: body.assetId, printedById: req.user.id });
         return { data, message: 'Impressão registrada' };
+    }
+
+    @Post('print-batch')
+    @RequirePermission('labels.print')
+    async registerPrintBatch(@Request() req: any, @Body(new ZodValidationPipe(printLabelBatchSchema)) body: { assetIds: string[] }) {
+        const data = await this.labelsService.registerPrintBatch({ assetIds: body.assetIds, printedById: req.user.id });
+        return { data, message: `${data.count} impressões registradas` };
     }
 
     @Get('history')
