@@ -9,7 +9,7 @@ import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
-import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Plus, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, AlertTriangle, MapPin, RefreshCw, FileDown } from "lucide-react";
+import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Plus, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, AlertTriangle, MapPin, RefreshCw, FileDown, Zap, CheckCircle2 } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import Link from "next/link";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
@@ -95,13 +95,24 @@ export default function EstoquePage() {
     const { user } = useAuth();
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
-    const [tab, setTab] = useState<"balances" | "entry" | "exit" | "movements" | "reports">("balances");
+    const [tab, setTab] = useState<"balances" | "bipe" | "entry" | "exit" | "movements" | "reports">("balances");
     const [entryForm, setEntryForm] = useState({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
     const [createdAssetCodes, setCreatedAssetCodes] = useState<string[]>([]);
     const [entryMediaFiles, setEntryMediaFiles] = useState<File[]>([]);
     const entryMediaFilesInputRef = useRef<HTMLInputElement>(null);
     const entryMediaCameraInputRef = useRef<HTMLInputElement>(null);
     const [exitForm, setExitForm] = useState({ skuId: "", locationId: "", quantity: 1, pin: "", motivo: "", reason: "" });
+
+    // Bipagem Rápida
+    const [bipeCode, setBipeCode] = useState("");
+    const [bipeSku, setBipeSku] = useState<any>(null);
+    const [bipeQty, setBipeQty] = useState(1);
+    const [bipeMode, setBipeMode] = useState<"entry" | "exit">("entry");
+    const [bipeLocationId, setBipeLocationId] = useState("");
+    const [bipePin, setBipePin] = useState("");
+    const [bipeSuccess, setBipeSuccess] = useState(false);
+    const bipeInputRef = useRef<HTMLInputElement>(null);
+    const bipeQtyRef = useRef<HTMLInputElement>(null);
 
     const canUploadMedia = user?.type === "internal" && ["Técnico", "Gestor", "Administrador"].includes((user as any).role?.name ?? "");
 
@@ -231,6 +242,49 @@ export default function EstoquePage() {
     const selectedExitSku = skus?.data?.find((s: any) => s.id === exitForm.skuId);
     const exitIsAsset = selectedExitSku?.trackingMode === "ASSET";
 
+    const normalizeStr = (s: string) => s?.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") ?? "";
+
+    const handleBipeScan = () => {
+        const code = bipeCode.trim();
+        if (!code) return;
+        const norm = normalizeStr(code);
+        const found = skus?.data?.find((s: any) =>
+            normalizeStr(s.barcode ?? "") === norm ||
+            normalizeStr(s.skuCode) === norm
+        );
+        if (found) {
+            setBipeSku(found);
+            setBipeQty(1);
+            setBipeCode("");
+            setTimeout(() => bipeQtyRef.current?.focus(), 50);
+        } else {
+            toast.error(`Item não encontrado: "${code}"`);
+            setBipeCode("");
+        }
+    };
+
+    const handleBipeSubmit = async () => {
+        if (!bipeSku || !bipeLocationId || !bipePin) {
+            toast.error("Preencha local e PIN antes de confirmar");
+            return;
+        }
+        try {
+            if (bipeMode === "entry") {
+                await entryMut.mutateAsync({ skuId: bipeSku.id, locationId: bipeLocationId, quantity: bipeQty, pin: bipePin });
+            } else {
+                await exitMut.mutateAsync({ skuId: bipeSku.id, locationId: bipeLocationId, quantity: bipeQty, pin: bipePin, motivo: "Saída rápida" });
+            }
+            setBipeSuccess(true);
+            setBipeSku(null);
+            setTimeout(() => {
+                setBipeSuccess(false);
+                bipeInputRef.current?.focus();
+            }, 1800);
+        } catch {
+            // errors handled by mutations
+        }
+    };
+
     const exportCSV = () => {
         if (!balances?.data?.length) return;
         const belowIds = new Set((stats?.data?.belowMinStock ?? []).map((i: any) => i.id));
@@ -254,6 +308,7 @@ export default function EstoquePage() {
 
     const tabs = [
         { key: "balances", label: "Saldos", icon: Package },
+        { key: "bipe", label: "Bipagem Rápida", icon: Zap },
         { key: "entry", label: "Entrada", icon: ArrowDownCircle },
         { key: "exit", label: "Saída", icon: ArrowUpCircle },
         { key: "movements", label: "Histórico", icon: History },
@@ -347,6 +402,167 @@ export default function EstoquePage() {
                         )}
                     </CardContent>
                 </Card>
+            )}
+
+            {/* ═══ BIPAGEM RÁPIDA ═══ */}
+            {tab === "bipe" && (
+                <div className="space-y-4 max-w-lg">
+                    {/* Scan input */}
+                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-white flex items-center gap-2 text-base">
+                                <Zap size={18} className="text-[var(--zyllen-highlight)]" /> Bipagem Rápida
+                            </CardTitle>
+                            <p className="text-xs text-[var(--zyllen-muted)]">Bipe o código de barras ou código SKU do item e pressione Enter</p>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                    <input
+                                        ref={bipeInputRef}
+                                        autoFocus
+                                        type="text"
+                                        value={bipeCode}
+                                        onChange={(e) => setBipeCode(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && handleBipeScan()}
+                                        placeholder="Bipe ou digite o código do item..."
+                                        className="w-full h-10 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9 pr-3 text-sm font-mono placeholder:text-[var(--zyllen-muted)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                                    />
+                                </div>
+                                <Button variant="highlight" onClick={handleBipeScan} className="shrink-0">
+                                    Buscar
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Success feedback */}
+                    {bipeSuccess && (
+                        <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+                            <CheckCircle2 size={22} className="text-emerald-400 shrink-0" />
+                            <p className="text-emerald-300 font-medium">Registrado com sucesso!</p>
+                        </div>
+                    )}
+
+                    {/* Item found — action card */}
+                    {bipeSku && !bipeSuccess && (
+                        <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-highlight)]/20">
+                            <CardContent className="pt-5 space-y-4">
+                                {/* Item info */}
+                                <div className="rounded-lg bg-[var(--zyllen-highlight)]/5 border border-[var(--zyllen-highlight)]/10 px-4 py-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-white font-semibold truncate">{bipeSku.name}</p>
+                                            <p className="text-xs font-mono text-[var(--zyllen-highlight)] mt-0.5">{bipeSku.skuCode}</p>
+                                            {bipeSku.barcode && <p className="text-xs text-[var(--zyllen-muted)] mt-0.5">Cód. barras: {bipeSku.barcode}</p>}
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <Badge variant={bipeSku.trackingMode === "ASSET" ? "default" : "secondary"}>
+                                                {bipeSku.trackingMode === "ASSET" ? "Patrimônio" : "Consumível"}
+                                            </Badge>
+                                            {balances?.data && (() => {
+                                                const total = balances.data.filter((b: any) => b.sku?.id === bipeSku.id || b.skuId === bipeSku.id).reduce((s: number, b: any) => s + b.quantity, 0);
+                                                return <p className="text-xs text-[var(--zyllen-muted)] mt-1">Estoque: <span className="text-white font-semibold">{total}</span> {bipeSku.unit ?? "UN"}</p>;
+                                            })()}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Entry / Exit toggle */}
+                                <div className="flex rounded-lg overflow-hidden border border-[var(--zyllen-border)]">
+                                    <button
+                                        onClick={() => setBipeMode("entry")}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${bipeMode === "entry" ? "bg-emerald-500/20 text-emerald-400" : "text-[var(--zyllen-muted)] hover:text-white"}`}
+                                    >
+                                        <ArrowDownCircle size={15} /> Entrada
+                                    </button>
+                                    <div className="w-px bg-[var(--zyllen-border)]" />
+                                    <button
+                                        onClick={() => setBipeMode("exit")}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${bipeMode === "exit" ? "bg-rose-500/20 text-rose-400" : "text-[var(--zyllen-muted)] hover:text-white"}`}
+                                    >
+                                        <ArrowUpCircle size={15} /> Saída
+                                    </button>
+                                </div>
+
+                                {/* Location */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-[var(--zyllen-muted)] text-xs">Local</Label>
+                                    <select
+                                        value={bipeLocationId}
+                                        onChange={(e) => setBipeLocationId(e.target.value)}
+                                        className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm"
+                                    >
+                                        <option value="">Selecione o local...</option>
+                                        {locations?.data?.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                    </select>
+                                </div>
+
+                                {/* Quantity stepper */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-[var(--zyllen-muted)] text-xs">Quantidade</Label>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setBipeQty(Math.max(1, bipeQty - 1))}
+                                            className="size-9 rounded-md border border-[var(--zyllen-border)] text-white text-lg flex items-center justify-center hover:bg-white/5 shrink-0"
+                                        >−</button>
+                                        <input
+                                            ref={bipeQtyRef}
+                                            type="number"
+                                            min={1}
+                                            value={bipeQty}
+                                            onChange={(e) => setBipeQty(Math.max(1, +e.target.value))}
+                                            onKeyDown={(e) => e.key === "Enter" && handleBipeSubmit()}
+                                            className="flex-1 h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                                        />
+                                        <button
+                                            onClick={() => setBipeQty(bipeQty + 1)}
+                                            className="size-9 rounded-md border border-[var(--zyllen-border)] text-white text-lg flex items-center justify-center hover:bg-white/5 shrink-0"
+                                        >+</button>
+                                    </div>
+                                </div>
+
+                                {/* PIN */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-[var(--zyllen-muted)] text-xs">PIN</Label>
+                                    <Input
+                                        type="password"
+                                        maxLength={4}
+                                        placeholder="••••"
+                                        value={bipePin}
+                                        onChange={(e) => setBipePin(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && handleBipeSubmit()}
+                                        className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center tracking-widest"
+                                    />
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex gap-2 pt-1">
+                                    <Button
+                                        variant="highlight"
+                                        className="flex-1"
+                                        onClick={handleBipeSubmit}
+                                        disabled={entryMut.isPending || exitMut.isPending}
+                                    >
+                                        {entryMut.isPending || exitMut.isPending ? (
+                                            <><Loader2 size={15} className="animate-spin" /> Registrando...</>
+                                        ) : (
+                                            <><CheckCircle2 size={15} /> Confirmar {bipeMode === "entry" ? "Entrada" : "Saída"}</>
+                                        )}
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        className="border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white"
+                                        onClick={() => { setBipeSku(null); setBipeCode(""); bipeInputRef.current?.focus(); }}
+                                    >
+                                        <X size={15} />
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
             )}
 
             {tab === "entry" && (
