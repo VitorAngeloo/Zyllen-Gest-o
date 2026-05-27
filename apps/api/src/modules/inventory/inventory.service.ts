@@ -52,6 +52,41 @@ export class InventoryService {
         }
     }
 
+    // ── Auto-create individual Assets for ASSET-tracked products ──
+    private async autoCreateAssets(tx: any, params: { skuId: string; locationId: string; quantity: number }): Promise<string[]> {
+        const SEQ_ID = 'ASSET_CODE';
+        let sequence = await tx.assetCodeSequence.findUnique({ where: { id: SEQ_ID } });
+        if (!sequence) {
+            const existingAssets = await tx.asset.findMany({ select: { assetCode: true } });
+            let max = 0;
+            for (const a of existingAssets) {
+                const m = /^SKY-(\d+)$/.exec(a.assetCode);
+                if (m) { const n = Number(m[1]); if (n > max) max = n; }
+            }
+            sequence = await tx.assetCodeSequence.create({ data: { id: SEQ_ID, currentValue: max } });
+        }
+        sequence = await tx.assetCodeSequence.update({
+            where: { id: SEQ_ID },
+            data: { currentValue: { increment: params.quantity } },
+        });
+        const end = sequence.currentValue;
+        const start = end - params.quantity + 1;
+        const codes = Array.from({ length: params.quantity }, (_, i) =>
+            `SKY-${String(start + i).padStart(5, '0')}`,
+        );
+        const collision = await tx.asset.findFirst({ where: { assetCode: { in: codes } } });
+        if (collision) throw new Error(`Conflito de código de patrimônio: ${collision.assetCode}. Tente novamente.`);
+        await tx.asset.createMany({
+            data: codes.map((assetCode) => ({
+                assetCode,
+                skuId: params.skuId,
+                currentLocationId: params.locationId,
+                status: 'ATIVO',
+            })),
+        });
+        return codes;
+    }
+
     // ── Validate PIN ──
     private async validatePin(userId: string, pin: string): Promise<void> {
         const user = await this.prisma.internalUser.findUnique({ where: { id: userId } });
@@ -100,6 +135,8 @@ export class InventoryService {
 
         const location = await this.prisma.location.findUnique({ where: { id: resolvedToLocationId } });
         if (!location) throw new NotFoundException('Local não encontrado');
+
+        const isAssetProduct = (sku as any).trackingMode === 'ASSET';
 
         return this.prisma.$transaction(async (tx) => {
             const movement = await tx.stockMovement.create({
@@ -158,17 +195,33 @@ export class InventoryService {
                 toLocationId: resolvedToLocationId,
             });
 
+            // Auto-create individual assets for ASSET products (unless a specific assetId was given)
+            let createdAssetCodes: string[] = [];
+            if (isAssetProduct && !data.assetId && data.qty > 0) {
+                createdAssetCodes = await this.autoCreateAssets(tx, {
+                    skuId: data.skuId,
+                    locationId: resolvedToLocationId,
+                    quantity: data.qty,
+                });
+            }
+
             await tx.auditLog.create({
                 data: {
                     action: 'STOCK_ENTRY',
                     entityType: 'StockMovement',
                     entityId: movement.id,
                     userId: data.userId,
-                    details: { sku: sku.skuCode, location: location.name, qty: data.qty, type: moveType.name },
+                    details: {
+                        sku: sku.skuCode,
+                        location: location.name,
+                        qty: data.qty,
+                        type: moveType.name,
+                        ...(createdAssetCodes.length ? { assetsCreated: createdAssetCodes } : {}),
+                    },
                 },
             });
 
-            return movement;
+            return { ...movement, createdAssetCodes };
         });
     }
 

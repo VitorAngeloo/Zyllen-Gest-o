@@ -116,7 +116,7 @@ export class CatalogController {
     @UseInterceptors(FilesInterceptor('files', 10, { storage: mediaStorage, limits: { fileSize: MAX_FILE_SIZE } }))
     async createSku(
         @Request() req: any,
-        @Body(new ZodValidationPipe(createSkuItemSchema)) body: { name: string; description?: string; brand?: string; barcode?: string; categoryId: string },
+        @Body(new ZodValidationPipe(createSkuItemSchema)) body: { name: string; description?: string; brand?: string; barcode?: string; categoryId: string; trackingMode?: string; unit?: string; minStock?: number },
         @UploadedFiles() files?: Express.Multer.File[],
     ) {
         if (files?.length && !ALLOWED_ROLES.has(req.user?.role?.name)) {
@@ -146,7 +146,7 @@ export class CatalogController {
 
     @Put('skus/:id')
     @RequirePermission('catalog.update')
-    async updateSku(@Param('id') id: string, @Body(new ZodValidationPipe(updateSkuItemSchema)) body: { name?: string; description?: string; brand?: string; barcode?: string; categoryId?: string }) {
+    async updateSku(@Param('id') id: string, @Body(new ZodValidationPipe(updateSkuItemSchema)) body: { name?: string; description?: string; brand?: string; barcode?: string; categoryId?: string; trackingMode?: string; unit?: string; minStock?: number }) {
         const data = await this.catalogService.updateSkuItem(id, body);
         return { data, message: 'Item atualizado com sucesso' };
     }

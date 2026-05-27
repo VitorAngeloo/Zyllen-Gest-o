@@ -119,6 +119,9 @@ export class CatalogService {
         brand?: string;
         barcode?: string;
         categoryId: string;
+        trackingMode?: string;
+        unit?: string;
+        minStock?: number;
         attachments?: {
             fileName: string;
             filePath: string;
@@ -142,6 +145,9 @@ export class CatalogService {
                     brand: data.brand,
                     barcode: data.barcode,
                     categoryId: data.categoryId,
+                    trackingMode: data.trackingMode ?? 'ASSET',
+                    unit: data.unit ?? 'UN',
+                    minStock: data.minStock ?? 0,
                     skuCode,
                 },
             });
@@ -181,7 +187,7 @@ export class CatalogService {
         });
     }
 
-    async updateSkuItem(id: string, data: { name?: string; description?: string; brand?: string; barcode?: string; categoryId?: string }) {
+    async updateSkuItem(id: string, data: { name?: string; description?: string; brand?: string; barcode?: string; categoryId?: string; trackingMode?: string; unit?: string; minStock?: number }) {
         await this.findSkuById(id);
         if (data.categoryId) {
             const category = await this.prisma.category.findUnique({ where: { id: data.categoryId } });

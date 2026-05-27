@@ -55,7 +55,7 @@ export default function CadastrosPage() {
     const [newCat, setNewCat] = useState("");
     const [newLoc, setNewLoc] = useState({ name: "", description: "" });
     const [newSup, setNewSup] = useState({ name: "", cnpj: "", contact: "" });
-    const [newSku, setNewSku] = useState({ name: "", brand: "", barcode: "", categoryId: "" });
+    const [newSku, setNewSku] = useState({ name: "", brand: "", barcode: "", categoryId: "", trackingMode: "ASSET", unit: "UN", minStock: 0 });
     const [newSkuMedia, setNewSkuMedia] = useState<File[]>([]);
     const skuMediaFilesInputRef = useRef<HTMLInputElement>(null);
     const skuMediaCameraInputRef = useRef<HTMLInputElement>(null);
@@ -132,21 +132,24 @@ export default function CadastrosPage() {
                 if (data.barcode) formData.append("barcode", data.barcode);
                 if (data.description) formData.append("description", data.description);
                 formData.append("categoryId", data.categoryId);
+                formData.append("trackingMode", data.trackingMode ?? "ASSET");
+                if (data.unit) formData.append("unit", data.unit);
+                formData.append("minStock", String(data.minStock ?? 0));
                 for (const file of data.files as File[]) formData.append("files", file);
                 return apiClient.upload("/catalog/skus", formData, fetchOpts);
             }
-            return apiClient.post("/catalog/skus", data, fetchOpts);
+            return apiClient.post("/catalog/skus", { name: data.name, brand: data.brand, barcode: data.barcode, categoryId: data.categoryId, trackingMode: data.trackingMode ?? "ASSET", unit: data.unit, minStock: data.minStock ?? 0 }, fetchOpts);
         },
         onSuccess: () => {
             toast.success("Item criado!");
             qc.invalidateQueries({ queryKey: ["skus"] });
-            setNewSku({ name: "", brand: "", barcode: "", categoryId: "" });
+            setNewSku({ name: "", brand: "", barcode: "", categoryId: "", trackingMode: "ASSET", unit: "UN", minStock: 0 });
             setNewSkuMedia([]);
         },
         onError: (e: any) => toast.error(e.message),
     });
     const updateSku = useMutation({
-        mutationFn: (data: any) => apiClient.put(`/catalog/skus/${data.id}`, { name: data.name, brand: data.brand, barcode: data.barcode, categoryId: data.categoryId }, fetchOpts),
+        mutationFn: (data: any) => apiClient.put(`/catalog/skus/${data.id}`, { name: data.name, brand: data.brand, barcode: data.barcode, categoryId: data.categoryId, trackingMode: data.trackingMode, unit: data.unit, minStock: data.minStock }, fetchOpts),
         onSuccess: () => { toast.success("Item atualizado!"); qc.invalidateQueries({ queryKey: ["skus"] }); setEditSku(null); },
         onError: (e: any) => toast.error(e.message),
     });
@@ -303,6 +306,32 @@ export default function CadastrosPage() {
                                     <Label className="text-[var(--zyllen-muted)]">Código de barras</Label>
                                     <Input value={newSku.barcode} onChange={(e) => setNewSku({ ...newSku, barcode: e.target.value })} placeholder="Opcional" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                                 </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[var(--zyllen-muted)]">Tipo de controle</Label>
+                                    <Select value={newSku.trackingMode} onValueChange={(v) => setNewSku({ ...newSku, trackingMode: v })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white">
+                                        <SelectOption value="ASSET">Patrimônio (rastreável individualmente)</SelectOption>
+                                        <SelectOption value="CONSUMABLE">Consumível (apenas quantidade)</SelectOption>
+                                    </Select>
+                                    <p className="text-xs text-[var(--zyllen-muted)]">
+                                        {newSku.trackingMode === "ASSET" ? "Cada unidade recebe um código próprio (SKY-XXXXX)" : "Controlado apenas por quantidade em estoque"}
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[var(--zyllen-muted)]">Unidade</Label>
+                                    <Select value={newSku.unit || "UN"} onValueChange={(v) => setNewSku({ ...newSku, unit: v })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white">
+                                        <SelectOption value="UN">UN — Unidade</SelectOption>
+                                        <SelectOption value="M">M — Metro</SelectOption>
+                                        <SelectOption value="CX">CX — Caixa</SelectOption>
+                                        <SelectOption value="KG">KG — Quilograma</SelectOption>
+                                        <SelectOption value="L">L — Litro</SelectOption>
+                                        <SelectOption value="PC">PC — Peça</SelectOption>
+                                        <SelectOption value="RL">RL — Rolo</SelectOption>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[var(--zyllen-muted)]">Estoque mínimo</Label>
+                                    <Input type="number" min={0} value={newSku.minStock} onChange={(e) => setNewSku({ ...newSku, minStock: Number(e.target.value) })} placeholder="0" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                </div>
                                 {canUploadMedia && (
                                     <div className="md:col-span-2 space-y-3">
                                         <Label className="text-[var(--zyllen-muted)]">Mídia (opcional)</Label>
@@ -402,7 +431,7 @@ export default function CadastrosPage() {
                                                     <td className="py-3 text-[var(--zyllen-muted)]">{s.brand ?? "—"}</td>
                                                     <td className="py-3 text-right">
                                                         <div className="flex justify-end gap-1">
-                                                            <button onClick={() => setEditSku({ id: s.id, name: s.name, brand: s.brand || "", barcode: s.barcode || "", categoryId: s.categoryId || s.category?.id || "" })} className="p-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"><Pencil size={14} /></button>
+                                                            <button onClick={() => setEditSku({ id: s.id, name: s.name, brand: s.brand || "", barcode: s.barcode || "", categoryId: s.categoryId || s.category?.id || "", trackingMode: s.trackingMode || "ASSET", unit: s.unit || "UN", minStock: s.minStock ?? 0 })} className="p-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"><Pencil size={14} /></button>
                                                             <button onClick={() => setDeleteConfirm({ type: "sku", id: s.id, name: s.name })} className="p-1 text-[var(--zyllen-muted)] hover:text-red-400"><Trash2 size={14} /></button>
                                                         </div>
                                                     </td>
@@ -584,6 +613,31 @@ export default function CadastrosPage() {
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Código de barras</Label>
                                 <Input value={editSku?.barcode || ""} onChange={(e) => setEditSku({ ...editSku, barcode: e.target.value })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)]">Tipo de controle</Label>
+                                <Select value={editSku?.trackingMode || "ASSET"} onValueChange={(v) => setEditSku({ ...editSku, trackingMode: v })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white">
+                                    <SelectOption value="ASSET">Patrimônio (rastreável individualmente)</SelectOption>
+                                    <SelectOption value="CONSUMABLE">Consumível (apenas quantidade)</SelectOption>
+                                </Select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-2">
+                                    <Label className="text-[var(--zyllen-muted)]">Unidade</Label>
+                                    <Select value={editSku?.unit || "UN"} onValueChange={(v) => setEditSku({ ...editSku, unit: v })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white">
+                                        <SelectOption value="UN">UN</SelectOption>
+                                        <SelectOption value="M">M</SelectOption>
+                                        <SelectOption value="CX">CX</SelectOption>
+                                        <SelectOption value="KG">KG</SelectOption>
+                                        <SelectOption value="L">L</SelectOption>
+                                        <SelectOption value="PC">PC</SelectOption>
+                                        <SelectOption value="RL">RL</SelectOption>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[var(--zyllen-muted)]">Estoque mínimo</Label>
+                                    <Input type="number" min={0} value={editSku?.minStock ?? 0} onChange={(e) => setEditSku({ ...editSku, minStock: Number(e.target.value) })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                </div>
                             </div>
                         </div>
                     </DialogBody>

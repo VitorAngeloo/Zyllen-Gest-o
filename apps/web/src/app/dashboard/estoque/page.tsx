@@ -97,6 +97,7 @@ export default function EstoquePage() {
     const qc = useQueryClient();
     const [tab, setTab] = useState<"balances" | "entry" | "exit" | "movements">("balances");
     const [entryForm, setEntryForm] = useState({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
+    const [createdAssetCodes, setCreatedAssetCodes] = useState<string[]>([]);
     const [entryMediaFiles, setEntryMediaFiles] = useState<File[]>([]);
     const entryMediaFilesInputRef = useRef<HTMLInputElement>(null);
     const entryMediaCameraInputRef = useRef<HTMLInputElement>(null);
@@ -180,22 +181,27 @@ export default function EstoquePage() {
                     formData.append("pin", payload.pin);
                     if (payload.reason) formData.append("reason", payload.reason);
                     for (const file of files) formData.append("files", file);
-                    await apiClient.upload("/inventory/entry", formData, fetchOpts);
-                    return;
+                    return apiClient.upload("/inventory/entry", formData, fetchOpts);
                 }
-                await apiClient.post("/inventory/entry", payload, fetchOpts);
+                return apiClient.post("/inventory/entry", payload, fetchOpts);
             };
 
             if (data.transferToId) {
                 const saidaId = findTypeId("Saída") || entradaId;
                 await apiClient.post("/inventory/exit", { skuId: data.skuId, fromLocationId: data.locationId, qty: data.quantity, movementTypeId: saidaId, pin: data.pin, reason: data.reason || "Transferência entre locais" }, fetchOpts);
-                await postEntry({ skuId: data.skuId, toLocationId: data.transferToId, qty: data.quantity, movementTypeId: transferenciaId || entradaId, pin: data.pin, reason: data.reason || "Transferência entre locais" }, data.files);
+                return postEntry({ skuId: data.skuId, toLocationId: data.transferToId, qty: data.quantity, movementTypeId: transferenciaId || entradaId, pin: data.pin, reason: data.reason || "Transferência entre locais" }, data.files);
             } else {
-                await postEntry({ skuId: data.skuId, toLocationId: data.locationId, qty: data.quantity, movementTypeId: entradaId, pin: data.pin, reason: data.reason || undefined }, data.files);
+                return postEntry({ skuId: data.skuId, toLocationId: data.locationId, qty: data.quantity, movementTypeId: entradaId, pin: data.pin, reason: data.reason || undefined }, data.files);
             }
         },
-        onSuccess: () => {
-            toast.success(entryForm.transferToId ? TOASTS.transferDone : TOASTS.entryRegistered);
+        onSuccess: (result: any) => {
+            const codes: string[] = result?.data?.createdAssetCodes ?? [];
+            if (codes.length > 0) {
+                setCreatedAssetCodes(codes);
+                toast.success(`${codes.length} patrimônio${codes.length > 1 ? 's criados' : ' criado'}: ${codes.slice(0, 3).join(', ')}${codes.length > 3 ? ` +${codes.length - 3}` : ''}`, { duration: 8000 });
+            } else {
+                toast.success(entryForm.transferToId ? TOASTS.transferDone : TOASTS.entryRegistered);
+            }
             qc.invalidateQueries({ queryKey: ["balances"] });
             qc.invalidateQueries({ queryKey: ["movements"] });
             setEntryForm({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
@@ -212,6 +218,11 @@ export default function EstoquePage() {
         onSuccess: () => { toast.success(TOASTS.exitRegistered); qc.invalidateQueries({ queryKey: ["balances"] }); qc.invalidateQueries({ queryKey: ["movements"] }); setExitForm({ skuId: "", locationId: "", quantity: 1, pin: "", motivo: "", reason: "" }); },
         onError: (e: any) => toast.error(e.message),
     });
+
+    const selectedEntrySku = skus?.data?.find((s: any) => s.id === entryForm.skuId);
+    const entryIsAsset = selectedEntrySku?.trackingMode === "ASSET";
+    const selectedExitSku = skus?.data?.find((s: any) => s.id === exitForm.skuId);
+    const exitIsAsset = selectedExitSku?.trackingMode === "ASSET";
 
     const tabs = [
         { key: "balances", label: "Saldos", icon: Package },
@@ -323,8 +334,35 @@ export default function EstoquePage() {
                         >
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Item</Label>
-                                <SkuSearchCombobox skus={skus?.data ?? []} value={entryForm.skuId} onChange={(id) => setEntryForm({ ...entryForm, skuId: id })} />
+                                <SkuSearchCombobox skus={skus?.data ?? []} value={entryForm.skuId} onChange={(id) => { setEntryForm({ ...entryForm, skuId: id }); setCreatedAssetCodes([]); }} />
                             </div>
+                            {entryForm.skuId && entryIsAsset && (
+                                <div className="flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2.5">
+                                    <Hash size={14} className="text-blue-400 mt-0.5 shrink-0" />
+                                    <div>
+                                        <p className="text-blue-300 text-sm font-medium">Patrimônio rastreável individualmente</p>
+                                        <p className="text-blue-300/70 text-xs mt-0.5">
+                                            {entryForm.quantity} {entryForm.quantity === 1 ? "código de patrimônio será criado" : "códigos de patrimônio serão criados"} automaticamente (formato SKY-XXXXX).
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                            {entryForm.skuId && !entryIsAsset && selectedEntrySku && (
+                                <div className="flex items-start gap-2 rounded-lg border border-[var(--zyllen-border)] bg-white/[0.03] px-3 py-2.5">
+                                    <Package size={14} className="text-[var(--zyllen-muted)] mt-0.5 shrink-0" />
+                                    <p className="text-[var(--zyllen-muted)] text-xs">Consumível — apenas a quantidade será atualizada no saldo.</p>
+                                </div>
+                            )}
+                            {createdAssetCodes.length > 0 && (
+                                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 space-y-1">
+                                    <p className="text-emerald-300 text-sm font-medium">{createdAssetCodes.length} patrimônio{createdAssetCodes.length > 1 ? "s criados" : " criado"} na última entrada</p>
+                                    <div className="flex flex-wrap gap-1">
+                                        {createdAssetCodes.map((code) => (
+                                            <span key={code} className="font-mono text-xs bg-emerald-500/20 text-emerald-300 rounded px-1.5 py-0.5">{code}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Local</Label>
                                 <select value={entryForm.locationId} onChange={(e) => setEntryForm({ ...entryForm, locationId: e.target.value })} required className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
@@ -334,7 +372,7 @@ export default function EstoquePage() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label className="text-[var(--zyllen-muted)]">Quantidade</Label>
+                                    <Label className="text-[var(--zyllen-muted)]">{entryIsAsset && entryForm.skuId ? "Quantidade (patrimônios)" : "Quantidade"}</Label>
                                     <Input type="number" min={1} value={entryForm.quantity} onChange={(e) => setEntryForm({ ...entryForm, quantity: +e.target.value })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                                 </div>
                                 <div className="space-y-2">
@@ -443,6 +481,12 @@ export default function EstoquePage() {
                                 <Label className="text-[var(--zyllen-muted)]">Item</Label>
                                 <SkuSearchCombobox skus={skus?.data ?? []} value={exitForm.skuId} onChange={(id) => setExitForm({ ...exitForm, skuId: id })} />
                             </div>
+                            {exitForm.skuId && exitIsAsset && (
+                                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                                    <Hash size={14} className="text-amber-400 mt-0.5 shrink-0" />
+                                    <p className="text-amber-300/80 text-xs">Patrimônio rastreável — a saída irá descontar do saldo. Use a página <strong className="text-amber-300">Patrimônio</strong> para movimentar ativos individualmente por código.</p>
+                                </div>
+                            )}
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Local</Label>
                                 <select value={exitForm.locationId} onChange={(e) => setExitForm({ ...exitForm, locationId: e.target.value })} required className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">

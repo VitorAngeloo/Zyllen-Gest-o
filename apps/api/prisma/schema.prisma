@@ -164,15 +164,18 @@ model Category {
 }
 
 model SkuItem {
-  id          String  @id @default(uuid())
-  skuCode     String  @unique
-  name        String
-  description String?
-  brand       String?
-  barcode     String?
-  categoryId  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String  @id @default(uuid())
+  skuCode      String  @unique
+  name         String
+  description  String?
+  brand        String?
+  barcode      String?
+  categoryId   String
+  trackingMode String  @default("ASSET")  // ASSET | CONSUMABLE
+  unit         String? @default("UN")     // UN, M, CX, KG, etc.
+  minStock     Int     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   category        Category          @relation(fields: [categoryId], references: [id])
   assets          Asset[]
