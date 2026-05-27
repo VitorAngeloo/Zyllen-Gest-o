@@ -118,6 +118,7 @@ interface ScheduleFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     editingSchedule?: Schedule | null;
+    initialDates?: { start: string; end: string } | null;
     fetchOpts: Record<string, any>;
     onSuccess: () => void;
 }
@@ -140,6 +141,7 @@ export function ScheduleFormDialog({
     open,
     onOpenChange,
     editingSchedule,
+    initialDates,
     fetchOpts,
     onSuccess,
 }: ScheduleFormDialogProps) {
@@ -151,7 +153,7 @@ export function ScheduleFormDialog({
 
     const isEditing = !!editingSchedule;
 
-    // Populate form when editing
+    // Populate form when dialog opens
     useEffect(() => {
         if (!open) {
             setForm(EMPTY_FORM);
@@ -171,8 +173,10 @@ export function ScheduleFormDialog({
                 projectId: editingSchedule.projectId ?? "",
                 installerIds: editingSchedule.installers.map((i) => i.id),
             });
+        } else if (initialDates) {
+            setForm({ ...EMPTY_FORM, startDate: initialDates.start, endDate: initialDates.end });
         }
-    }, [open, editingSchedule]);
+    }, [open, editingSchedule, initialDates]);
 
     // ── Data fetching ────────────────────────────────────────────────────────
 

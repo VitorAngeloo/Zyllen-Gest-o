@@ -197,3 +197,114 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* ── FullCalendar dark theme ────────────────────────────────────────────── */
+.zyllen-calendar .fc {
+  --fc-border-color: var(--zyllen-border);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--zyllen-bg-dark);
+  --fc-neutral-text-color: var(--zyllen-muted);
+  --fc-today-bg-color: rgba(171, 255, 16, 0.06);
+  --fc-now-indicator-color: var(--zyllen-highlight);
+  --fc-highlight-color: rgba(171, 255, 16, 0.12);
+  --fc-non-business-color: rgba(0, 0, 0, 0.15);
+  --fc-list-event-hover-bg-color: var(--zyllen-bg-dark);
+  --fc-button-bg-color: var(--zyllen-bg-dark);
+  --fc-button-border-color: var(--zyllen-border);
+  --fc-button-text-color: var(--zyllen-muted);
+  --fc-button-hover-bg-color: var(--zyllen-bg-light);
+  --fc-button-hover-border-color: var(--zyllen-border);
+  --fc-button-active-bg-color: var(--zyllen-highlight);
+  --fc-button-active-border-color: var(--zyllen-highlight);
+  color: #fff;
+}
+
+.zyllen-calendar .fc-col-header-cell-cushion,
+.zyllen-calendar .fc-daygrid-day-number,
+.zyllen-calendar .fc-list-day-cushion {
+  color: var(--zyllen-muted);
+  text-decoration: none;
+}
+
+.zyllen-calendar .fc-day-today .fc-daygrid-day-number {
+  background: var(--zyllen-highlight);
+  color: #1E1E1E;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.zyllen-calendar .fc-button {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px !important;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.zyllen-calendar .fc-button-active,
+.zyllen-calendar .fc-button:not(:disabled):active {
+  color: #1E1E1E !important;
+  font-weight: 600;
+}
+
+.zyllen-calendar .fc-toolbar-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.zyllen-calendar .fc-scrollgrid,
+.zyllen-calendar .fc-scrollgrid-section > * {
+  border-color: var(--zyllen-border) !important;
+}
+
+.zyllen-calendar td,
+.zyllen-calendar th {
+  border-color: var(--zyllen-border) !important;
+}
+
+.zyllen-calendar .fc-daygrid-day.fc-day-other .fc-daygrid-day-number {
+  color: var(--zyllen-border);
+}
+
+.zyllen-calendar .fc-list-empty {
+  background: var(--zyllen-bg-dark);
+  color: var(--zyllen-muted);
+}
+
+.zyllen-calendar .fc-list-table td {
+  border-color: var(--zyllen-border) !important;
+}
+
+.zyllen-calendar .fc-timegrid-slot-label-cushion {
+  color: var(--zyllen-muted);
+  font-size: 0.75rem;
+}
+
+.zyllen-calendar .fc-event {
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.zyllen-calendar .fc-event-cancelled {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.zyllen-calendar .fc-popover {
+  background: var(--zyllen-bg-dark);
+  border-color: var(--zyllen-border);
+  color: #fff;
+}
+
+.zyllen-calendar .fc-popover-header {
+  background: var(--zyllen-bg);
+  border-color: var(--zyllen-border);
+  color: #fff;
+}

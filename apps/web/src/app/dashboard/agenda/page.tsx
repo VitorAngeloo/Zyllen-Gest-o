@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
 import { useAuthedFetch, useAuth } from "@web/lib/auth-context";
@@ -13,6 +14,16 @@ import {
     ToggleLeft, ToggleRight,
 } from "lucide-react";
 import { ScheduleFormDialog } from "./schedule-form-dialog";
+import type { CalendarSchedule } from "./agenda-calendar";
+
+const AgendaCalendar = dynamic(() => import("./agenda-calendar"), {
+    ssr: false,
+    loading: () => (
+        <div className="flex items-center justify-center h-96 rounded-lg border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]">
+            <div className="text-[var(--zyllen-muted)] text-sm animate-pulse">Carregando calendário…</div>
+        </div>
+    ),
+});
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,7 +59,7 @@ interface Schedule {
     installers: ScheduleInstaller[];
 }
 
-type Tab = "agendamentos" | "instaladores";
+type Tab = "agendamentos" | "calendario" | "instaladores";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -211,6 +222,7 @@ export default function AgendaPage() {
     // Form dialog state
     const [formOpen, setFormOpen] = useState(false);
     const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+    const [initialDates, setInitialDates] = useState<{ start: string; end: string } | null>(null);
 
     // Schedule filters
     const [filterStatus, setFilterStatus] = useState("");
@@ -235,7 +247,7 @@ export default function AgendaPage() {
                 `/schedule?limit=100${filterStatus ? `&status=${filterStatus}` : ""}${filterType ? `&type=${filterType}` : ""}`,
                 fetchOpts,
             ),
-        enabled: tab === "agendamentos",
+        enabled: tab === "agendamentos" || tab === "calendario",
     });
 
     // ── Mutations ────────────────────────────────────────────────────────────
@@ -290,10 +302,23 @@ export default function AgendaPage() {
         updateInstallerMut.mutate({ id, agendaColor: color, agendaActive: active });
     }, [updateInstallerMut]);
 
+    const openCreate = useCallback((dates?: { start: string; end: string }) => {
+        setEditingSchedule(null);
+        setInitialDates(dates ?? null);
+        setFormOpen(true);
+    }, []);
+
+    const openEdit = useCallback((schedule: Schedule) => {
+        setEditingSchedule(schedule);
+        setInitialDates(null);
+        setFormOpen(true);
+    }, []);
+
     // ── Tabs ──────────────────────────────────────────────────────────────────
 
     const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
-        { key: "agendamentos", label: "Agendamentos", icon: CalendarDays },
+        { key: "calendario", label: "Calendário", icon: CalendarDays },
+        { key: "agendamentos", label: "Lista", icon: Search },
         { key: "instaladores", label: "Instaladores", icon: Users },
     ];
 
@@ -313,10 +338,10 @@ export default function AgendaPage() {
                     </p>
                 </div>
 
-                {tab === "agendamentos" && canCreate && (
+                {(tab === "agendamentos" || tab === "calendario") && canCreate && (
                     <Button
                         className="bg-[var(--zyllen-highlight)] hover:bg-[var(--zyllen-highlight)]/80 text-white"
-                        onClick={() => { setEditingSchedule(null); setFormOpen(true); }}
+                        onClick={() => openCreate()}
                     >
                         + Novo Agendamento
                     </Button>
@@ -341,7 +366,8 @@ export default function AgendaPage() {
                 ))}
             </div>
 
-            {/* Search + filters */}
+            {/* Search + filters — hidden on calendar tab */}
+            {tab !== "calendario" && (
             <div className="flex flex-wrap gap-2">
                 <div className="relative flex-1 min-w-48">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--zyllen-muted)]" />
@@ -378,6 +404,7 @@ export default function AgendaPage() {
                     </>
                 )}
             </div>
+            )}
 
             {/* ── AGENDAMENTOS TAB ── */}
             {tab === "agendamentos" && (
@@ -471,7 +498,7 @@ export default function AgendaPage() {
                                                             size="sm"
                                                             variant="ghost"
                                                             className="text-[var(--zyllen-muted)] hover:text-white hover:bg-[var(--zyllen-bg-dark)]"
-                                                            onClick={() => { setEditingSchedule(schedule); setFormOpen(true); }}
+                                                            onClick={() => openEdit(schedule)}
                                                         >
                                                             <Pencil className="w-3.5 h-3.5 mr-1" />
                                                             Editar
@@ -503,11 +530,21 @@ export default function AgendaPage() {
                 </>
             )}
 
+            {/* ── CALENDÁRIO TAB ── */}
+            {tab === "calendario" && (
+                <AgendaCalendar
+                    schedules={schedulesRes?.data ?? []}
+                    onEventClick={(s) => openEdit(s as unknown as Schedule)}
+                    onDateSelect={(start, end) => openCreate({ start, end })}
+                />
+            )}
+
             {/* ── FORM DIALOG ── */}
             <ScheduleFormDialog
                 open={formOpen}
                 onOpenChange={setFormOpen}
                 editingSchedule={editingSchedule}
+                initialDates={initialDates}
                 fetchOpts={fetchOpts}
                 onSuccess={() => qc.invalidateQueries({ queryKey: ["schedules"] })}
             />
