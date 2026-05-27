@@ -1,0 +1,73 @@
+{
+  // ── TypeScript ───────────────────────────────────────────────────────────────
+  // Usa o TypeScript do workspace (web = 5.9.3, api = 5.7.2)
+  // O language server do VS Code usa este caminho como padrão
+  "typescript.tsdk": "apps/web/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  // Cada tsconfig.json na subpasta é resolvido automaticamente pelo language
+  // server a partir do arquivo aberto — sem necessidade de configuração extra.
+  // Desabilita diagnósticos globais que geram falsos positivos em monorepos:
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+
+  // ── Exclusões de busca e watcher ─────────────────────────────────────────────
+  // Evita que o VS Code assista/indexe pastas pesadas desnecessariamente.
+  // ATENÇÃO: .next NÃO está em files.exclude pois os tsconfigs incluem
+  // .next/types e .next/dev/types como fonte de tipos gerados pelo Next.js.
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/dist/**": true,
+    "**/.next/cache/**": true,
+    "**/apps/api/uploads/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.next": true,
+    "**/pnpm-lock.yaml": true,
+    "**/apps/api/uploads": true
+  },
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true
+  },
+
+  // ── Tailwind CSS IntelliSense ────────────────────────────────────────────────
+  "tailwindCSS.experimental.classRegex": [
+    ["clsx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"],
+    ["cn\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"],
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"]
+  ],
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+
+  // ── Editor ───────────────────────────────────────────────────────────────────
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // ── Prisma ───────────────────────────────────────────────────────────────────
+  "[prisma]": {
+    "editor.defaultFormatter": "Prisma.prisma",
+    "editor.formatOnSave": true
+  },
+
+  // ── Misc ─────────────────────────────────────────────────────────────────────
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "typescript.suggest.autoImports": true,
+  "typescript.updateImportsOnFileMove.enabled": "always"
+}
