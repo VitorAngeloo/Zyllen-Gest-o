@@ -9,7 +9,7 @@ import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
-import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Plus, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload } from "lucide-react";
+import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Plus, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, AlertTriangle, MapPin, RefreshCw } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import Link from "next/link";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
@@ -95,7 +95,7 @@ export default function EstoquePage() {
     const { user } = useAuth();
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
-    const [tab, setTab] = useState<"balances" | "entry" | "exit" | "movements">("balances");
+    const [tab, setTab] = useState<"balances" | "entry" | "exit" | "movements" | "reports">("balances");
     const [entryForm, setEntryForm] = useState({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
     const [createdAssetCodes, setCreatedAssetCodes] = useState<string[]>([]);
     const [entryMediaFiles, setEntryMediaFiles] = useState<File[]>([]);
@@ -165,6 +165,13 @@ export default function EstoquePage() {
         queryFn: () => apiClient.get<{ data: any[] }>("/inventory/movement-types", fetchOpts),
     });
 
+    const { data: stats, isLoading: loadingStats, refetch: refetchStats } = useQuery({
+        queryKey: ["inventory-stats"],
+        queryFn: () => apiClient.get<{ data: any }>("/inventory/stats", fetchOpts),
+        enabled: tab === "reports",
+        staleTime: 60_000,
+    });
+
     const findTypeId = (name: string) => movementTypes?.data?.find((t: any) => t.name.toLowerCase() === name.toLowerCase())?.id;
 
     const entryMut = useMutation({
@@ -229,6 +236,7 @@ export default function EstoquePage() {
         { key: "entry", label: "Entrada", icon: ArrowDownCircle },
         { key: "exit", label: "Saída", icon: ArrowUpCircle },
         { key: "movements", label: "Histórico", icon: History },
+        { key: "reports", label: "Relatórios", icon: BarChart2 },
     ];
 
     return (
@@ -580,6 +588,195 @@ export default function EstoquePage() {
                         )}
                     </CardContent>
                 </Card>
+            )}
+
+            {/* ═══ RELATÓRIOS ═══ */}
+            {tab === "reports" && (
+                <div className="space-y-6">
+                    {/* Header + refresh */}
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                            <BarChart2 size={18} className="text-[var(--zyllen-highlight)]" /> Relatórios de Estoque
+                        </h2>
+                        <button
+                            onClick={() => refetchStats()}
+                            className="flex items-center gap-1.5 text-xs text-[var(--zyllen-muted)] hover:text-white transition-colors"
+                        >
+                            <RefreshCw size={13} /> Atualizar
+                        </button>
+                    </div>
+
+                    {loadingStats ? (
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+                        </div>
+                    ) : stats?.data ? (
+                        <>
+                            {/* KPI Cards */}
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                                    <CardContent className="pt-5 pb-5">
+                                        <p className="text-xs text-[var(--zyllen-muted)] mb-1">Total de itens (SKUs)</p>
+                                        <p className="text-3xl font-bold text-white">{stats.data.totalSkus}</p>
+                                        <p className="text-xs text-[var(--zyllen-muted)] mt-1">no catálogo</p>
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                                    <CardContent className="pt-5 pb-5">
+                                        <p className="text-xs text-[var(--zyllen-muted)] mb-1">Patrimônios cadastrados</p>
+                                        <p className="text-3xl font-bold text-white">{stats.data.totalAssets}</p>
+                                        <p className="text-xs text-[var(--zyllen-muted)] mt-1">ativos individuais</p>
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                                    <CardContent className="pt-5 pb-5">
+                                        <p className="text-xs text-[var(--zyllen-muted)] mb-1">Movimentações (7 dias)</p>
+                                        <p className="text-3xl font-bold text-[var(--zyllen-highlight)]">{stats.data.movements.last7}</p>
+                                        <p className="text-xs text-[var(--zyllen-muted)] mt-1">entradas e saídas</p>
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                                    <CardContent className="pt-5 pb-5">
+                                        <p className="text-xs text-[var(--zyllen-muted)] mb-1">Movimentações (30 dias)</p>
+                                        <p className="text-3xl font-bold text-white">{stats.data.movements.last30}</p>
+                                        <p className="text-xs text-[var(--zyllen-muted)] mt-1">no último mês</p>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Alertas — abaixo do mínimo */}
+                                <Card className={`bg-[var(--zyllen-bg)] border-${stats.data.belowMinStock.length > 0 ? "amber-500/30" : "[var(--zyllen-border)]"}`}>
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-white text-sm flex items-center gap-2">
+                                            <AlertTriangle size={16} className={stats.data.belowMinStock.length > 0 ? "text-amber-400" : "text-[var(--zyllen-muted)]"} />
+                                            Abaixo do Estoque Mínimo
+                                            {stats.data.belowMinStock.length > 0 && (
+                                                <Badge variant="warning">{stats.data.belowMinStock.length}</Badge>
+                                            )}
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {stats.data.belowMinStock.length > 0 ? (
+                                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                                {stats.data.belowMinStock.map((item: any) => (
+                                                    <div key={item.id} className="flex items-center justify-between p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm text-white truncate font-medium">{item.name}</p>
+                                                            <p className="text-xs text-[var(--zyllen-muted)] font-mono">{item.skuCode}</p>
+                                                        </div>
+                                                        <div className="text-right shrink-0 ml-3">
+                                                            <p className="text-sm font-bold text-amber-400">
+                                                                {item.totalStock} / {item.minStock} {item.unit}
+                                                            </p>
+                                                            <p className="text-xs text-amber-400/70">falta {item.deficit} {item.unit}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-6">
+                                                <Package size={28} className="mx-auto mb-2 text-emerald-400/40" />
+                                                <p className="text-sm text-emerald-400">Todos os itens acima do mínimo</p>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                {/* Status dos patrimônios */}
+                                <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-white text-sm flex items-center gap-2">
+                                            <Hash size={16} className="text-[var(--zyllen-highlight)]" />
+                                            Status dos Patrimônios
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-3">
+                                            {[
+                                                { key: "ATIVO", label: "Ativo", color: "bg-emerald-500", text: "text-emerald-400", bar: "bg-emerald-500/20" },
+                                                { key: "EM_USO", label: "Em Uso", color: "bg-blue-500", text: "text-blue-400", bar: "bg-blue-500/20" },
+                                                { key: "EM_MANUTENCAO", label: "Em Manutenção", color: "bg-amber-500", text: "text-amber-400", bar: "bg-amber-500/20" },
+                                                { key: "BAIXADO", label: "Baixado", color: "bg-red-500", text: "text-red-400", bar: "bg-red-500/20" },
+                                            ].map(({ key, label, color, text, bar }) => {
+                                                const count: number = stats.data.assetsByStatus[key] ?? 0;
+                                                const pct = stats.data.totalAssets > 0
+                                                    ? Math.round((count / stats.data.totalAssets) * 100)
+                                                    : 0;
+                                                return (
+                                                    <div key={key}>
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <span className={`text-xs font-medium ${text}`}>{label}</span>
+                                                            <span className="text-xs text-[var(--zyllen-muted)]">{count} ({pct}%)</span>
+                                                        </div>
+                                                        <div className={`w-full h-2 rounded-full ${bar}`}>
+                                                            <div
+                                                                className={`h-2 rounded-full ${color} transition-all duration-500`}
+                                                                style={{ width: `${pct}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Distribuição por local */}
+                            {stats.data.locationDistribution.length > 0 && (
+                                <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-white text-sm flex items-center gap-2">
+                                            <MapPin size={16} className="text-[var(--zyllen-highlight)]" />
+                                            Distribuição por Local
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-[var(--zyllen-border)]">
+                                                        <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium">Local</th>
+                                                        <th className="text-right py-2 text-[var(--zyllen-muted)] font-medium">Itens distintos</th>
+                                                        <th className="text-right py-2 text-[var(--zyllen-muted)] font-medium">Qtd total</th>
+                                                        <th className="py-2 pl-4">Volume relativo</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {stats.data.locationDistribution.map((loc: any, idx: number) => {
+                                                        const maxQty = stats.data.locationDistribution[0]?.totalQuantity ?? 1;
+                                                        const pct = maxQty > 0 ? Math.round((loc.totalQuantity / maxQty) * 100) : 0;
+                                                        return (
+                                                            <tr key={idx} className="border-b border-[var(--zyllen-border)]/40 hover:bg-white/[0.02]">
+                                                                <td className="py-3 text-white font-medium">{loc.name}</td>
+                                                                <td className="py-3 text-right text-[var(--zyllen-muted)]">{loc.itemCount}</td>
+                                                                <td className="py-3 text-right font-semibold text-[var(--zyllen-highlight)]">{loc.totalQuantity}</td>
+                                                                <td className="py-3 pl-4">
+                                                                    <div className="w-full h-1.5 rounded-full bg-[var(--zyllen-highlight)]/10">
+                                                                        <div
+                                                                            className="h-1.5 rounded-full bg-[var(--zyllen-highlight)] transition-all duration-500"
+                                                                            style={{ width: `${pct}%` }}
+                                                                        />
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </>
+                    ) : (
+                        <div className="text-center py-16">
+                            <BarChart2 size={36} className="mx-auto mb-3 text-[var(--zyllen-muted)]/40" />
+                            <p className="text-[var(--zyllen-muted)]">Não foi possível carregar os dados</p>
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     );

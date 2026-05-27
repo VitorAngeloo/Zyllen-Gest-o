@@ -160,6 +160,14 @@ export class InventoryController {
         return { data };
     }
 
+    // ── Inventory Stats ──
+    @Get('stats')
+    @RequirePermission('inventory.view')
+    async getStats() {
+        const data = await this.inventoryService.getStats();
+        return { data };
+    }
+
     // ── Movements History ──
     @Get('movements')
     @RequirePermission('inventory.historico')

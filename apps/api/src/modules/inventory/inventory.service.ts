@@ -585,6 +585,80 @@ export class InventoryService {
         });
     }
 
+    // ── Inventory Stats ──
+    async getStats() {
+        const now = new Date();
+        const last7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const last30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        const [
+            totalSkus,
+            totalAssets,
+            assetsByStatusRaw,
+            movementsLast7,
+            movementsLast30,
+            belowMinStockRaw,
+            locationDistRaw,
+        ] = await Promise.all([
+            this.prisma.skuItem.count(),
+            this.prisma.asset.count(),
+            this.prisma.asset.groupBy({ by: ['status'], _count: { id: true } }),
+            this.prisma.stockMovement.count({ where: { createdAt: { gte: last7 } } }),
+            this.prisma.stockMovement.count({ where: { createdAt: { gte: last30 } } }),
+            // Raw SQL — avoids Prisma type issues with newly added columns before prisma generate
+            this.prisma.$queryRaw<any[]>`
+                SELECT s.id, s."skuCode", s.name, s."minStock", s.unit,
+                       COALESCE(SUM(b.quantity), 0)::int AS "totalStock",
+                       (s."minStock" - COALESCE(SUM(b.quantity), 0))::int AS deficit
+                FROM "SkuItem" s
+                LEFT JOIN "StockBalance" b ON b."skuId" = s.id
+                WHERE s."minStock" > 0
+                GROUP BY s.id, s."skuCode", s.name, s."minStock", s.unit
+                HAVING COALESCE(SUM(b.quantity), 0) < s."minStock"
+                ORDER BY deficit DESC
+            `,
+            this.prisma.$queryRaw<any[]>`
+                SELECT l.id, l.name,
+                       COALESCE(SUM(b.quantity), 0)::int AS "totalQuantity",
+                       COUNT(CASE WHEN b.quantity > 0 THEN 1 END)::int AS "itemCount"
+                FROM "Location" l
+                LEFT JOIN "StockBalance" b ON b."locationId" = l.id
+                GROUP BY l.id, l.name
+                ORDER BY "totalQuantity" DESC
+            `,
+        ]);
+
+        const assetsByStatus: Record<string, number> = { ATIVO: 0, EM_USO: 0, EM_MANUTENCAO: 0, BAIXADO: 0 };
+        for (const row of assetsByStatusRaw) {
+            assetsByStatus[row.status] = (row._count as any).id ?? 0;
+        }
+
+        const belowMinStock = belowMinStockRaw.map((r) => ({
+            id: r.id,
+            skuCode: r.skuCode,
+            name: r.name,
+            minStock: Number(r.minStock),
+            totalStock: Number(r.totalStock),
+            unit: r.unit ?? 'UN',
+            deficit: Number(r.deficit),
+        }));
+
+        const locationDistribution = locationDistRaw.map((r) => ({
+            name: r.name,
+            totalQuantity: Number(r.totalQuantity),
+            itemCount: Number(r.itemCount),
+        }));
+
+        return {
+            totalSkus,
+            totalAssets,
+            assetsByStatus,
+            belowMinStock,
+            locationDistribution,
+            movements: { last7: movementsLast7, last30: movementsLast30 },
+        };
+    }
+
     // ── Movement Types CRUD ──
     async findAllMovementTypes() {
         return this.prisma.movementType.findMany({ orderBy: { name: 'asc' } });
