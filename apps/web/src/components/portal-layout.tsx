@@ -5,6 +5,7 @@ import { useAuth, type UserType } from "@web/lib/auth-context";
 import { LogOut, ChevronLeft, Menu, X } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 import { cn } from "@web/lib/utils";
+import { ZyllenIcon, ZyllenTextLogo, SkyLineLogo } from "@web/components/brand/zyllen-logo";
 
 interface NavItem {
     label: string;
@@ -69,18 +70,13 @@ export default function PortalLayout({
         <>
             {/* Logo */}
             <div className="flex items-center gap-3 px-4 h-16 border-b border-[var(--zyllen-border)] shrink-0">
-                <div className="flex items-center justify-center size-8 rounded-lg bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg)]">
-                    <span className="font-extrabold text-sm">Z</span>
-                </div>
+                <ZyllenIcon height={collapsed && !mobileOpen ? 28 : 32} />
                 {(!collapsed || mobileOpen) && (
-                    <div className="flex flex-col">
-                        <span className="font-bold text-sm text-white tracking-tight">
-                            Zyllen <span className="text-[var(--zyllen-highlight)]">Gestão</span>
-                        </span>
-                        <span className="text-[10px] text-[var(--zyllen-muted)] uppercase tracking-wider">
-                            {portalName}
-                        </span>
-                    </div>
+                    <>
+                        <ZyllenTextLogo size="default" />
+                        <div className="h-5 w-px bg-[var(--zyllen-border)]" />
+                        <SkyLineLogo height={22} />
+                    </>
                 )}
                 <button
                     onClick={() => mobileOpen ? setMobileOpen(false) : setCollapsed(!collapsed)}
@@ -183,12 +179,9 @@ export default function PortalLayout({
                         <Menu size={22} />
                     </button>
                     <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center size-7 rounded-lg bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg)]">
-                            <span className="font-extrabold text-xs">Z</span>
-                        </div>
-                        <span className="font-bold text-sm text-white">
-                            {portalName}
-                        </span>
+                        <ZyllenIcon height={28} />
+                        <div className="h-4 w-px bg-[var(--zyllen-border)]" />
+                        <SkyLineLogo height={18} />
                     </div>
                 </header>
 
