@@ -437,7 +437,7 @@ export function SuporteRemotoFormFields({ formData, onChange, readOnly, osId, at
                     <textarea placeholder="Detalhes sobre o atendimento remoto..." value={formData.logbook || ""} onChange={(e) => u("logbook", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label className="text-[var(--zyllen-muted)]">Nome do contato no local</Label>
                         <Input placeholder="Nome de quem auxiliou" value={formData.localContactName || ""} onChange={(e) => u("localContactName", e.target.value)} readOnly={readOnly} className={inputCls} />
@@ -445,10 +445,6 @@ export function SuporteRemotoFormFields({ formData, onChange, readOnly, osId, at
                     <div className="space-y-2">
                         <Label className="text-[var(--zyllen-muted)]">Telefone do contato</Label>
                         <Input placeholder="(00) 00000-0000" value={formData.localContactPhone || ""} onChange={(e) => u("localContactPhone", e.target.value)} readOnly={readOnly} className={inputCls} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-[var(--zyllen-muted)]">Cargo do contato</Label>
-                        <Input placeholder="Cargo ou função" value={formData.localContactRole || ""} onChange={(e) => u("localContactRole", e.target.value)} readOnly={readOnly} className={inputCls} />
                     </div>
                 </div>
 
@@ -476,7 +472,7 @@ export function TerceirizadoFormFields({ formData, onChange, readOnly, osId, att
             <div className="space-y-4">
                 <SectionTitle>Informações do Atendimento</SectionTitle>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label className="text-[var(--zyllen-muted)]">Nome do contato no local</Label>
                         <Input placeholder="Nome completo" value={formData.localContactName || ""} onChange={(e) => u("localContactName", e.target.value)} readOnly={readOnly} className={inputCls} />
@@ -484,10 +480,6 @@ export function TerceirizadoFormFields({ formData, onChange, readOnly, osId, att
                     <div className="space-y-2">
                         <Label className="text-[var(--zyllen-muted)]">Telefone do contato</Label>
                         <Input placeholder="(00) 00000-0000" value={formData.localContactPhone || ""} onChange={(e) => u("localContactPhone", e.target.value)} readOnly={readOnly} className={inputCls} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-[var(--zyllen-muted)]">Cargo do contato</Label>
-                        <Input placeholder="Cargo ou função" value={formData.localContactRole || ""} onChange={(e) => u("localContactRole", e.target.value)} readOnly={readOnly} className={inputCls} />
                     </div>
                 </div>
             </div>

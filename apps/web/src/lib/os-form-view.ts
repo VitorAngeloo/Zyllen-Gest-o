@@ -27,7 +27,6 @@ export const OS_FIELD_LABELS: Record<string, string> = {
     problemDescription: "Descrição do problema",
     localContactName: "Nome do contato local",
     localContactPhone: "Telefone do contato local",
-    localContactRole: "Cargo do contato local",
     rsTechnicianName: "Técnico R&S",
     serviceScope: "Escopo do serviço",
     serviceDescription: "Descrição do atendimento",

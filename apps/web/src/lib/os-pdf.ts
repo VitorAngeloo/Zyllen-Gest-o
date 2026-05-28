@@ -130,12 +130,11 @@ export function printOsPdf(data: OsPdfData): void {
         <tr><td class="label">Aberta por</td><td>${escapeHtml(data.openedBy || data.openedByContractor || "—")}</td></tr>
     </table>
 
-    ${(data.contactName || data.contactPhone || data.contactRole) ? `
+    ${(data.contactName || data.contactPhone) ? `
     <h3>Contato no Local (Responsável)</h3>
     <table>
         <tr><td class="label">Nome</td><td>${escapeHtml(data.contactName || "—")}</td></tr>
         <tr><td class="label">Telefone</td><td>${escapeHtml(data.contactPhone || "—")}</td></tr>
-        <tr><td class="label">Cargo</td><td>${escapeHtml(data.contactRole || "—")}</td></tr>
     </table>
     ` : ""}
 

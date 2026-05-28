@@ -59,7 +59,6 @@ export interface OsFormSubmitData {
     location?: string;
     contactName?: string;
     contactPhone?: string;
-    contactRole?: string;
     startedAt?: string;
     endedAt?: string;
     scheduledDate?: string;
@@ -114,7 +113,6 @@ export function OsFormWizard({
     const [location, setLocation] = useState(initialData?.location || "");
     const [contactName, setContactName] = useState(initialData?.contactName || "");
     const [contactPhone, setContactPhone] = useState(initialData?.contactPhone || "");
-    const [contactRole, setContactRole] = useState(initialData?.contactRole || "");
     const [startedAt, setStartedAt] = useState(initialData?.startedAt || "");
     const [endedAt, setEndedAt] = useState(initialData?.endedAt || "");
 
@@ -246,7 +244,6 @@ export function OsFormWizard({
         location: location || undefined,
         contactName: contactName || undefined,
         contactPhone: contactPhone || undefined,
-        contactRole: contactRole || undefined,
         startedAt: startedAt || undefined,
         endedAt: endedAt || undefined,
         formData,
@@ -427,7 +424,7 @@ export function OsFormWizard({
                             <Label className="text-[var(--zyllen-muted)] font-semibold text-xs uppercase tracking-wider">
                                 Contato no Local (Responsável)
                             </Label>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <Label className="text-[var(--zyllen-muted)] text-xs">Nome</Label>
                                     <Input
@@ -444,16 +441,6 @@ export function OsFormWizard({
                                         placeholder="(00) 00000-0000"
                                         value={contactPhone}
                                         onChange={(e) => setContactPhone(e.target.value)}
-                                        readOnly={readOnly}
-                                        className={inputCls}
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-[var(--zyllen-muted)] text-xs">Cargo</Label>
-                                    <Input
-                                        placeholder="Cargo ou função"
-                                        value={contactRole}
-                                        onChange={(e) => setContactRole(e.target.value)}
                                         readOnly={readOnly}
                                         className={inputCls}
                                     />
