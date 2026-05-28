@@ -233,9 +233,6 @@ export default function AgendaPage() {
     const [filterStatus, setFilterStatus] = useState("");
     const [filterType, setFilterType] = useState("");
 
-    // Calendar installer filter (Phase 6)
-    const [calFilterInstallers, setCalFilterInstallers] = useState<string[]>([]);
-
     // Cancel series dialog (Phase 6)
     const [cancelTarget, setCancelTarget] = useState<Schedule | null>(null);
 
@@ -248,7 +245,7 @@ export default function AgendaPage() {
     const { data: installersRes, isLoading: loadingInstallers } = useQuery({
         queryKey: ["schedule-installers"],
         queryFn: () => apiClient.get<{ data: Installer[] }>("/schedule/installers", fetchOpts),
-        enabled: tab === "instaladores" || tab === "calendario",
+        enabled: tab === "instaladores",
     });
 
     const { data: schedulesRes, isLoading: loadingSchedules } = useQuery({
@@ -294,12 +291,6 @@ export default function AgendaPage() {
 
     const installers = installersRes?.data ?? [];
     const schedules = schedulesRes?.data ?? [];
-
-    // Filtered schedules for the calendar (by selected installer chips)
-    const calendarSchedules =
-        calFilterInstallers.length > 0
-            ? schedules.filter((s) => s.installers.some((i) => calFilterInstallers.includes(i.id)))
-            : schedules;
 
     const filteredInstallers = search
         ? installers.filter((i) => normalize(i.name).includes(normalize(search)) || normalize(i.email).includes(normalize(search)))
@@ -558,50 +549,8 @@ export default function AgendaPage() {
             {/* ── CALENDÁRIO TAB ── */}
             {tab === "calendario" && (
                 <>
-                    {/* Installer filter chips */}
-                    {installers.length > 0 && (
-                        <div className="flex flex-wrap gap-2 items-center">
-                            <span className="text-xs text-[var(--zyllen-muted)]">Filtrar:</span>
-                            {installers.map((inst) => {
-                                const active = calFilterInstallers.includes(inst.id);
-                                return (
-                                    <button
-                                        key={inst.id}
-                                        onClick={() =>
-                                            setCalFilterInstallers((prev) =>
-                                                active
-                                                    ? prev.filter((id) => id !== inst.id)
-                                                    : [...prev, inst.id],
-                                            )
-                                        }
-                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
-                                            active
-                                                ? "border-transparent text-[#1E1E1E] shadow-md"
-                                                : "border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white hover:border-white/30"
-                                        }`}
-                                        style={active ? { backgroundColor: inst.agendaColor ?? DEFAULT_COLOR } : {}}
-                                    >
-                                        <span
-                                            className="w-2 h-2 rounded-full shrink-0"
-                                            style={{ backgroundColor: inst.agendaColor ?? DEFAULT_COLOR }}
-                                        />
-                                        {inst.name}
-                                    </button>
-                                );
-                            })}
-                            {calFilterInstallers.length > 0 && (
-                                <button
-                                    onClick={() => setCalFilterInstallers([])}
-                                    className="text-xs text-[var(--zyllen-muted)] hover:text-white px-1"
-                                >
-                                    Limpar
-                                </button>
-                            )}
-                        </div>
-                    )}
-
                     <AgendaCalendar
-                        schedules={calendarSchedules}
+                        schedules={schedules}
                         onEventClick={(s) => openEdit(s as unknown as Schedule)}
                         onDateSelect={(start, end) => openCreate({ start, end })}
                         fetchOpts={fetchOpts}
