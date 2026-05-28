@@ -198,23 +198,43 @@ export function OsFormWizard({
                 navigator.geolocation.getCurrentPosition(
                     resolve,
                     reject,
-                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
                 );
             });
 
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            const res = await fetch(
-                `${NOMINATIM_REVERSE_API}?lat=${lat}&lon=${lon}&format=json&accept-language=pt-BR`,
-                { headers: { "User-Agent": "ZyllenGestao/1.0" } },
-            );
-            const data = await res.json();
-            if (data?.display_name) {
-                setLocation(data.display_name);
-                return;
-            }
 
-            setLocation(`${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+            const res = await fetch(
+                `${NOMINATIM_REVERSE_API}?lat=${lat}&lon=${lon}&format=json&accept-language=pt-BR&zoom=18`,
+            );
+            if (!res.ok) throw new Error("Geocoding falhou");
+            const data = await res.json();
+
+            // Build clean address string from structured fields
+            const addr = data?.address ?? {};
+            const parts = [
+                addr.road,
+                addr.house_number,
+                addr.suburb ?? addr.neighbourhood,
+                addr.city ?? addr.town ?? addr.village ?? addr.municipality,
+                addr.state,
+            ].filter(Boolean);
+            setLocation(parts.length > 0 ? parts.join(", ") : (data?.display_name ?? `${lat.toFixed(6)}, ${lon.toFixed(6)}`));
+
+            // Auto-fill state and city dropdowns from GPS response
+            if (addr.state) {
+                const stateMatch = BRAZILIAN_STATES.find(
+                    (s) => s.name.toLowerCase() === addr.state.toLowerCase(),
+                );
+                if (stateMatch) {
+                    setClientState(stateMatch.uf);
+                    fetchCities(stateMatch.uf);
+                    const cityName: string | undefined =
+                        addr.city ?? addr.town ?? addr.village ?? addr.municipality;
+                    if (cityName) setClientCity(cityName);
+                }
+            }
         } catch {
             setLocationError("Não foi possível obter a localização pelo GPS. Verifique a permissão de localização.");
         } finally {
