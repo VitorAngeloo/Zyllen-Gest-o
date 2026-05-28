@@ -139,7 +139,6 @@ export default function ManutencaoPage() {
             location: selectedOS.location,
             contactName: selectedOS.contactName,
             contactPhone: selectedOS.contactPhone,
-            contactRole: selectedOS.contactRole,
             startedAt: selectedOS.startedAt,
             endedAt: selectedOS.endedAt,
             createdAt: selectedOS.createdAt,
@@ -192,7 +191,6 @@ export default function ManutencaoPage() {
                         location: selectedOS.location || "",
                         contactName: selectedOS.contactName || "",
                         contactPhone: selectedOS.contactPhone || "",
-                        contactRole: selectedOS.contactRole || "",
                         startedAt: selectedOS.startedAt ? new Date(selectedOS.startedAt).toISOString().slice(0, 16) : "",
                         endedAt: selectedOS.endedAt ? new Date(selectedOS.endedAt).toISOString().slice(0, 16) : "",
                         formData: selectedOS.formData || {},
@@ -280,7 +278,7 @@ export default function ManutencaoPage() {
                                 <div className="col-span-2">
                                     <span className="text-[var(--zyllen-muted)]">Contato no local:</span>
                                     <p className="text-white">
-                                        {[selectedOS.contactName, selectedOS.contactRole, selectedOS.contactPhone].filter(Boolean).join(" · ")}
+                                        {[selectedOS.contactName, selectedOS.contactPhone].filter(Boolean).join(" · ")}
                                     </p>
                                 </div>
                             )}

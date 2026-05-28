@@ -16,7 +16,6 @@ export interface OsPdfData {
     location?: string | null;
     contactName?: string | null;
     contactPhone?: string | null;
-    contactRole?: string | null;
     startedAt?: string | null;
     endedAt?: string | null;
     createdAt: string;

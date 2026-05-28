@@ -30,7 +30,6 @@ interface MaintenanceOS {
     location: string | null;
     contactName: string | null;
     contactPhone: string | null;
-    contactRole: string | null;
     formData: Record<string, unknown> | null;
     createdAt: string;
     closedAt: string | null;
@@ -137,7 +136,6 @@ function ContractorMaintenanceInner() {
             location: selectedOS.location || undefined,
             contactName: selectedOS.contactName || undefined,
             contactPhone: selectedOS.contactPhone || undefined,
-            contactRole: selectedOS.contactRole || undefined,
             openedBy: selectedOS.openedBy?.name || selectedOS.openedByContractor?.name || undefined,
             createdAt: selectedOS.createdAt,
             formData: selectedOS.formData || undefined,
@@ -198,7 +196,6 @@ function ContractorMaintenanceInner() {
                     location: selectedOS.location || "",
                     contactName: selectedOS.contactName || "",
                     contactPhone: selectedOS.contactPhone || "",
-                    contactRole: selectedOS.contactRole || "",
                     formData: selectedOS.formData || {},
                 }}
                 onSubmit={handleEditSubmit}
@@ -293,7 +290,7 @@ function ContractorMaintenanceInner() {
                                 <div className="col-span-2">
                                     <span className="text-[var(--zyllen-muted)]">Contato no local:</span>
                                     <p className="text-white">
-                                        {[selectedOS.contactName, selectedOS.contactRole, selectedOS.contactPhone].filter(Boolean).join(" · ")}
+                                        {[selectedOS.contactName, selectedOS.contactPhone].filter(Boolean).join(" · ")}
                                     </p>
                                 </div>
                             )}
