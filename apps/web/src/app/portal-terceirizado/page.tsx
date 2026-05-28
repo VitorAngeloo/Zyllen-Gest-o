@@ -20,7 +20,7 @@ export default function ContractorPortalHome() {
                     Olá, <span className="text-[var(--zyllen-highlight)]">{user?.name}</span>
                 </h1>
                 <p className="text-[var(--zyllen-muted)] mt-1">
-                    Bem-vindo ao portal do terceirizado. Gerencie suas ordens de serviço de manutenção.
+                    Bem-vindo ao portal do parceiro. Gerencie suas ordens de serviço de manutenção.
                 </p>
             </div>
 

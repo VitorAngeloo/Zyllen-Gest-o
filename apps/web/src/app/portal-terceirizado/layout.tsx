@@ -11,7 +11,7 @@ export default function ContractorPortalLayout({ children }: { children: React.R
     return (
         <PortalLayout
             navItems={CONTRACTOR_NAV}
-            portalName="Portal Terceirizado"
+            portalName="Portal do Parceiro"
             allowedType="contractor"
             loginRedirect="/?type=contractor"
         >

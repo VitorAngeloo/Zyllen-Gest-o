@@ -68,7 +68,7 @@ export const LOGIN_COPY = {
   tabs: {
     internal: { label: "Colaborador", description: "Equipe interna Zyllen" },
     external: { label: "Cliente", description: "Portal exclusivo para parceiros" },
-    contractor: { label: "Terceirizado", description: "Acesse suas demandas" },
+    contractor: { label: "Parceiro", description: "Acesse suas demandas" },
   },
   hero: {
     tagline: "Experiências que transformam",

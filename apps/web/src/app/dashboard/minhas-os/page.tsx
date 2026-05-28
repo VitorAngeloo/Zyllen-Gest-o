@@ -375,7 +375,7 @@ export default function MinhasOsPage() {
                                     : "text-[var(--zyllen-muted)] border-[var(--zyllen-border)] hover:text-white hover:bg-white/5"
                             }`}
                         >
-                            Terceirizados
+                            Parceiros
                         </button>
                     </>
                 )}

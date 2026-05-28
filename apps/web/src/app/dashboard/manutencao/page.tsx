@@ -294,7 +294,7 @@ export default function ManutencaoPage() {
                             )}
                             {selectedOS.openedByContractor?.name && (
                                 <div>
-                                    <span className="text-[var(--zyllen-muted)]">Terceirizado:</span>
+                                    <span className="text-[var(--zyllen-muted)]">Parceiro:</span>
                                     <p className="text-white">{selectedOS.openedByContractor.name}</p>
                                 </div>
                             )}

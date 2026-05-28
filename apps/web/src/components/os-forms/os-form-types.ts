@@ -27,9 +27,9 @@ export interface OsFormTypeConfig {
 export const OS_FORM_CONFIG: Record<OsFormType, OsFormTypeConfig> = {
     TERCEIRIZADO: {
         key: 'TERCEIRIZADO',
-        label: 'Formulário de Terceirizado',
-        shortLabel: 'Terceirizado',
-        description: 'OS genérica aberta por terceirizados para serviços diversos',
+        label: 'Formulário de Parceiro',
+        shortLabel: 'Parceiro',
+        description: 'OS genérica aberta por parceiros para serviços diversos',
         icon: 'HardHat',
         requiresAsset: false,
         requiresClient: true,

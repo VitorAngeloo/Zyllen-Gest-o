@@ -47,14 +47,14 @@ export default function TerceirizadosPage() {
     const deleteContractor = useMutation({
         mutationFn: (id: string) => apiClient.delete(`/clients/contractors/${id}`, fetchOpts),
         onSuccess: () => {
-            toast.success("Terceirizado excluído");
+            toast.success("Parceiro excluído");
             qc.invalidateQueries({ queryKey: ["contractors"] });
         },
         onError: (e: any) => toast.error(e.message || "Erro ao excluir"),
     });
 
     const handleDelete = (c: Contractor) => {
-        if (confirm(`Tem certeza que deseja excluir "${c.name}"? Esta ação é irreversível.\n\nSe o terceirizado possui OS vinculadas, desative-o ao invés de excluir.`)) {
+        if (confirm(`Tem certeza que deseja excluir "${c.name}"? Esta ação é irreversível.\n\nSe o parceiro possui OS vinculadas, desative-o ao invés de excluir.`)) {
             deleteContractor.mutate(c.id);
         }
     };
@@ -66,10 +66,10 @@ export default function TerceirizadosPage() {
             <div>
                 <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                     <HardHat size={24} className="text-[var(--zyllen-highlight)]" />
-                    Cadastro de Terceirizados
+                    Cadastro de Parceiros
                 </h1>
                 <p className="text-sm text-[var(--zyllen-muted)] mt-1">
-                    Gerencie os terceirizados cadastrados no sistema
+                    Gerencie os parceiros cadastrados no sistema
                 </p>
             </div>
 
@@ -81,7 +81,7 @@ export default function TerceirizadosPage() {
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
                     <CardContent className="py-12 text-center">
                         <HardHat size={40} className="mx-auto text-[var(--zyllen-muted)]/30 mb-3" />
-                        <p className="text-[var(--zyllen-muted)]">Nenhum terceirizado cadastrado</p>
+                        <p className="text-[var(--zyllen-muted)]">Nenhum parceiro cadastrado</p>
                     </CardContent>
                 </Card>
             ) : (
@@ -149,7 +149,7 @@ export default function TerceirizadosPage() {
                                                 className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
                                                 onClick={() => handleDelete(c)}
                                                 disabled={deleteContractor.isPending}
-                                                title="Excluir terceirizado"
+                                                title="Excluir parceiro"
                                             >
                                                 <Trash2 size={14} />
                                             </Button>

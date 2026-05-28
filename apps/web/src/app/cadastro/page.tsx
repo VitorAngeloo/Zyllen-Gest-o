@@ -159,7 +159,7 @@ function CadastroPageInner() {
                                     }`}
                             >
                                 <Wrench size={16} />
-                                Terceirizado
+                                Parceiro
                             </button>
                         </div>
 
@@ -331,7 +331,7 @@ function CadastroPageInner() {
                                     ) : (
                                         <span className="flex items-center gap-2">
                                             <UserPlus size={18} />
-                                            Criar Conta de Terceirizado
+                                            Criar Conta de Parceiro
                                         </span>
                                     )}
                                 </Button>
