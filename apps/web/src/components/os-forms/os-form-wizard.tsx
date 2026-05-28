@@ -198,31 +198,32 @@ export function OsFormWizard({
                 navigator.geolocation.getCurrentPosition(
                     resolve,
                     reject,
-                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
                 );
             });
 
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
 
-            const res = await fetch(
-                `${NOMINATIM_REVERSE_API}?lat=${lat}&lon=${lon}&format=json&accept-language=pt-BR&zoom=18`,
-            );
-            if (!res.ok) throw new Error("Geocoding falhou");
-            const data = await res.json();
+            // Try reverse geocoding; if it fails, fall back to raw coordinates
+            let addressText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+            let addr: Record<string, string> = {};
+            try {
+                const res = await fetch(
+                    `${NOMINATIM_REVERSE_API}?lat=${lat}&lon=${lon}&format=json&accept-language=pt-BR&zoom=18`,
+                );
+                if (res.ok) {
+                    const data = await res.json();
+                    addr = data?.address ?? {};
+                    if (data?.display_name) addressText = data.display_name;
+                }
+            } catch {
+                // Nominatim failed — keep raw coordinates
+            }
 
-            // Build clean address string from structured fields
-            const addr = data?.address ?? {};
-            const parts = [
-                addr.road,
-                addr.house_number,
-                addr.suburb ?? addr.neighbourhood,
-                addr.city ?? addr.town ?? addr.village ?? addr.municipality,
-                addr.state,
-            ].filter(Boolean);
-            setLocation(parts.length > 0 ? parts.join(", ") : (data?.display_name ?? `${lat.toFixed(6)}, ${lon.toFixed(6)}`));
+            setLocation(addressText);
 
-            // Auto-fill state and city dropdowns from GPS response
+            // Auto-fill state and city dropdowns
             if (addr.state) {
                 const stateMatch = BRAZILIAN_STATES.find(
                     (s) => s.name.toLowerCase() === addr.state.toLowerCase(),
@@ -230,8 +231,7 @@ export function OsFormWizard({
                 if (stateMatch) {
                     setClientState(stateMatch.uf);
                     fetchCities(stateMatch.uf);
-                    const cityName: string | undefined =
-                        addr.city ?? addr.town ?? addr.village ?? addr.municipality;
+                    const cityName = addr.city ?? addr.town ?? addr.village ?? addr.municipality;
                     if (cityName) setClientCity(cityName);
                 }
             }
