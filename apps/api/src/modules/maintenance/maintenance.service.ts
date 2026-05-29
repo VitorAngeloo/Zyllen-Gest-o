@@ -38,6 +38,7 @@ export class MaintenanceService {
     // ── Open OS ──
     async openOS(data: {
         assetId?: string;
+        companyId?: string;
         openedById?: string;
         openedByContractorId?: string;
         notes?: string;
@@ -84,6 +85,7 @@ export class MaintenanceService {
                     osNumber,
                     formType,
                     assetId: data.assetId ?? null,
+                    companyId: data.companyId ?? null,
                     openedById: data.openedById ?? null,
                     openedByContractorId: data.openedByContractorId ?? null,
                     notes: asset
@@ -135,13 +137,14 @@ export class MaintenanceService {
     }
 
     // ── List OS ──
-    async findAll(params?: { status?: string; formType?: string; assetId?: string; openedByContractorId?: string; openedById?: string; skip?: number; take?: number }) {
+    async findAll(params?: { status?: string; formType?: string; assetId?: string; openedByContractorId?: string; openedById?: string; companyId?: string; skip?: number; take?: number }) {
         const where = {
             ...(params?.status ? { status: params.status } : {}),
             ...(params?.formType ? { formType: params.formType } : {}),
             ...(params?.assetId ? { assetId: params.assetId } : {}),
             ...(params?.openedByContractorId ? { openedByContractorId: params.openedByContractorId } : {}),
             ...(params?.openedById ? { openedById: params.openedById } : {}),
+            ...(params?.companyId ? { companyId: params.companyId } : {}),
         };
         const [data, total] = await Promise.all([
             this.prisma.maintenanceOS.findMany({
@@ -174,6 +177,10 @@ export class MaintenanceService {
                 openedByContractor: { select: { name: true } },
                 closedBy: { select: { name: true } },
                 attachments: { orderBy: { createdAt: 'desc' } },
+                followupBlocks: {
+                    orderBy: { order: 'asc' },
+                    include: { attachments: { orderBy: { createdAt: 'asc' } } },
+                },
             },
         });
         if (!os) throw new NotFoundException('OS não encontrada');
@@ -273,6 +280,12 @@ export class MaintenanceService {
             throw new ForbiddenException('OS não pertence a este terceirizado');
         }
 
+        // Signature lock — once witness signature is stored, service details are immutable
+        const existingFormData = os.formData as Record<string, unknown> | null;
+        if (os.formType === 'INSTALACAO_SALA' && existingFormData?.witnessSignature) {
+            throw new ForbiddenException('Formulário bloqueado: detalhes do serviço não podem ser alterados após a assinatura do cliente');
+        }
+
         const updateData: any = {
             formData: data.formData,
         };
@@ -298,6 +311,25 @@ export class MaintenanceService {
         });
 
         return updated;
+    }
+
+    // ── Client witness signature ──
+    async clientSignWitness(osId: string, companyId: string, signature: string) {
+        if (!signature || !signature.startsWith('data:image/')) {
+            throw new BadRequestException('Assinatura inválida');
+        }
+        const os = await this.findById(osId);
+        if (os.companyId !== companyId) throw new ForbiddenException('OS não pertence à sua empresa');
+        if (os.status === MaintenanceStatus.CLOSED) throw new BadRequestException('OS já encerrada');
+
+        const existingFormData = (os.formData as Record<string, unknown>) || {};
+        const newFormData = { ...existingFormData, witnessSignature: signature };
+        validateFormData(newFormData);
+
+        return this.prisma.maintenanceOS.update({
+            where: { id: osId },
+            data: { formData: newFormData as Prisma.InputJsonValue },
+        });
     }
 
     // ── Find all contractors ──
@@ -356,6 +388,99 @@ export class MaintenanceService {
         if (!att) throw new NotFoundException('Anexo não encontrado');
 
         await this.prisma.maintenanceAttachment.delete({ where: { id: attachmentId } });
+        return att;
+    }
+
+    // ── Followup Blocks (Acompanhamento de 7 dias) ──
+
+    async findFollowupBlocks(osId: string) {
+        await this.findById(osId);
+        return this.prisma.maintenanceOSFollowupBlock.findMany({
+            where: { maintenanceOSId: osId },
+            orderBy: { order: 'asc' },
+            include: { attachments: { orderBy: { createdAt: 'asc' } } },
+        });
+    }
+
+    async addFollowupBlock(osId: string, data: { type: string; content?: string; order?: number }) {
+        await this.findById(osId);
+        return this.prisma.maintenanceOSFollowupBlock.create({
+            data: {
+                maintenanceOSId: osId,
+                type: data.type,
+                content: data.content ?? null,
+                order: data.order ?? 0,
+            },
+            include: { attachments: true },
+        });
+    }
+
+    async updateFollowupBlock(osId: string, blockId: string, data: { content?: string; order?: number }) {
+        const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({
+            where: { id: blockId, maintenanceOSId: osId },
+        });
+        if (!block) throw new NotFoundException('Bloco não encontrado');
+        if (block.isLocked) throw new ForbiddenException('Este bloco está confirmado e não pode ser alterado');
+        return this.prisma.maintenanceOSFollowupBlock.update({
+            where: { id: blockId },
+            data: {
+                ...(data.content !== undefined ? { content: data.content } : {}),
+                ...(data.order !== undefined ? { order: data.order } : {}),
+            },
+            include: { attachments: true },
+        });
+    }
+
+    async lockFollowupBlock(osId: string, blockId: string) {
+        const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({
+            where: { id: blockId, maintenanceOSId: osId },
+        });
+        if (!block) throw new NotFoundException('Bloco não encontrado');
+        if (block.isLocked) throw new BadRequestException('Bloco já está confirmado');
+        return this.prisma.maintenanceOSFollowupBlock.update({
+            where: { id: blockId },
+            data: { isLocked: true },
+            include: { attachments: true },
+        });
+    }
+
+    async removeFollowupBlock(osId: string, blockId: string) {
+        const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({
+            where: { id: blockId, maintenanceOSId: osId },
+        });
+        if (!block) throw new NotFoundException('Bloco não encontrado');
+        await this.prisma.maintenanceOSFollowupBlock.delete({ where: { id: blockId } });
+    }
+
+    async addFollowupBlockAttachments(
+        osId: string,
+        blockId: string,
+        files: { fileName: string; filePath: string; mimeType?: string }[],
+    ) {
+        const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({
+            where: { id: blockId, maintenanceOSId: osId },
+        });
+        if (!block) throw new NotFoundException('Bloco não encontrado');
+        await this.prisma.maintenanceOSFollowupAttachment.createMany({
+            data: files.map((f) => ({
+                blockId,
+                fileName: f.fileName,
+                filePath: f.filePath,
+                mimeType: f.mimeType ?? null,
+            })),
+        });
+        return this.prisma.maintenanceOSFollowupBlock.findUnique({
+            where: { id: blockId },
+            include: { attachments: { orderBy: { createdAt: 'asc' } } },
+        });
+    }
+
+    async removeFollowupBlockAttachment(osId: string, blockId: string, attId: string) {
+        const att = await this.prisma.maintenanceOSFollowupAttachment.findFirst({
+            where: { id: attId, blockId, block: { maintenanceOSId: osId } },
+        });
+        if (!att) throw new NotFoundException('Anexo não encontrado');
+        await this.prisma.maintenanceOSFollowupAttachment.delete({ where: { id: attId } });
         return att;
     }
 }
