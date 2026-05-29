@@ -189,18 +189,8 @@ export default function ClientMaintenancePage() {
                                     <img src={witnessSignature} alt="Assinatura" className="w-full h-24 object-contain" />
                                 </div>
                                 <p className="text-xs text-green-400 flex items-center gap-1">
-                                    <Lock size={11} /> Assinatura registrada
+                                    <Lock size={11} /> Assinatura registrada — não pode ser alterada
                                 </p>
-                                {!isClosed && !signingWitness && (
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="text-xs text-[var(--zyllen-muted)] hover:text-white"
-                                        onClick={() => { setSigValue(""); setSigningWitness(true); }}
-                                    >
-                                        Substituir assinatura
-                                    </Button>
-                                )}
                             </div>
                         ) : !signingWitness ? (
                             <div className="flex items-center justify-between">
@@ -274,7 +264,7 @@ export default function ClientMaintenancePage() {
                         Ordens de Serviço
                     </h1>
                     <p className="text-[var(--zyllen-muted)] text-sm mt-1">
-                        OS vinculadas à sua empresa
+                        Instalações de sala vinculadas à sua empresa
                     </p>
                 </div>
                 <button
