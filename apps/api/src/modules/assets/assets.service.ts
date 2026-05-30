@@ -66,11 +66,20 @@ export class AssetsService {
         return asset;
     }
 
+    // ── Create manual event on asset timeline ──
+    async createEvent(assetId: string, description: string, userId: string) {
+        await this.findById(assetId);
+        return (this.prisma as any).assetEvent.create({
+            data: { assetId, description, createdByInternalUserId: userId },
+            include: { createdBy: { select: { name: true } } },
+        });
+    }
+
     // ── Asset timeline (complete history) ──
     async getTimeline(assetId: string) {
         await this.findById(assetId); // ensure exists
 
-        const [movements, maintenance, labels] = await Promise.all([
+        const [movements, maintenance, labels, manualEvents] = await Promise.all([
             this.prisma.stockMovement.findMany({
                 where: { assetId },
                 include: {
@@ -97,6 +106,11 @@ export class AssetsService {
                 },
                 orderBy: { printedAt: 'desc' },
             }),
+            (this.prisma as any).assetEvent.findMany({
+                where: { assetId },
+                include: { createdBy: { select: { name: true } } },
+                orderBy: { createdAt: 'desc' },
+            }) as Promise<{ id: string; description: string; createdAt: Date; createdBy: { name: string } }[]>,
         ]);
 
         // Build unified timeline
@@ -121,6 +135,13 @@ export class AssetsService {
                 description: 'Etiqueta impressa',
                 actor: l.printedBy.name,
                 details: l,
+            })),
+            ...(manualEvents as { id: string; description: string; createdAt: Date; createdBy: { name: string } }[]).map((e) => ({
+                type: 'NOTE' as const,
+                date: e.createdAt,
+                description: e.description,
+                actor: e.createdBy.name,
+                details: e,
             })),
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 

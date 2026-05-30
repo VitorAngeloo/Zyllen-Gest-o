@@ -75,7 +75,7 @@ export default function PortalLayout({
                     <>
                         <ZyllenTextLogo size="default" />
                         <div className="h-5 w-px bg-[var(--zyllen-border)]" />
-                        <SkyLineLogo height={22} />
+                        <SkyLineLogo height={32} />
                     </>
                 )}
                 <button
@@ -181,7 +181,7 @@ export default function PortalLayout({
                     <div className="flex items-center gap-2">
                         <ZyllenIcon height={28} />
                         <div className="h-4 w-px bg-[var(--zyllen-border)]" />
-                        <SkyLineLogo height={18} />
+                        <SkyLineLogo height={26} />
                     </div>
                 </header>
 

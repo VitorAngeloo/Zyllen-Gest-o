@@ -7,6 +7,8 @@ import {
     Query,
     Body,
     UseGuards,
+    Request,
+    BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
@@ -69,6 +71,18 @@ export class AssetsController {
     async getTimeline(@Param('id') id: string) {
         const data = await this.assetsService.getTimeline(id);
         return { data };
+    }
+
+    @Post(':id/events')
+    @RequirePermission('assets.create')
+    async createEvent(
+        @Param('id') id: string,
+        @Body() body: { description: string },
+        @Request() req: any,
+    ) {
+        if (!body.description?.trim()) throw new BadRequestException('Descrição é obrigatória');
+        const data = await this.assetsService.createEvent(id, body.description.trim(), req.user.id);
+        return { data, message: 'Evento registrado' };
     }
 
     @Post('bulk')

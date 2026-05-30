@@ -233,8 +233,11 @@ export default function AgendaPage() {
     const [filterStatus, setFilterStatus] = useState("");
     const [filterType, setFilterType] = useState("");
 
-    // Cancel series dialog (Phase 6)
+    // Cancel series dialog
     const [cancelTarget, setCancelTarget] = useState<Schedule | null>(null);
+
+    // Status change dialog
+    const [statusTarget, setStatusTarget] = useState<Schedule | null>(null);
 
     const canManageInstallers = hasPermission("schedule.manage_installers");
     const canCreate = hasPermission("schedule.create");
@@ -285,6 +288,17 @@ export default function AgendaPage() {
             toast.success(vars.cancelSeries ? "Série cancelada" : "Agendamento cancelado");
         },
         onError: (err: any) => toast.error(err?.message ?? "Erro ao cancelar"),
+    });
+
+    const updateStatusMut = useMutation({
+        mutationFn: ({ id, status }: { id: string; status: string }) =>
+            apiClient.put(`/schedule/${id}`, { status }, fetchOpts),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["schedules"] });
+            toast.success("Status atualizado");
+            setStatusTarget(null);
+        },
+        onError: (err: any) => toast.error(err?.message ?? "Erro ao atualizar status"),
     });
 
     // ── Derived data ─────────────────────────────────────────────────────────
@@ -506,7 +520,18 @@ export default function AgendaPage() {
                                                 </div>
 
                                                 {/* Right: actions */}
-                                                <div className="flex items-center gap-2 shrink-0">
+                                                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                                                    {canUpdate && schedule.status !== "CANCELLED" && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="text-[var(--zyllen-muted)] hover:text-white hover:bg-[var(--zyllen-bg-dark)]"
+                                                            onClick={() => setStatusTarget(schedule)}
+                                                        >
+                                                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                                            Status
+                                                        </Button>
+                                                    )}
                                                     {canUpdate && schedule.status !== "CANCELLED" && schedule.status !== "DONE" && (
                                                         <Button
                                                             size="sm"
@@ -604,6 +629,54 @@ export default function AgendaPage() {
                             disabled={cancelScheduleMut.isPending}
                         >
                             Cancelar toda a série
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── STATUS CHANGE DIALOG ── */}
+            <Dialog open={!!statusTarget} onOpenChange={(open) => { if (!open) setStatusTarget(null); }}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-[var(--zyllen-highlight)]" />
+                            Alterar status
+                        </DialogTitle>
+                    </DialogHeader>
+                    <DialogBody>
+                        <p className="text-sm text-[var(--zyllen-muted)] mb-4">
+                            <span className="text-white font-medium">&quot;{statusTarget?.title}&quot;</span>
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            {(["SCHEDULED", "IN_PROGRESS", "DONE"] as const).map((s) => {
+                                const cfg = STATUS_CONFIG[s];
+                                const isCurrent = statusTarget?.status === s;
+                                return (
+                                    <button
+                                        key={s}
+                                        disabled={isCurrent || updateStatusMut.isPending}
+                                        onClick={() => statusTarget && updateStatusMut.mutate({ id: statusTarget.id, status: s })}
+                                        className={`flex items-center justify-between px-4 py-2.5 rounded-lg border text-sm transition-colors
+                                            ${isCurrent
+                                                ? `${cfg.color} cursor-default opacity-80`
+                                                : "border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:border-[var(--zyllen-highlight)]/50 hover:text-white bg-[var(--zyllen-bg-dark)]"
+                                            }`}
+                                    >
+                                        <span>{cfg.label}</span>
+                                        {isCurrent && <span className="text-xs opacity-70">atual</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </DialogBody>
+                    <DialogFooter>
+                        <Button
+                            variant="ghost"
+                            className="w-full text-[var(--zyllen-muted)]"
+                            onClick={() => setStatusTarget(null)}
+                            disabled={updateStatusMut.isPending}
+                        >
+                            Cancelar
                         </Button>
                     </DialogFooter>
                 </DialogContent>

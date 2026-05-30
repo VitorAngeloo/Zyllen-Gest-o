@@ -122,7 +122,7 @@ function LoginPageInner() {
         <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 w-full">
           {/* Logo — Partnership */}
           <div>
-            <PartnershipLogos height={60} variant="horizontal" />
+            <PartnershipLogos height={76} variant="horizontal" />
           </div>
 
           {/* Tagline */}
@@ -139,7 +139,7 @@ function LoginPageInner() {
 
           {/* Footer info */}
           <div className="flex items-center gap-6 text-xs text-[var(--zyllen-muted)]/60">
-            <span>Zyllen Systems & Grupo Sky Line © 2026</span>
+            <span>Zyllen Systems & Grupo Skyline © 2026</span>
             <div className="h-3 w-px bg-[var(--zyllen-border)]" />
             <span>Todos os direitos reservados</span>
           </div>
@@ -150,7 +150,7 @@ function LoginPageInner() {
       <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 relative">
         {/* Mobile logo (visible only on small screens) */}
         <div className="lg:hidden flex flex-col items-center gap-4 mb-8">
-          <PartnershipLogos height={48} variant="vertical" />
+          <PartnershipLogos height={60} variant="vertical" />
           <div className="h-[2px] w-16 bg-[var(--zyllen-highlight)] clip-angle-r" />
         </div>
 

@@ -5,7 +5,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -186,7 +186,14 @@ export class MaintenanceController {
         const filePath = source.filePath;
         if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
 
-        if (att.mimeType) res.setHeader('Content-Type', att.mimeType);
+        const EXT_MIME: Record<string, string> = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+            '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+            '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+            '.avi': 'video/x-msvideo', '.pdf': 'application/pdf',
+        };
+        const mime = att.mimeType || EXT_MIME[extname(att.fileName).toLowerCase()] || 'application/octet-stream';
+        res.setHeader('Content-Type', mime);
         res.setHeader('Content-Disposition', `inline; filename="${att.fileName}"`);
         return res.sendFile(filePath);
     }
@@ -199,6 +206,123 @@ export class MaintenanceController {
     ) {
         const att = await this.maintenanceService.deleteAttachment(id, attachmentId);
         await this.mediaStorageService.deleteStoredFile(att.filePath, UPLOAD_DIR);
+        return { message: 'Anexo removido' };
+    }
+
+    // ── Followup Blocks (Acompanhamento de 7 dias) ──
+
+    @Get(':id/followup-blocks')
+    @RequirePermission('maintenance.view')
+    async listFollowupBlocks(@Param('id') id: string) {
+        const data = await this.maintenanceService.findFollowupBlocks(id);
+        return { data };
+    }
+
+    @Post(':id/followup-blocks')
+    @RequirePermission('maintenance.execute')
+    async addFollowupBlock(
+        @Param('id') id: string,
+        @Body() body: { type: string; content?: string; order?: number },
+    ) {
+        const data = await this.maintenanceService.addFollowupBlock(id, body);
+        return { data, message: 'Bloco adicionado' };
+    }
+
+    @Put(':id/followup-blocks/:blockId')
+    @RequirePermission('maintenance.execute')
+    async updateFollowupBlock(
+        @Param('id') id: string,
+        @Param('blockId') blockId: string,
+        @Body() body: { content?: string; order?: number },
+    ) {
+        const data = await this.maintenanceService.updateFollowupBlock(id, blockId, body);
+        return { data, message: 'Bloco atualizado' };
+    }
+
+    @Delete(':id/followup-blocks/:blockId')
+    @RequirePermission('maintenance.execute')
+    async removeFollowupBlock(
+        @Param('id') id: string,
+        @Param('blockId') blockId: string,
+    ) {
+        await this.maintenanceService.removeFollowupBlock(id, blockId);
+        return { message: 'Bloco removido' };
+    }
+
+    @Post(':id/followup-blocks/:blockId/lock')
+    @RequirePermission('maintenance.execute')
+    async lockFollowupBlock(
+        @Param('id') id: string,
+        @Param('blockId') blockId: string,
+    ) {
+        const data = await this.maintenanceService.lockFollowupBlock(id, blockId);
+        return { data, message: 'Assinatura confirmada e bloqueada' };
+    }
+
+    @Post(':id/followup-blocks/:blockId/attachments')
+    @RequirePermission('maintenance.execute')
+    @UseInterceptors(FilesInterceptor('files', 10, { storage: maintenanceStorage, limits: { fileSize: MAX_FILE_SIZE } }))
+    async uploadFollowupAttachments(
+        @Param('id') id: string,
+        @Param('blockId') blockId: string,
+        @UploadedFiles() files: Express.Multer.File[],
+    ) {
+        if (!files || files.length === 0) throw new BadRequestException('Nenhum arquivo enviado');
+        for (const file of files) {
+            if (!ALLOWED_MIME.test(file.mimetype)) {
+                throw new BadRequestException(`Tipo não permitido: ${file.originalname}`);
+            }
+        }
+        const attachments = files.map((f) => ({
+            fileName: f.originalname,
+            filePath: f.filename,
+            mimeType: f.mimetype,
+        }));
+        const data = await this.maintenanceService.addFollowupBlockAttachments(id, blockId, attachments);
+        return { data, message: `${files.length} arquivo(s) enviado(s)` };
+    }
+
+    @Get(':id/followup-blocks/:blockId/attachments/:attId/file')
+    @Public()
+    async serveFollowupFile(
+        @Param('id') id: string,
+        @Param('blockId') blockId: string,
+        @Param('attId') attId: string,
+        @Res() res: Response,
+    ) {
+        const blocks = await this.maintenanceService.findFollowupBlocks(id);
+        const block = blocks.find((b: any) => b.id === blockId);
+        if (!block) throw new BadRequestException('Bloco não encontrado');
+        const att = block.attachments.find((a: any) => a.id === attId);
+        if (!att) throw new BadRequestException('Anexo não encontrado');
+
+        const filePath = join(UPLOAD_DIR, att.filePath);
+        if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
+
+        const EXT_MIME: Record<string, string> = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+            '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+            '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+            '.avi': 'video/x-msvideo',
+        };
+        const mime = att.mimeType || EXT_MIME[extname(att.fileName).toLowerCase()] || 'application/octet-stream';
+        res.setHeader('Content-Type', mime);
+        res.setHeader('Content-Disposition', `inline; filename="${att.fileName}"`);
+        return res.sendFile(filePath);
+    }
+
+    @Delete(':id/followup-blocks/:blockId/attachments/:attId')
+    @RequirePermission('maintenance.execute')
+    async deleteFollowupAttachment(
+        @Param('id') id: string,
+        @Param('blockId') blockId: string,
+        @Param('attId') attId: string,
+    ) {
+        const att = await this.maintenanceService.removeFollowupBlockAttachment(id, blockId, attId);
+        try {
+            const filePath = join(UPLOAD_DIR, att.filePath);
+            if (existsSync(filePath)) unlinkSync(filePath);
+        } catch { /* ignore */ }
         return { message: 'Anexo removido' };
     }
 }

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Button } from "@web/components/ui/button";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
-import { FileText, Eye, ArrowLeft, Clock, CheckCircle2, AlertCircle, Edit, CheckSquare, Printer } from "lucide-react";
+import { FileText, Eye, ArrowLeft, Edit, CheckSquare, Printer, Lock } from "lucide-react";
 import { printOsPdf } from "@web/lib/os-pdf";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { OS_FORM_CONFIG } from "@web/components/os-forms";
@@ -17,6 +17,7 @@ import { getOsFieldRows } from "@web/lib/os-form-view";
 import { uploadMaintenanceAttachments } from "@web/lib/maintenance-attachments";
 import { MediaUploader } from "@web/components/os-forms/media-uploader";
 import type { MediaAttachment } from "@web/components/os-forms/media-uploader";
+import { OSFollowupSection } from "@web/components/os-forms/os-followup-section";
 
 type View = "list" | "detail" | "edit";
 type ListTab = "mine" | "collaborators" | "contractors";
@@ -118,9 +119,22 @@ export default function MinhasOsPage() {
         }
     };
 
-    const handlePrintPdf = () => {
+    const handlePrintPdf = async () => {
         if (!selectedOS) return;
         const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+        let followupBlocks: any[] = [];
+        if (selectedOS.formType === "INSTALACAO_SALA") {
+            try {
+                const res = await apiClient.get<{ data: any[] }>(`/maintenance/${selectedOS.id}/followup-blocks`, fetchOpts);
+                followupBlocks = (res?.data ?? []).map((b: any) => ({
+                    ...b,
+                    attachments: (b.attachments ?? []).map((a: any) => ({
+                        ...a,
+                        fileUrl: `${apiBase}/maintenance/${selectedOS.id}/followup-blocks/${b.id}/attachments/${a.id}/file`,
+                    })),
+                }));
+            } catch { /* ignore */ }
+        }
         printOsPdf({
             osNumber: selectedOS.osNumber || "OS",
             formType: OS_FORM_CONFIG[selectedOS.formType as OsFormType]?.label || selectedOS.formType,
@@ -140,6 +154,7 @@ export default function MinhasOsPage() {
                 mimeType: att.mimeType,
                 fileUrl: `${apiBase}/maintenance/${selectedOS.id}/attachments/${att.id}/file`,
             })),
+            followupBlocks,
         });
     };
 
@@ -195,6 +210,8 @@ export default function MinhasOsPage() {
         const formTypeLabel = OS_FORM_CONFIG[selectedOS.formType as OsFormType]?.label || selectedOS.formType || "—";
         const statusCfg = STATUS_CONFIG[selectedOS.status] || STATUS_CONFIG.OPEN;
         const formRows = getOsFieldRows(selectedOS.formType, selectedOS.formData);
+        const isInstalacaoSala = selectedOS.formType === "INSTALACAO_SALA";
+        const isSignatureLocked = isInstalacaoSala && !!(selectedOS.formData as any)?.witnessSignature;
 
         return (
             <div className="space-y-6">
@@ -216,7 +233,7 @@ export default function MinhasOsPage() {
                             </div>
                             <div className="flex items-center gap-2">
                                 <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-                                {selectedOS.status !== "CLOSED" && (
+                                {selectedOS.status !== "CLOSED" && !isSignatureLocked && (
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -225,6 +242,11 @@ export default function MinhasOsPage() {
                                     >
                                         <Edit size={14} className="mr-1" /> Editar
                                     </Button>
+                                )}
+                                {isSignatureLocked && (
+                                    <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                        <Lock size={11} /> Assinado
+                                    </span>
                                 )}
                             </div>
                         </div>
@@ -264,7 +286,14 @@ export default function MinhasOsPage() {
                         </div>
 
                         <div>
-                            <span className="text-sm text-[var(--zyllen-muted)]">Formulário consolidado:</span>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm text-[var(--zyllen-muted)]">Detalhes do serviço:</span>
+                                {isSignatureLocked && (
+                                    <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400">
+                                        <Lock size={9} /> Bloqueado após assinatura
+                                    </span>
+                                )}
+                            </div>
                             {formRows.length > 0 ? (
                                 <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                                     {formRows.map((row) => (
@@ -298,6 +327,18 @@ export default function MinhasOsPage() {
                                         readOnly
                                     />
                                 </div>
+                            </div>
+                        )}
+
+                        {/* ── Acompanhamento de 7 dias (INSTALACAO_SALA only) ── */}
+                        {isInstalacaoSala && (
+                            <div className="pt-2 border-t border-[var(--zyllen-border)]">
+                                <OSFollowupSection
+                                    osId={selectedOS.id}
+                                    apiBasePath="/maintenance"
+                                    fetchOpts={fetchOpts}
+                                    readOnly={selectedOS.status === "CLOSED"}
+                                />
                             </div>
                         )}
 

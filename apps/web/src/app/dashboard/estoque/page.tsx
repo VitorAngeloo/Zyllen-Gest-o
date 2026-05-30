@@ -96,6 +96,7 @@ export default function EstoquePage() {
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
     const [tab, setTab] = useState<"balances" | "bipe" | "entry" | "exit" | "movements" | "reports">("balances");
+    const [balancesSearch, setBalancesSearch] = useState("");
     const [entryForm, setEntryForm] = useState({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
     const [createdAssetCodes, setCreatedAssetCodes] = useState<string[]>([]);
     const [entryMediaFiles, setEntryMediaFiles] = useState<File[]>([]);
@@ -353,55 +354,102 @@ export default function EstoquePage() {
             </div>
 
             {tab === "balances" && (
-                <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                    <CardHeader>
-                        <CardTitle className="text-white">Saldo por Local × Item</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {loadingBalances ? (
-                            <div className="space-y-3">
-                                {[...Array(5)].map((_, i) => (
-                                    <div key={i} className="flex items-center gap-4">
-                                        <Skeleton className="h-4 w-20" />
-                                        <Skeleton className="h-4 w-32" />
-                                        <Skeleton className="h-4 w-24" />
-                                        <Skeleton className="h-6 w-10 ml-auto" />
+                <div className="space-y-4">
+                    {/* Search */}
+                    <div className="relative max-w-sm">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                        <input
+                            type="text"
+                            value={balancesSearch}
+                            onChange={(e) => setBalancesSearch(e.target.value)}
+                            placeholder="Buscar item por nome, código ou local..."
+                            className="w-full h-9 rounded-md border bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] text-white pl-9 pr-3 text-sm placeholder:text-[var(--zyllen-muted)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                        />
+                    </div>
+
+                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-white flex items-center justify-between">
+                                <span>Saldo por Item × Local</span>
+                                {balancesSearch && balances?.data && (
+                                    <span className="text-xs font-normal text-[var(--zyllen-muted)]">
+                                        {balances.data.filter((b: any) => {
+                                            const q = normalizeStr(balancesSearch);
+                                            return normalizeStr(b.sku?.name ?? "").includes(q)
+                                                || normalizeStr(b.sku?.skuCode ?? "").includes(q)
+                                                || normalizeStr(b.location?.name ?? "").includes(q)
+                                                || normalizeStr(b.sku?.brand ?? "").includes(q);
+                                        }).length} resultado(s)
+                                    </span>
+                                )}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {loadingBalances ? (
+                                <div className="space-y-3">
+                                    {[...Array(5)].map((_, i) => (
+                                        <div key={i} className="flex items-center gap-4">
+                                            <Skeleton className="h-4 w-20" />
+                                            <Skeleton className="h-4 w-32" />
+                                            <Skeleton className="h-4 w-24" />
+                                            <Skeleton className="h-6 w-10 ml-auto" />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (() => {
+                                const q = normalizeStr(balancesSearch);
+                                const filtered = balancesSearch
+                                    ? balances?.data?.filter((b: any) =>
+                                        normalizeStr(b.sku?.name ?? "").includes(q)
+                                        || normalizeStr(b.sku?.skuCode ?? "").includes(q)
+                                        || normalizeStr(b.location?.name ?? "").includes(q)
+                                        || normalizeStr(b.sku?.brand ?? "").includes(q)
+                                    )
+                                    : balances?.data;
+                                return filtered?.length ? (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b border-[var(--zyllen-border)]">
+                                                    <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Código</th>
+                                                    <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Item</th>
+                                                    <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium hidden sm:table-cell">Marca</th>
+                                                    <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Local</th>
+                                                    <th className="text-right py-3 text-[var(--zyllen-muted)] font-medium">Qtd</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {filtered.map((b: any) => (
+                                                    <tr key={b.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
+                                                        <td className="py-3 font-mono text-[var(--zyllen-highlight)] text-xs">{b.sku?.skuCode}</td>
+                                                        <td className="py-3">
+                                                            <p className="text-white font-medium">{b.sku?.name}</p>
+                                                            {b.sku?.category?.name && (
+                                                                <p className="text-xs text-[var(--zyllen-muted)]">{b.sku.category.name}</p>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 text-[var(--zyllen-muted)] text-xs hidden sm:table-cell">{b.sku?.brand ?? "—"}</td>
+                                                        <td className="py-3 text-[var(--zyllen-muted)]">{b.location?.name}</td>
+                                                        <td className="py-3 text-right">
+                                                            <Badge variant={b.quantity > 0 ? "success" : "destructive"}>{b.quantity}</Badge>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
-                                ))}
-                            </div>
-                        ) : balances?.data?.length ? (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="border-b border-[var(--zyllen-border)]">
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Código</th>
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Item</th>
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Local</th>
-                                            <th className="text-right py-3 text-[var(--zyllen-muted)] font-medium">Qtd</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {balances.data.map((b: any) => (
-                                            <tr key={b.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
-                                                <td className="py-3 font-mono text-[var(--zyllen-highlight)] text-xs">{b.sku?.skuCode}</td>
-                                                <td className="py-3 text-white">{b.sku?.name}</td>
-                                                <td className="py-3 text-[var(--zyllen-muted)]">{b.location?.name}</td>
-                                                <td className="py-3 text-right">
-                                                    <Badge variant={b.quantity > 0 ? "success" : "destructive"}>{b.quantity}</Badge>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ) : (
-                            <div className="text-center py-12">
-                                <Package size={36} className="mx-auto mb-3 text-[var(--zyllen-muted)]/50" />
-                                <p className="text-[var(--zyllen-muted)]">{EMPTY_STATES.balances}</p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                                ) : (
+                                    <div className="text-center py-12">
+                                        <Package size={36} className="mx-auto mb-3 text-[var(--zyllen-muted)]/50" />
+                                        <p className="text-[var(--zyllen-muted)]">
+                                            {balancesSearch ? "Nenhum item encontrado para esta busca." : EMPTY_STATES.balances}
+                                        </p>
+                                    </div>
+                                );
+                            })()}
+                        </CardContent>
+                    </Card>
+                </div>
             )}
 
             {/* ═══ BIPAGEM RÁPIDA ═══ */}
@@ -793,24 +841,26 @@ export default function EstoquePage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="border-b border-[var(--zyllen-border)]">
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Data</th>
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Tipo</th>
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Código</th>
-                                            <th className="text-right py-3 text-[var(--zyllen-muted)] font-medium">Qtd</th>
+                                            <th className="text-left py-3 pr-4 text-[var(--zyllen-muted)] font-medium w-36">Data</th>
+                                            <th className="text-left py-3 pr-4 text-[var(--zyllen-muted)] font-medium w-24">Tipo</th>
+                                            <th className="text-left py-3 pr-4 text-[var(--zyllen-muted)] font-medium w-24">Código</th>
+                                            <th className="text-right py-3 pr-6 text-[var(--zyllen-muted)] font-medium w-16">Qtd</th>
+                                            <th className="text-left py-3 pr-4 text-[var(--zyllen-muted)] font-medium w-36">Responsável</th>
                                             <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Motivo</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {movements.data.map((m: any) => (
                                             <tr key={m.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
-                                                <td className="py-3 text-[var(--zyllen-muted)] text-xs">{new Date(m.createdAt).toLocaleString("pt-BR")}</td>
-                                                <td className="py-3">
+                                                <td className="py-3 pr-4 text-[var(--zyllen-muted)] text-xs">{new Date(m.createdAt).toLocaleString("pt-BR")}</td>
+                                                <td className="py-3 pr-4">
                                                     <Badge variant={m.toLocationId ? "success" : "destructive"}>
                                                         {m.type?.name ?? (m.toLocationId ? "Entrada" : "Saída")}
                                                     </Badge>
                                                 </td>
-                                                <td className="py-3 font-mono text-[var(--zyllen-highlight)] text-xs">{m.sku?.skuCode}</td>
-                                                <td className="py-3 text-right text-white font-semibold">{m.qty}</td>
+                                                <td className="py-3 pr-4 font-mono text-[var(--zyllen-highlight)] text-xs">{m.sku?.skuCode}</td>
+                                                <td className="py-3 pr-6 text-right text-white font-semibold">{m.qty}</td>
+                                                <td className="py-3 pr-4 text-white text-xs">{m.createdBy?.name ?? "—"}</td>
                                                 <td className="py-3 text-[var(--zyllen-muted)]">{m.reason ?? "—"}</td>
                                             </tr>
                                         ))}

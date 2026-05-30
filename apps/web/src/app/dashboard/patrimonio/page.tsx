@@ -11,7 +11,7 @@ import { Badge } from "@web/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@web/components/ui/dialog";
 import { Select, SelectOption } from "@web/components/ui/select";
 import { toast } from "sonner";
-import { ScanBarcode, Search, Clock, MapPin, ChevronLeft, ChevronRight, Printer, RefreshCw, X, Filter, ArrowRight } from "lucide-react";
+import { ScanBarcode, Search, Clock, MapPin, ChevronLeft, ChevronRight, Printer, RefreshCw, X, Filter, ArrowRight, Plus, Loader2 } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 import Link from "next/link";
@@ -53,6 +53,10 @@ export default function PatrimonioPage() {
     const [editLocationAsset, setEditLocationAsset] = useState<any>(null);
     const [newStatus, setNewStatus] = useState("");
     const [newLocationId, setNewLocationId] = useState("");
+
+    // Timeline event form
+    const [addingEvent, setAddingEvent] = useState(false);
+    const [eventText, setEventText] = useState("");
 
     // Bipagem lookup
     const [bipCode, setBipCode] = useState("");
@@ -114,6 +118,18 @@ export default function PatrimonioPage() {
                 setSelectedAsset((prev: any) => prev ? { ...prev, currentLocation: loc } : prev);
             }
             setEditLocationAsset(null);
+        },
+        onError: (e: any) => toast.error(e.message),
+    });
+
+    const eventMut = useMutation({
+        mutationFn: ({ id, description }: { id: string; description: string }) =>
+            apiClient.post(`/assets/${id}/events`, { description }, fetchOpts),
+        onSuccess: () => {
+            toast.success("Evento registrado");
+            qc.invalidateQueries({ queryKey: ["timeline", selectedAsset?.id] });
+            setAddingEvent(false);
+            setEventText("");
         },
         onError: (e: any) => toast.error(e.message),
     });
@@ -226,12 +242,54 @@ export default function PatrimonioPage() {
 
                     {/* Timeline */}
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] lg:col-span-2">
-                        <CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between pb-3">
                             <CardTitle className="text-white flex items-center gap-2">
                                 <Clock size={18} className="text-[var(--zyllen-highlight)]" /> Timeline
                             </CardTitle>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30 gap-1 text-xs"
+                                onClick={() => { setAddingEvent(true); setEventText(""); }}
+                            >
+                                <Plus size={13} /> Adicionar evento
+                            </Button>
                         </CardHeader>
                         <CardContent>
+                            {/* Inline event form */}
+                            {addingEvent && (
+                                <div className="mb-4 p-3 rounded-lg border border-[var(--zyllen-highlight)]/30 bg-[var(--zyllen-highlight)]/5 space-y-2">
+                                    <p className="text-xs text-[var(--zyllen-muted)]">Descreva o evento para registrar na timeline:</p>
+                                    <textarea
+                                        autoFocus
+                                        value={eventText}
+                                        onChange={(e) => setEventText(e.target.value)}
+                                        placeholder="Ex: Revisão técnica realizada, equipamento verificado..."
+                                        rows={3}
+                                        className="w-full rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 py-2 text-sm placeholder:text-[var(--zyllen-muted)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50 resize-none"
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="text-[var(--zyllen-muted)] hover:text-white text-xs"
+                                            onClick={() => { setAddingEvent(false); setEventText(""); }}
+                                        >
+                                            Cancelar
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="highlight"
+                                            className="text-xs gap-1"
+                                            disabled={!eventText.trim() || eventMut.isPending}
+                                            onClick={() => eventMut.mutate({ id: selectedAsset.id, description: eventText })}
+                                        >
+                                            {eventMut.isPending ? <><Loader2 size={12} className="animate-spin" /> Salvando...</> : "Salvar evento"}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
                             {loadingTimeline ? (
                                 <div className="space-y-3">
                                     {[...Array(3)].map((_, i) => (
@@ -246,10 +304,12 @@ export default function PatrimonioPage() {
                                     <div className="absolute left-4 top-0 bottom-0 w-px bg-[var(--zyllen-border)]" />
                                     {timeline.data.map((event: any, idx: number) => (
                                         <div key={idx} className="flex gap-4 relative">
-                                            <div className="size-2 rounded-full bg-[var(--zyllen-highlight)] mt-2 z-10 ring-4 ring-[var(--zyllen-bg)] shrink-0" />
+                                            <div className={`size-2 rounded-full mt-2 z-10 ring-4 ring-[var(--zyllen-bg)] shrink-0 ${event.type === "NOTE" ? "bg-purple-400" : "bg-[var(--zyllen-highlight)]"}`} />
                                             <div className="flex-1 p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]/50">
                                                 <div className="flex items-center justify-between flex-wrap gap-1">
-                                                    <Badge variant="outline" className="text-xs">{event.type}</Badge>
+                                                    <Badge variant={event.type === "NOTE" ? "default" : "outline"} className="text-xs">
+                                                        {event.type === "NOTE" ? "Nota" : event.type}
+                                                    </Badge>
                                                     <span className="text-xs text-[var(--zyllen-muted)]">
                                                         {new Date(event.date).toLocaleString("pt-BR")}
                                                     </span>

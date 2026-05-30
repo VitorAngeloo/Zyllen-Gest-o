@@ -52,6 +52,7 @@ interface OsFormWizardProps {
 export interface OsFormSubmitData {
     formType: OsFormType;
     assetId?: string;
+    companyId?: string;
     notes?: string;
     clientName?: string;
     clientCity?: string;
@@ -116,6 +117,11 @@ export function OsFormWizard({
     const [startedAt, setStartedAt] = useState(initialData?.startedAt || "");
     const [endedAt, setEndedAt] = useState(initialData?.endedAt || "");
 
+    // Company combobox
+    const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+    const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+    const [selectedCompanyId, setSelectedCompanyId] = useState(initialData?.companyId || "");
+
     // Form-specific data
     const [formData, setFormData] = useState<Record<string, unknown>>(initialData?.formData || {});
 
@@ -142,6 +148,12 @@ export function OsFormWizard({
     useEffect(() => {
         if (osId) fetchAttachments();
     }, [osId, fetchAttachments]);
+
+    useEffect(() => {
+        apiClient.get<{ data: { id: string; name: string }[] }>('/clients/companies/search')
+            .then((res) => setCompanies(res.data || []))
+            .catch(() => {});
+    }, []);
 
     // Cascade: cities loaded from IBGE API based on selected state
     const [cities, setCities] = useState<string[]>([]);
@@ -258,6 +270,7 @@ export function OsFormWizard({
 
     const buildSubmitData = (): OsFormSubmitData => ({
         formType: selectedType!,
+        companyId: selectedCompanyId || undefined,
         clientName: clientName || undefined,
         clientCity: clientCity || undefined,
         clientState: clientState || undefined,
@@ -395,16 +408,42 @@ export function OsFormWizard({
                                     </div>
                                 </div>
 
-                                {/* Empresa / Cliente */}
-                                <div className="space-y-2">
+                                {/* Empresa / Cliente — combobox from registered companies */}
+                                <div className="space-y-2 relative">
                                     <Label className="text-[var(--zyllen-muted)]">Empresa / Cliente</Label>
                                     <Input
-                                        placeholder="Nome da empresa"
+                                        placeholder={companies.length > 0 ? "Buscar empresa cadastrada..." : "Nome da empresa"}
                                         value={clientName}
-                                        onChange={(e) => setClientName(e.target.value)}
+                                        onChange={(e) => { setClientName(e.target.value); setSelectedCompanyId(""); setShowCompanyDropdown(true); }}
+                                        onFocus={() => setShowCompanyDropdown(true)}
+                                        onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 150)}
                                         readOnly={readOnly}
+                                        autoComplete="off"
                                         className={inputCls}
                                     />
+                                    {showCompanyDropdown && !readOnly && companies.length > 0 && (() => {
+                                        const filtered = companies.filter((c) =>
+                                            c.name.toLowerCase().includes(clientName.toLowerCase())
+                                        ).slice(0, 8);
+                                        return filtered.length > 0 ? (
+                                            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] rounded-md shadow-lg max-h-52 overflow-y-auto">
+                                                {filtered.map((company) => (
+                                                    <button
+                                                        key={company.id}
+                                                        type="button"
+                                                        className="w-full text-left px-3 py-2 text-sm text-white hover:bg-[var(--zyllen-highlight)]/20 transition-colors border-b border-[var(--zyllen-border)] last:border-0"
+                                                        onMouseDown={() => {
+                                                            setClientName(company.name);
+                                                            setSelectedCompanyId(company.id);
+                                                            setShowCompanyDropdown(false);
+                                                        }}
+                                                    >
+                                                        {company.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ) : null;
+                                    })()}
                                 </div>
                             </>
                         )}

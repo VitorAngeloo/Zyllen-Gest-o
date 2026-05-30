@@ -12,12 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFoo
 import { Textarea } from "@web/components/ui/textarea";
 import { Select, SelectOption } from "@web/components/ui/select";
 import { toast } from "sonner";
-import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, Download, Layers, X, CheckSquare } from "lucide-react";
+import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, Download, Layers, X, CheckSquare, Package } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
-type Tab = "print" | "batch" | "history" | "templates";
+type Tab = "print" | "consumables" | "batch" | "history" | "templates";
 
 type LabelDataContractV1 = {
     contractVersion: "v1";
@@ -51,6 +51,11 @@ export default function EtiquetasPage() {
     // Print form
     const [assetCode, setAssetCode] = useState("");
     const [labelData, setLabelData] = useState<SelectedLabelData | null>(null);
+
+    // Consumables tab state
+    const [consumableSearch, setConsumableSearch] = useState("");
+    const [selectedSku, setSelectedSku] = useState<any>(null);
+    const [consumableCopies, setConsumableCopies] = useState(1);
 
     // Batch state
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -86,6 +91,13 @@ export default function EtiquetasPage() {
         queryFn: () => apiClient.get<{ data: any[]; total: number }>("/assets?limit=100", fetchOpts),
         enabled: tab === "batch",
     });
+
+    const { data: skusRaw } = useQuery({
+        queryKey: ["skus"],
+        queryFn: () => apiClient.get<{ data: any[] }>("/catalog/skus", fetchOpts),
+        enabled: tab === "consumables",
+    });
+    const consumableSkus = skusRaw?.data?.filter((s: any) => s.trackingMode === "CONSUMABLE") ?? [];
 
     // ─── Lookup asset for label ─────────
     const handleLookup = async (code?: string) => {
@@ -155,7 +167,8 @@ export default function EtiquetasPage() {
     });
 
     const tabs = [
-        { key: "print", label: "Imprimir", icon: Printer },
+        { key: "print", label: "Patrimônios", icon: Printer },
+        { key: "consumables", label: "Consumíveis", icon: Package },
         { key: "batch", label: "Lote", icon: Layers },
         { key: "history", label: "Histórico", icon: History },
         { key: "templates", label: "Templates", icon: FileText },
@@ -250,14 +263,18 @@ export default function EtiquetasPage() {
                                     <p className="text-[var(--zyllen-muted)] text-sm mb-4">Preview da Etiqueta</p>
                                     <div
                                         id="label-print-area"
-                                        className="inline-block bg-white text-black rounded-lg p-4 text-left shadow-lg"
+                                        className="inline-block bg-white text-black rounded-lg p-3 text-left shadow-lg"
                                         style={{ minWidth: 220 }}
                                     >
+                                        {/* Logo header */}
+                                        <div className="mb-2 pb-1.5 border-b border-gray-200">
+                                            <img src="/brand/logo-skyline-black.svg" alt="Skyline" style={{ height: 18, width: "auto" }} />
+                                        </div>
                                         <div className="flex items-start gap-3">
                                             <div className="shrink-0 bg-white p-1 rounded border border-gray-200">
                                                 <QRCode
                                                     value={labelData.contract.qrContent}
-                                                    size={72}
+                                                    size={68}
                                                     level="M"
                                                 />
                                             </div>
@@ -271,11 +288,6 @@ export default function EtiquetasPage() {
                                                 <p className="text-xs text-gray-500 font-mono mt-1">
                                                     SKU {labelData.contract.skuCode}
                                                 </p>
-                                                {labelData.contract.location && labelData.contract.location !== "Sem local" && (
-                                                    <p className="text-xs text-gray-400 mt-0.5 leading-tight">
-                                                        {labelData.contract.location}
-                                                    </p>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -327,6 +339,220 @@ export default function EtiquetasPage() {
                                                     <td className="py-3 text-right">
                                                         <Button size="sm" variant="ghost" onClick={() => { setAssetCode(a.assetCode); handleLookup(a.assetCode); }}>
                                                             <Printer size={14} />
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ) : null}
+                </div>
+            )}
+
+            {/* ═══ CONSUMÍVEIS ═══ */}
+            {tab === "consumables" && (
+                <div className="space-y-4 max-w-2xl">
+                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-white flex items-center gap-2">
+                                <Package size={18} className="text-[var(--zyllen-highlight)]" /> Etiqueta de Consumível
+                            </CardTitle>
+                            <p className="text-xs text-[var(--zyllen-muted)]">
+                                O QR code gerado contém o código do item — basta bipar na tela de Bipagem Rápida para registrar entradas e saídas.
+                            </p>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {/* Search */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs text-[var(--zyllen-muted)]">Buscar item</label>
+                                <div className="relative">
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                    <input
+                                        type="text"
+                                        value={consumableSearch}
+                                        onChange={(e) => { setConsumableSearch(e.target.value); setSelectedSku(null); }}
+                                        placeholder="Nome, código ou código de barras..."
+                                        className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9 pr-3 text-sm placeholder:text-[var(--zyllen-muted)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                                    />
+                                </div>
+
+                                {/* Dropdown results */}
+                                {consumableSearch && !selectedSku && (() => {
+                                    const q = normalize(consumableSearch);
+                                    const results = consumableSkus.filter((s: any) =>
+                                        normalize(s.name).includes(q) ||
+                                        normalize(s.skuCode).includes(q) ||
+                                        (s.barcode && normalize(s.barcode).includes(q))
+                                    );
+                                    if (!results.length) return (
+                                        <p className="text-xs text-[var(--zyllen-muted)] px-1 mt-1">Nenhum item encontrado</p>
+                                    );
+                                    return (
+                                        <div className="mt-1 rounded-lg border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] shadow-xl max-h-52 overflow-y-auto">
+                                            {results.map((s: any) => (
+                                                <button
+                                                    key={s.id}
+                                                    type="button"
+                                                    onClick={() => { setSelectedSku(s); setConsumableSearch(s.name); }}
+                                                    className="w-full text-left px-3 py-2.5 hover:bg-[var(--zyllen-highlight)]/10 transition-colors flex items-center gap-3 text-sm border-b border-[var(--zyllen-border)]/30 last:border-0"
+                                                >
+                                                    <span className="font-mono text-[var(--zyllen-highlight)] text-xs w-16 shrink-0">{s.skuCode}</span>
+                                                    <span className="text-white truncate flex-1">{s.name}</span>
+                                                    {s.barcode && <span className="text-[var(--zyllen-muted)] text-xs shrink-0">{s.barcode}</span>}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+
+                            {selectedSku && (
+                                <>
+                                    {/* Copies */}
+                                    <div className="flex items-center gap-3">
+                                        <label className="text-xs text-[var(--zyllen-muted)] shrink-0">Cópias</label>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setConsumableCopies(Math.max(1, consumableCopies - 1))}
+                                                className="size-7 rounded border border-[var(--zyllen-border)] text-white flex items-center justify-center hover:bg-white/5"
+                                            >−</button>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={50}
+                                                value={consumableCopies}
+                                                onChange={(e) => setConsumableCopies(Math.max(1, Math.min(50, +e.target.value)))}
+                                                className="w-14 h-7 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white text-center text-sm focus:outline-none"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setConsumableCopies(Math.min(50, consumableCopies + 1))}
+                                                className="size-7 rounded border border-[var(--zyllen-border)] text-white flex items-center justify-center hover:bg-white/5"
+                                            >+</button>
+                                        </div>
+                                    </div>
+
+                                    {/* Label preview */}
+                                    <div className="border-2 border-dashed border-[var(--zyllen-border)] rounded-lg p-6 text-center">
+                                        <p className="text-[var(--zyllen-muted)] text-xs mb-4">Preview da etiqueta</p>
+                                        <div
+                                            id="consumable-label-preview"
+                                            className="inline-block bg-white text-black rounded-lg p-3 text-left shadow-lg"
+                                            style={{ minWidth: 200 }}
+                                        >
+                                            {/* Logo header */}
+                                            <div className="mb-2 pb-1.5 border-b border-gray-200">
+                                                <img src="/brand/logo-skyline-black.svg" alt="Skyline" style={{ height: 18, width: "auto" }} />
+                                            </div>
+                                            <div className="flex items-start gap-3">
+                                                <div className="shrink-0 bg-white p-1 rounded border border-gray-200">
+                                                    <QRCode
+                                                        value={selectedSku.barcode || selectedSku.skuCode}
+                                                        size={68}
+                                                        level="M"
+                                                    />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-sm leading-tight">{selectedSku.name}</p>
+                                                    <p className="text-xs font-mono text-gray-500 mt-1">Cód: {selectedSku.skuCode}</p>
+                                                    {selectedSku.barcode && (
+                                                        <p className="text-xs text-gray-400 font-mono mt-0.5">Barras: {selectedSku.barcode}</p>
+                                                    )}
+                                                    {selectedSku.brand && (
+                                                        <p className="text-xs text-gray-400 mt-0.5">{selectedSku.brand}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Print sheet (hidden, visible only on print) */}
+                                    <div
+                                        id="consumable-print-sheet"
+                                        className="hidden"
+                                        style={{ display: "none" }}
+                                    >
+                                        <style>{`
+                                            @media print {
+                                                body > *:not(#consumable-print-sheet) { display: none !important; }
+                                                #consumable-print-sheet {
+                                                    display: grid !important;
+                                                    grid-template-columns: repeat(3, 1fr);
+                                                    gap: 4mm;
+                                                    padding: 8mm;
+                                                    background: white;
+                                                }
+                                            }
+                                        `}</style>
+                                        {Array.from({ length: consumableCopies }).map((_, i) => (
+                                            <div key={i} style={{ border: "1px solid #ddd", borderRadius: 4, padding: "3mm", breakInside: "avoid", pageBreakInside: "avoid", background: "white" }}>
+                                                {/* Logo header */}
+                                                <div style={{ borderBottom: "1px solid #e5e7eb", marginBottom: "2mm", paddingBottom: "1.5mm" }}>
+                                                    <img src="/brand/logo-skyline-black.svg" alt="Skyline" style={{ height: 14, width: "auto" }} />
+                                                </div>
+                                                <div style={{ display: "flex", gap: "3mm", alignItems: "flex-start" }}>
+                                                    <QRCode value={selectedSku.barcode || selectedSku.skuCode} size={60} level="M" style={{ flexShrink: 0 }} />
+                                                    <div style={{ minWidth: 0 }}>
+                                                        <p style={{ fontWeight: "bold", fontSize: 12, margin: 0, lineHeight: 1.3 }}>{selectedSku.name}</p>
+                                                        <p style={{ fontFamily: "monospace", fontSize: 10, color: "#555", margin: "2px 0 0" }}>Cód: {selectedSku.skuCode}</p>
+                                                        {selectedSku.barcode && <p style={{ fontFamily: "monospace", fontSize: 9, color: "#888", margin: "1px 0 0" }}>{selectedSku.barcode}</p>}
+                                                        {selectedSku.brand && <p style={{ fontSize: 9, color: "#888", margin: "1px 0 0" }}>{selectedSku.brand}</p>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <Button
+                                        variant="highlight"
+                                        className="w-full gap-2"
+                                        onClick={() => {
+                                            const sheet = document.getElementById("consumable-print-sheet");
+                                            if (sheet) sheet.style.display = "grid";
+                                            window.print();
+                                            setTimeout(() => {
+                                                const s = document.getElementById("consumable-print-sheet");
+                                                if (s) s.style.display = "none";
+                                            }, 1000);
+                                        }}
+                                    >
+                                        <Printer size={16} /> Imprimir {consumableCopies} etiqueta{consumableCopies > 1 ? "s" : ""}
+                                    </Button>
+                                </>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Item list for quick selection */}
+                    {!selectedSku && !consumableSearch && consumableSkus.length > 0 ? (
+                        <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-white text-sm">Consumíveis cadastrados</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="sticky top-0 bg-[var(--zyllen-bg)]">
+                                            <tr className="border-b border-[var(--zyllen-border)]">
+                                                <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium">Código</th>
+                                                <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium">Item</th>
+                                                <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium hidden sm:table-cell">Marca</th>
+                                                <th className="text-right py-2 text-[var(--zyllen-muted)] font-medium">Ação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {consumableSkus.map((s: any) => (
+                                                <tr key={s.id} className="border-b border-[var(--zyllen-border)]/40 hover:bg-white/[0.02] cursor-pointer" onClick={() => { setSelectedSku(s); setConsumableSearch(s.name); }}>
+                                                    <td className="py-2.5 font-mono text-[var(--zyllen-highlight)] text-xs">{s.skuCode}</td>
+                                                    <td className="py-2.5 text-white">{s.name}</td>
+                                                    <td className="py-2.5 text-[var(--zyllen-muted)] text-xs hidden sm:table-cell">{s.brand ?? "—"}</td>
+                                                    <td className="py-2.5 text-right">
+                                                        <Button size="sm" variant="ghost" className="text-xs gap-1 h-7">
+                                                            <Printer size={13} /> Gerar
                                                         </Button>
                                                     </td>
                                                 </tr>
@@ -481,15 +707,18 @@ export default function EtiquetasPage() {
                     style={{ display: "none", gridTemplateColumns: "repeat(3, 1fr)", gap: "4mm", padding: "8mm", background: "white" }}
                 >
                     {batchLabelData.map((label: any) => (
-                        <div key={label.assetId} style={{ border: "1px solid #ddd", borderRadius: 4, padding: "3mm", display: "flex", gap: "3mm", alignItems: "flex-start", breakInside: "avoid", pageBreakInside: "avoid" }}>
-                            <QRCode value={label.qrContent} size={64} level="M" style={{ flexShrink: 0 }} />
-                            <div style={{ minWidth: 0 }}>
-                                <p style={{ fontFamily: "monospace", fontWeight: "bold", fontSize: 13, margin: 0 }}>{label.assetCode}</p>
-                                <p style={{ fontSize: 11, margin: "2px 0 0", lineHeight: 1.3 }}>{label.skuName}</p>
-                                <p style={{ fontFamily: "monospace", fontSize: 9, color: "#666", margin: "2px 0 0" }}>SKU {label.skuCode}</p>
-                                {label.location && label.location !== "Sem local" && (
-                                    <p style={{ fontSize: 9, color: "#888", margin: "1px 0 0" }}>{label.location}</p>
-                                )}
+                        <div key={label.assetId} style={{ border: "1px solid #ddd", borderRadius: 4, padding: "3mm", breakInside: "avoid", pageBreakInside: "avoid", background: "white" }}>
+                            {/* Logo header */}
+                            <div style={{ borderBottom: "1px solid #e5e7eb", marginBottom: "2mm", paddingBottom: "1.5mm" }}>
+                                <img src="/brand/logo-skyline-black.svg" alt="Skyline" style={{ height: 14, width: "auto" }} />
+                            </div>
+                            <div style={{ display: "flex", gap: "3mm", alignItems: "flex-start" }}>
+                                <QRCode value={label.qrContent} size={60} level="M" style={{ flexShrink: 0 }} />
+                                <div style={{ minWidth: 0 }}>
+                                    <p style={{ fontFamily: "monospace", fontWeight: "bold", fontSize: 13, margin: 0 }}>{label.assetCode}</p>
+                                    <p style={{ fontSize: 11, margin: "2px 0 0", lineHeight: 1.3 }}>{label.skuName}</p>
+                                    <p style={{ fontFamily: "monospace", fontSize: 9, color: "#666", margin: "2px 0 0" }}>SKU {label.skuCode}</p>
+                                </div>
                             </div>
                         </div>
                     ))}

@@ -6,6 +6,14 @@ import { OS_FORM_CONFIG } from "@web/components/os-forms";
 import type { OsFormType } from "@web/components/os-forms";
 import { getOsFieldRows } from "@web/lib/os-form-view";
 
+export interface OsPdfFollowupBlock {
+    id: string;
+    type: "TEXT" | "MEDIA" | "SIGNATURE";
+    content?: string | null;
+    order: number;
+    attachments: Array<{ id: string; fileName: string; mimeType?: string | null; fileUrl: string }>;
+}
+
 export interface OsPdfData {
     osNumber: string;
     formType: string;
@@ -25,6 +33,8 @@ export interface OsPdfData {
     asset?: { assetCode?: string; sku?: { name?: string } } | null;
     /** Pre-computed full URLs for attachment files */
     attachments?: Array<{ id: string; fileName: string; mimeType?: string | null; fileUrl: string }>;
+    /** Followup blocks for Acompanhamento de 7 dias (INSTALACAO_SALA) */
+    followupBlocks?: OsPdfFollowupBlock[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -55,6 +65,7 @@ export function printOsPdf(data: OsPdfData): void {
     const statusLabel = STATUS_LABELS[data.status] || data.status;
 
     const formRows = getOsFieldRows(data.formType, data.formData as Record<string, unknown> | null | undefined);
+    const followupBlocks = data.followupBlocks ?? [];
     const formDataHtml = formRows.length > 0
         ? `
             <h3>Detalhes do Serviço</h3>
@@ -138,6 +149,47 @@ export function printOsPdf(data: OsPdfData): void {
     ` : ""}
 
     ${formDataHtml}
+
+    ${followupBlocks.length > 0 ? `
+    <h3>Acompanhamento de 7 dias</h3>
+    ${followupBlocks.map((block, idx) => {
+        if (block.type === 'TEXT') {
+            return `
+            <div style="margin-bottom:12px;">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:4px;">Bloco ${idx + 1} — Texto</div>
+                <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px;white-space:pre-wrap;font-size:12px;">${escapeHtml(block.content || '—')}</div>
+            </div>`;
+        }
+        if (block.type === 'SIGNATURE') {
+            return `
+            <div style="margin-bottom:12px;">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:4px;">Bloco ${idx + 1} — Assinatura</div>
+                ${block.content
+                    ? `<div class="signature-box"><img src="${escapeAttr(block.content)}" alt="Assinatura" /></div>`
+                    : `<p style="color:#6b7280;font-style:italic;font-size:11px;">Sem assinatura</p>`}
+            </div>`;
+        }
+        if (block.type === 'MEDIA' && block.attachments.length > 0) {
+            return `
+            <div style="margin-bottom:12px;">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:4px;">Bloco ${idx + 1} — Mídia (${block.attachments.length} arquivo(s))</div>
+                <div class="attachments-grid">
+                    ${block.attachments.map((att) => {
+                        const isImage = att.mimeType?.startsWith('image/');
+                        const isVideo = att.mimeType?.startsWith('video/');
+                        return `<div class="attachment-item">
+                            ${isImage
+                                ? `<img src="${escapeAttr(att.fileUrl)}" alt="${escapeAttr(att.fileName)}" />`
+                                : `<div style="height:160px;background:#000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;">${isVideo ? '▶ Vídeo' : '📎 Arquivo'}</div>`}
+                            <div class="att-name">${escapeHtml(att.fileName)}</div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+        }
+        return `<div style="margin-bottom:8px;font-size:11px;color:#6b7280;">Bloco ${idx + 1} — ${escapeHtml(block.type)}</div>`;
+    }).join('')}
+    ` : ''}
 
     ${(data.attachments && data.attachments.length > 0) ? `
     <h3>Fotos / Vídeos (${data.attachments.length})</h3>

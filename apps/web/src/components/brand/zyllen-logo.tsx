@@ -131,7 +131,7 @@ export function ZyllenBrandHeader({
 export function SkyLineLogo({ height = 32, className }: { height?: number; className?: string }) {
   return (
     <img
-      src="/brand/logo-skyline.svg"
+      src="/brand/logo-skyline.svg?v=4"
       alt="Grupo Sky Line"
       className={className}
       style={{ height: typeof height === "number" ? `${height}px` : height, width: "auto" }}

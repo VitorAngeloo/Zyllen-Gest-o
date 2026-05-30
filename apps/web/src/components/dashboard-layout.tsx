@@ -148,7 +148,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <>
                         <ZyllenTextLogo size="default" />
                         <div className="h-5 w-px bg-[var(--zyllen-border)]" />
-                        <SkyLineLogo height={22} />
+                        <SkyLineLogo height={32} />
                     </>
                 )}
                 {/* Desktop collapse button */}
@@ -331,7 +331,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <ZyllenIcon height={26} />
                         <ZyllenTextLogo size="sm" />
                         <div className="h-4 w-px bg-[var(--zyllen-border)]" />
-                        <SkyLineLogo height={18} />
+                        <SkyLineLogo height={26} />
                     </div>
                     <div className="ml-auto flex items-center gap-2">
                         <Link

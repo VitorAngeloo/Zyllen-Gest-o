@@ -11,6 +11,7 @@ import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
+import { Public } from '../auth/public.decorator';
 import { FollowupsService } from './followups.service';
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
 import {
@@ -37,7 +38,7 @@ const followupStorage = diskStorage({
 });
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
-const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktime|x-msvideo))$/;
+const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktime|x-msvideo)|application\/pdf)$/;
 
 @Controller('followups')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -166,7 +167,7 @@ export class FollowupsController {
         for (const file of files) {
             if (!ALLOWED_MIME.test(file.mimetype)) {
                 throw new BadRequestException(
-                    `Tipo não permitido: ${file.originalname}. Use imagens (JPEG, PNG, GIF, WebP, BMP) ou vídeos (MP4, WebM, MOV, AVI).`,
+                    `Tipo não permitido: ${file.originalname}. Use imagens (JPEG, PNG, GIF, WebP, BMP), vídeos (MP4, WebM, MOV, AVI) ou PDFs.`,
                 );
             }
         }
@@ -180,7 +181,7 @@ export class FollowupsController {
     }
 
     @Get(':id/blocks/:blockId/attachments/:attId/file')
-    @RequirePermission('followups.view')
+    @Public()
     async serveFile(
         @Param('id') id: string,
         @Param('blockId') blockId: string,
@@ -197,7 +198,14 @@ export class FollowupsController {
         const filePath = join(UPLOAD_DIR, att.filePath);
         if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
 
-        if (att.mimeType) res.setHeader('Content-Type', att.mimeType);
+        const EXT_MIME: Record<string, string> = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+            '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+            '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+            '.avi': 'video/x-msvideo', '.pdf': 'application/pdf',
+        };
+        const mime = att.mimeType || EXT_MIME[extname(att.fileName).toLowerCase()] || 'application/octet-stream';
+        res.setHeader('Content-Type', mime);
         res.setHeader('Content-Disposition', `inline; filename="${att.fileName}"`);
         return res.sendFile(filePath);
     }

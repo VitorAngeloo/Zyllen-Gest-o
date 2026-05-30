@@ -146,10 +146,12 @@ export function MediaUploader({
         }
     };
 
-    const isImage = (mime?: string | null) => mime?.startsWith("image/");
-    const isVideo = (mime?: string | null) => mime?.startsWith("video/");
+    const isImage = (mime?: string | null, fileName?: string) =>
+        mime?.startsWith("image/") || /\.(jpe?g|png|gif|webp|bmp)$/i.test(fileName ?? "");
+    const isVideo = (mime?: string | null, fileName?: string) =>
+        mime?.startsWith("video/") || /\.(mp4|webm|mov|avi)$/i.test(fileName ?? "");
     const fileUrl = (att: MediaAttachment) =>
-        `${API_BASE}${apiBasePath}/${osId}/attachments/${att.id}/file`;
+        `${API_BASE}${apiBasePath}/${osId}/attachments/${att.id}/file${token ? `?token=${token}` : ""}`;
 
     return (
         <div className="space-y-3">
@@ -313,15 +315,24 @@ export function MediaUploader({
                                 key={att.id}
                                 className="relative group rounded-lg overflow-hidden border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]"
                             >
-                                {isImage(att.mimeType) ? (
+                                {isImage(att.mimeType, att.fileName) ? (
                                     <a href={fileUrl(att)} target="_blank" rel="noopener noreferrer">
                                         <img
                                             src={fileUrl(att)}
                                             alt={att.fileName}
                                             className="w-full h-28 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                            onError={(e) => {
+                                                const img = e.currentTarget;
+                                                img.style.display = "none";
+                                                const ph = img.parentElement?.querySelector(".img-placeholder") as HTMLElement | null;
+                                                if (ph) ph.style.display = "flex";
+                                            }}
                                         />
+                                        <div className="img-placeholder w-full h-28 hidden items-center justify-center bg-[var(--zyllen-bg-dark)]">
+                                            <Paperclip size={32} className="text-[var(--zyllen-muted)]" />
+                                        </div>
                                     </a>
-                                ) : isVideo(att.mimeType) ? (
+                                ) : isVideo(att.mimeType, att.fileName) ? (
                                     <a href={fileUrl(att)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center h-28 bg-black/40 hover:bg-black/60 transition-colors cursor-pointer">
                                         <Video size={32} className="text-[var(--zyllen-highlight)]" />
                                     </a>

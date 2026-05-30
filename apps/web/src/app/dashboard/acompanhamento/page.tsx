@@ -1,5 +1,6 @@
 "use client";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
 import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
@@ -9,8 +10,8 @@ import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
 import {
     ClipboardList, Plus, ArrowLeft, Search, Trash2, Edit, MessageSquare,
-    Image, FileText, Send, X, ChevronDown, Clock, Building2, User, Phone,
-    History, MoreVertical, Upload, Printer,
+    Image, FileText, Send, X, ChevronDown, Clock, Building2, User,
+    History, Upload, Printer, FileArchive, PenLine, Download,
 } from "lucide-react";
 import { printFollowupPdf } from "@web/lib/followup-pdf";
 import { Skeleton } from "@web/components/ui/skeleton";
@@ -30,7 +31,7 @@ interface Company {
 
 interface FollowupBlock {
     id: string;
-    type: "TEXT" | "MEDIA" | "CHECKLIST";
+    type: "TEXT" | "MEDIA" | "CHECKLIST" | "PDF" | "SIGNATURE";
     title?: string;
     content?: string;
     order: number;
@@ -60,6 +61,45 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "warning" | "defau
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+// Endpoint is @Public() — direct img src, no auth needed. Portal for lightbox.
+function AttachmentImage({ baseUrl, alt, className }: { baseUrl: string; alt: string; className?: string }) {
+    const [lightbox, setLightbox] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => { setMounted(true); }, []);
+
+    return (
+        <>
+            <img
+                src={baseUrl}
+                alt={alt}
+                className={`${className ?? ""} cursor-zoom-in`}
+                onClick={() => setLightbox(true)}
+            />
+            {mounted && lightbox && createPortal(
+                <div
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 cursor-zoom-out"
+                    onClick={() => setLightbox(false)}
+                >
+                    <img
+                        src={baseUrl}
+                        alt={alt}
+                        className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                    <button
+                        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                        onClick={() => setLightbox(false)}
+                    >
+                        <X size={20} />
+                    </button>
+                </div>,
+                document.body,
+            )}
+        </>
+    );
+}
 
 // ═══════════════════════════════════════════════════
 // Main Page
@@ -380,12 +420,12 @@ function NewFollowupForm({ onBack, fetchOpts, qc, onCreated }: {
 // ═══════════════════════════════════════════════════
 // Followup Detail View
 // ═══════════════════════════════════════════════════
-function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
+function FollowupDetail({ followup, loading, fetchOpts, qc, onBack }: {
     followup: Followup;
     loading: boolean;
     fetchOpts: any;
     qc: any;
-    user: any;
+    user?: any;  // reserved for permission checks
     onBack: () => void;
 }) {
     const [editingData, setEditingData] = useState(false);
@@ -461,6 +501,55 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
         );
     }
 
+    const AddBlockButtons = ({ size = "sm", variant = "outline", className = "" }: {
+        size?: "sm" | "default" | "lg" | "icon";
+        variant?: "outline" | "ghost" | "default" | "destructive" | "secondary" | "link";
+        className?: string;
+    }) => (
+        <>
+            <Button
+                size={size}
+                variant={variant}
+                onClick={() => addBlock.mutate({ type: "TEXT", title: "" })}
+                className={`gap-1 ${className || "border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30"}`}
+            >
+                <FileText size={14} /> Texto
+            </Button>
+            <Button
+                size={size}
+                variant={variant}
+                onClick={() => addBlock.mutate({ type: "MEDIA", title: "" })}
+                className={`gap-1 ${className || "border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30"}`}
+            >
+                <Image size={14} /> Mídia
+            </Button>
+            <Button
+                size={size}
+                variant={variant}
+                onClick={() => addBlock.mutate({ type: "CHECKLIST", title: "" })}
+                className={`gap-1 ${className || "border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30"}`}
+            >
+                <ClipboardList size={14} /> Checklist
+            </Button>
+            <Button
+                size={size}
+                variant={variant}
+                onClick={() => addBlock.mutate({ type: "PDF", title: "" })}
+                className={`gap-1 ${className || "border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30"}`}
+            >
+                <FileArchive size={14} /> PDF
+            </Button>
+            <Button
+                size={size}
+                variant={variant}
+                onClick={() => addBlock.mutate({ type: "SIGNATURE", title: "" })}
+                className={`gap-1 ${className || "border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30"}`}
+            >
+                <PenLine size={14} /> Assinatura
+            </Button>
+        </>
+    );
+
     return (
         <div className="space-y-6 max-w-4xl">
             {/* Header */}
@@ -500,7 +589,7 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
                             responsibleContact: followup.responsibleContact,
                             company: followup.company,
                             createdBy: followup.createdBy,
-                            blocks: followup.blocks ?? [],
+                            blocks: (followup.blocks ?? []) as any,
                             apiBaseUrl: API_URL,
                             followupId: followup.id,
                             token: typeof window !== "undefined" ? localStorage.getItem("accessToken") : null,
@@ -652,31 +741,8 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-bold text-white">Blocos de Registro</h2>
                     {followup.status !== "COMPLETED" && (
-                        <div className="flex gap-2">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => addBlock.mutate({ type: "TEXT", title: "" })}
-                                className="gap-1 border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30"
-                            >
-                                <FileText size={14} /> Texto
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => addBlock.mutate({ type: "MEDIA", title: "" })}
-                                className="gap-1 border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30"
-                            >
-                                <Image size={14} /> Mídia
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => addBlock.mutate({ type: "CHECKLIST", title: "" })}
-                                className="gap-1 border-[var(--zyllen-border)] text-white hover:bg-[var(--zyllen-highlight)]/10 hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30"
-                            >
-                                <ClipboardList size={14} /> Checklist
-                            </Button>
+                        <div className="flex gap-2 flex-wrap justify-end">
+                            <AddBlockButtons />
                         </div>
                     )}
                 </div>
@@ -686,7 +752,7 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
                         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                             <Plus size={36} className="text-[var(--zyllen-muted)] mb-3" />
                             <p className="text-[var(--zyllen-muted)] text-sm">Nenhum bloco adicionado ainda</p>
-                            <p className="text-xs text-[var(--zyllen-muted)] mt-1">Clique em "Texto", "Mídia" ou "Checklist" para adicionar blocos</p>
+                            <p className="text-xs text-[var(--zyllen-muted)] mt-1">Adicione blocos de Texto, Mídia, Checklist, PDF ou Assinatura</p>
                         </CardContent>
                     </Card>
                 ) : (
@@ -707,31 +773,11 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, user, onBack }: {
 
                 {followup.status !== "COMPLETED" && followup.blocks && followup.blocks.length > 0 && (
                     <div className="flex justify-center pt-2">
-                        <div className="flex gap-2">
-                            <Button
-                                size="sm"
+                        <div className="flex gap-2 flex-wrap justify-center">
+                            <AddBlockButtons
                                 variant="ghost"
-                                onClick={() => addBlock.mutate({ type: "TEXT", title: "" })}
-                                className="gap-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"
-                            >
-                                <Plus size={14} /> Adicionar Texto
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => addBlock.mutate({ type: "MEDIA", title: "" })}
-                                className="gap-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"
-                            >
-                                <Plus size={14} /> Adicionar Mídia
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => addBlock.mutate({ type: "CHECKLIST", title: "" })}
-                                className="gap-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"
-                            >
-                                <Plus size={14} /> Adicionar Checklist
-                            </Button>
+                                className="text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"
+                            />
                         </div>
                     </div>
                 )}
@@ -759,9 +805,16 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
     const [newChecklistItem, setNewChecklistItem] = useState("");
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pdfFileInputRef = useRef<HTMLInputElement>(null);
     const [draftItemTexts, setDraftItemTexts] = useState<Record<string, string>>({});
     const [draftItemDetails, setDraftItemDetails] = useState<Record<string, string>>({});
     const [expandedChecklistItems, setExpandedChecklistItems] = useState<Record<string, boolean>>({});
+
+    // Signature canvas state
+    const sigCanvasRef = useRef<HTMLCanvasElement>(null);
+    const [sigDrawing, setSigDrawing] = useState(false);
+    const sigLastPos = useRef<{ x: number; y: number } | null>(null);
+    const [savingSig, setSavingSig] = useState(false);
 
     useEffect(() => {
         const drafts = Object.fromEntries((block.checklistItems ?? []).map((item) => [item.id, item.text]));
@@ -854,17 +907,150 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
         }
     };
 
+    const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files?.length) return;
+        setUploading(true);
+        try {
+            const formData = new FormData();
+            for (const f of Array.from(files)) formData.append("files", f);
+            await apiClient.upload(`/followups/${followupId}/blocks/${block.id}/attachments`, formData, fetchOpts);
+            toast.success("PDF enviado!");
+            qc.invalidateQueries({ queryKey: ["followup", followupId] });
+        } catch (e: any) {
+            toast.error(e.message || "Erro no upload");
+        } finally {
+            setUploading(false);
+            if (pdfFileInputRef.current) pdfFileInputRef.current.value = "";
+        }
+    };
+
+    // ── Signature canvas helpers ──
+    const getSigPos = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height),
+        };
+    };
+
+    const sigStartMouse = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        const canvas = sigCanvasRef.current;
+        if (!canvas) return;
+        setSigDrawing(true);
+        sigLastPos.current = getSigPos(canvas, e.clientX, e.clientY);
+    };
+
+    const sigDrawMouse = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!sigDrawing) return;
+        const canvas = sigCanvasRef.current;
+        if (!canvas || !sigLastPos.current) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        const pos = getSigPos(canvas, e.clientX, e.clientY);
+        ctx.beginPath();
+        ctx.moveTo(sigLastPos.current.x, sigLastPos.current.y);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
+        sigLastPos.current = pos;
+    };
+
+    const sigStartTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+        e.preventDefault();
+        const canvas = sigCanvasRef.current;
+        if (!canvas) return;
+        setSigDrawing(true);
+        const touch = e.touches[0];
+        sigLastPos.current = getSigPos(canvas, touch.clientX, touch.clientY);
+    };
+
+    const sigDrawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+        e.preventDefault();
+        if (!sigDrawing) return;
+        const canvas = sigCanvasRef.current;
+        if (!canvas || !sigLastPos.current) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        const touch = e.touches[0];
+        const pos = getSigPos(canvas, touch.clientX, touch.clientY);
+        ctx.beginPath();
+        ctx.moveTo(sigLastPos.current.x, sigLastPos.current.y);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
+        sigLastPos.current = pos;
+    };
+
+    const sigStop = () => {
+        setSigDrawing(false);
+        sigLastPos.current = null;
+    };
+
+    const clearSignature = () => {
+        const canvas = sigCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    };
+
+    const saveSignature = async () => {
+        const canvas = sigCanvasRef.current;
+        if (!canvas) return;
+        const dataUrl = canvas.toDataURL("image/png");
+        setSavingSig(true);
+        try {
+            await apiClient.put(`/followups/${followupId}/blocks/${block.id}`, { title: block.title ?? "", content: dataUrl }, fetchOpts);
+            toast.success("Assinatura salva!");
+            qc.invalidateQueries({ queryKey: ["followup", followupId] });
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao salvar assinatura");
+        } finally {
+            setSavingSig(false);
+        }
+    };
+
     const isText = block.type === "TEXT";
     const isMedia = block.type === "MEDIA";
     const isChecklist = block.type === "CHECKLIST";
+    const isPdf = block.type === "PDF";
+    const isSignature = block.type === "SIGNATURE";
+
+    const blockIconColor = isText
+        ? "bg-blue-500/15 text-blue-400"
+        : isMedia
+        ? "bg-purple-500/15 text-purple-400"
+        : isChecklist
+        ? "bg-green-500/15 text-green-400"
+        : isPdf
+        ? "bg-orange-500/15 text-orange-400"
+        : "bg-pink-500/15 text-pink-400";
+
+    const blockIcon = isText ? <FileText size={14} />
+        : isMedia ? <Image size={14} />
+        : isChecklist ? <ClipboardList size={14} />
+        : isPdf ? <FileArchive size={14} />
+        : <PenLine size={14} />;
+
+    const blockLabel = isText ? "Texto"
+        : isMedia ? "Mídia"
+        : isChecklist ? "Checklist"
+        : isPdf ? "PDF"
+        : "Assinatura";
 
     return (
         <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
             {/* Block header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]/50">
                 <div className="flex items-center gap-2">
-                    <div className={`flex items-center justify-center size-7 rounded ${isText ? "bg-blue-500/15 text-blue-400" : isMedia ? "bg-purple-500/15 text-purple-400" : "bg-green-500/15 text-green-400"}`}>
-                        {isText ? <FileText size={14} /> : isMedia ? <Image size={14} /> : <ClipboardList size={14} />}
+                    <div className={`flex items-center justify-center size-7 rounded ${blockIconColor}`}>
+                        {blockIcon}
                     </div>
                     {editing ? (
                         <input
@@ -879,7 +1065,7 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                             {block.title || `Bloco ${index + 1}`}
                         </span>
                     )}
-                    <span className="text-xs text-[var(--zyllen-muted)] capitalize">{isText ? "Texto" : isMedia ? "Mídia" : "Checklist"}</span>
+                    <span className="text-xs text-[var(--zyllen-muted)]">{blockLabel}</span>
                 </div>
                 {!readOnly && (
                     <div className="flex items-center gap-1">
@@ -931,19 +1117,27 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                         {block.attachments.length > 0 && (
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 {block.attachments.map((att) => {
-                                    const isImage = att.mimeType?.startsWith("image/");
-                                    const isVideo = att.mimeType?.startsWith("video/");
-                                    const tkn = typeof window !== "undefined" ? localStorage.getItem("accessToken") : "";
-                                    const url = `${API_URL}/followups/${followupId}/blocks/${block.id}/attachments/${att.id}/file${tkn ? `?token=${tkn}` : ""}`;
+                                    const isImg = att.mimeType?.startsWith("image/") || /\.(jpe?g|png|gif|webp|bmp)$/i.test(att.fileName);
+                                    const isVid = att.mimeType?.startsWith("video/") || /\.(mp4|webm|mov|avi)$/i.test(att.fileName);
+                                    const baseUrl = `${API_URL}/followups/${followupId}/blocks/${block.id}/attachments/${att.id}/file`;
                                     return (
                                         <div key={att.id} className="relative group rounded-lg overflow-hidden border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]">
-                                            {isImage && (
-                                                <img src={url} alt={att.fileName} className="w-full h-32 object-cover" />
+                                            {isImg && (
+                                                <AttachmentImage
+                                                    baseUrl={baseUrl}
+                                                    alt={att.fileName}
+                                                    className="w-full h-32 object-cover"
+                                                />
                                             )}
-                                            {isVideo && (
-                                                <video src={url} controls playsInline preload="metadata" className="w-full h-32 object-cover bg-black" />
+                                            {isVid && (
+                                                <video src={baseUrl} controls playsInline preload="metadata" className="w-full h-32 object-cover bg-black" />
                                             )}
-                                            <div className={`${isVideo ? "" : "absolute bottom-0 left-0 right-0 bg-black/70"} px-2 py-1 flex items-center justify-between`}>
+                                            {!isImg && !isVid && (
+                                                <div className="w-full h-20 flex items-center justify-center text-[var(--zyllen-muted)]">
+                                                    <FileText size={32} />
+                                                </div>
+                                            )}
+                                            <div className={`${isImg ? "absolute bottom-0 left-0 right-0 bg-black/70" : ""} px-2 py-1 flex items-center justify-between`}>
                                                 <span className="text-xs text-white truncate flex-1">{att.fileName}</span>
                                                 {!readOnly && (
                                                     <button onClick={() => removeAttachment.mutate(att.id)} className="text-[var(--zyllen-error)] hover:text-white ml-1">
@@ -993,6 +1187,7 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                     </div>
                 )}
 
+                {/* Checklist */}
                 {isChecklist && (
                     <div className="space-y-3">
                         {block.checklistItems.length > 0 ? (
@@ -1101,6 +1296,130 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                                     <Plus size={14} />
                                 </Button>
                             </div>
+                        )}
+                    </div>
+                )}
+
+                {/* PDF block */}
+                {isPdf && (
+                    <div className="space-y-3">
+                        {block.attachments.length > 0 ? (
+                            <div className="space-y-2">
+                                {block.attachments.map((att) => {
+                                    const tkn = typeof window !== "undefined" ? localStorage.getItem("accessToken") : "";
+                                    const url = `${API_URL}/followups/${followupId}/blocks/${block.id}/attachments/${att.id}/file${tkn ? `?token=${tkn}` : ""}`;
+                                    return (
+                                        <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]">
+                                            <div className="size-8 rounded flex items-center justify-center bg-orange-500/15 text-orange-400 shrink-0">
+                                                <FileArchive size={16} />
+                                            </div>
+                                            <span className="text-sm text-white flex-1 truncate">{att.fileName}</span>
+                                            <a
+                                                href={url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)] transition-colors"
+                                                title="Abrir PDF"
+                                            >
+                                                <Download size={16} />
+                                            </a>
+                                            {!readOnly && (
+                                                <button onClick={() => removeAttachment.mutate(att.id)} className="text-[var(--zyllen-error)] hover:text-white">
+                                                    <X size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-[var(--zyllen-muted)] italic">Nenhum PDF anexado.</p>
+                        )}
+                        {!readOnly && (
+                            <>
+                                <input
+                                    ref={pdfFileInputRef}
+                                    type="file"
+                                    accept="application/pdf"
+                                    multiple
+                                    onChange={handlePdfUpload}
+                                    className="hidden"
+                                />
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => pdfFileInputRef.current?.click()}
+                                    disabled={uploading}
+                                    className="gap-1 border-dashed border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)] hover:border-[var(--zyllen-highlight)]/30"
+                                >
+                                    <Upload size={14} />
+                                    {uploading ? "Enviando..." : "Adicionar PDF"}
+                                </Button>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Signature block */}
+                {isSignature && (
+                    <div className="space-y-3">
+                        {block.content?.startsWith("data:image/") ? (
+                            <div className="space-y-2">
+                                <img
+                                    src={block.content}
+                                    alt="Assinatura"
+                                    className="max-w-full rounded-lg border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]"
+                                    style={{ maxHeight: 200 }}
+                                />
+                                {!readOnly && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => updateBlock.mutate({ title: block.title ?? "", content: "" })}
+                                        className="gap-1 border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-[var(--zyllen-error)] hover:border-[var(--zyllen-error)]/30"
+                                    >
+                                        <X size={14} /> Refazer Assinatura
+                                    </Button>
+                                )}
+                            </div>
+                        ) : !readOnly ? (
+                            <div className="space-y-2">
+                                <p className="text-xs text-[var(--zyllen-muted)]">Assine no campo abaixo com o mouse ou toque:</p>
+                                <canvas
+                                    ref={sigCanvasRef}
+                                    width={600}
+                                    height={200}
+                                    className="w-full rounded-lg border-2 border-dashed border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] cursor-crosshair touch-none"
+                                    style={{ maxHeight: 200 }}
+                                    onMouseDown={sigStartMouse}
+                                    onMouseMove={sigDrawMouse}
+                                    onMouseUp={sigStop}
+                                    onMouseLeave={sigStop}
+                                    onTouchStart={sigStartTouch}
+                                    onTouchMove={sigDrawTouch}
+                                    onTouchEnd={sigStop}
+                                />
+                                <div className="flex gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={clearSignature}
+                                        className="gap-1 border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white"
+                                    >
+                                        <X size={14} /> Limpar
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        onClick={saveSignature}
+                                        disabled={savingSig}
+                                        className="gap-1 bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg-dark)] hover:bg-[var(--zyllen-highlight)]/90"
+                                    >
+                                        <PenLine size={14} /> {savingSig ? "Salvando..." : "Salvar Assinatura"}
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-[var(--zyllen-muted)] italic">Nenhuma assinatura registrada.</p>
                         )}
                     </div>
                 )}

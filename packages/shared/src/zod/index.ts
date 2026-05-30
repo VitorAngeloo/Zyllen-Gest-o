@@ -394,6 +394,7 @@ export const createOsBaseSchema = z.object({
 // Keep the legacy schema for backward compat
 export const createMaintenanceSchema = z.object({
     assetId: z.string().uuid('Asset ID inválido').optional(),
+    companyId: z.string().uuid('Company ID inválido').optional(),
     formType: z.enum(OS_FORM_TYPES).optional().default('TERCEIRIZADO'),
     notes: z.string().optional(),
     clientName: z.string().optional(),
@@ -482,7 +483,7 @@ export const updateFollowupSchema = z.object({
 });
 
 export const createFollowupBlockSchema = z.object({
-    type: z.enum(['TEXT', 'MEDIA', 'CHECKLIST']),
+    type: z.enum(['TEXT', 'MEDIA', 'CHECKLIST', 'PDF', 'SIGNATURE']),
     title: z.string().max(300).optional(),
     content: z.string().optional(),
 });

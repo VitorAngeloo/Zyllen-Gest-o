@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MaintenanceController } from './maintenance.controller';
 import { ContractorMaintenanceController } from './contractor-maintenance.controller';
+import { ClientMaintenanceController } from './client-maintenance.controller';
 import { MaintenanceService } from './maintenance.service';
 import { MaintenanceMediaStorageService } from './maintenance-media-storage.service';
 import { AuthModule } from '../auth/auth.module';
@@ -8,7 +9,7 @@ import { AccessModule } from '../access/access.module';
 
 @Module({
     imports: [forwardRef(() => AuthModule), forwardRef(() => AccessModule)],
-    controllers: [MaintenanceController, ContractorMaintenanceController],
+    controllers: [MaintenanceController, ContractorMaintenanceController, ClientMaintenanceController],
     providers: [MaintenanceService, MaintenanceMediaStorageService],
     exports: [MaintenanceService],
 })

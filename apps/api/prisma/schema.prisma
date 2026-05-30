@@ -49,6 +49,7 @@ model InternalUser {
   mediaAttachments    ItemMediaAttachment[]
   schedulesCreated    Schedule[]        @relation("ScheduleCreatedBy")
   scheduleInstallations ScheduleInstaller[]
+  assetEvents         AssetEvent[]
 }
 
 model ExternalUser {
@@ -136,11 +137,12 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  externalUsers ExternalUser[]
-  tickets       Ticket[]
-  projects      Project[]
-  followups     Followup[]
-  schedules     Schedule[]
+  externalUsers     ExternalUser[]
+  tickets           Ticket[]
+  projects          Project[]
+  followups         Followup[]
+  schedules         Schedule[]
+  maintenanceOrders MaintenanceOS[]
 }
 
 model Project {
@@ -209,6 +211,18 @@ model Asset {
   stockMovements  StockMovement[]
   maintenanceOrders MaintenanceOS[]
   labelPrintJobs  LabelPrintJob[]
+  events          AssetEvent[]
+}
+
+model AssetEvent {
+  id                      String   @id @default(uuid())
+  assetId                 String
+  description             String
+  createdByInternalUserId String
+  createdAt               DateTime @default(now())
+
+  asset     Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  createdBy InternalUser @relation(fields: [createdByInternalUserId], references: [id])
 }
 
 model AssetCodeSequence {
@@ -381,6 +395,7 @@ model MaintenanceOS {
   osNumber              String    @unique @default(uuid()) // Human-readable OS number
   formType              String    @default("TERCEIRIZADO")  // TERCEIRIZADO | INSTALACAO_SALA | INSTALACAO_TELA | DESINSTALACAO | SUPORTE_REMOTO | MANUTENCAO_TELA_SALA
   assetId               String?   // Optional — some form types don't require an asset
+  companyId             String?   // FK to Company — for client portal access
   status                String    @default("OPEN")
   openedById            String?   // Internal user who opened
   openedByContractorId  String?   // Contractor who opened
@@ -402,13 +417,16 @@ model MaintenanceOS {
   updatedAt             DateTime  @updatedAt
 
   asset              Asset?          @relation(fields: [assetId], references: [id])
+  company            Company?        @relation(fields: [companyId], references: [id])
   openedBy           InternalUser?   @relation("OpenedBy", fields: [openedById], references: [id])
   openedByContractor ContractorUser? @relation("OpenedByContractor", fields: [openedByContractorId], references: [id])
   closedBy           InternalUser?   @relation("ClosedBy", fields: [closedById], references: [id])
   attachments        MaintenanceAttachment[]
+  followupBlocks     MaintenanceOSFollowupBlock[]
 
   @@index([openedById])
   @@index([openedByContractorId])
+  @@index([companyId])
   @@index([status])
   @@index([createdAt])
 }
@@ -423,6 +441,33 @@ model MaintenanceAttachment {
   createdAt       DateTime @default(now())
 
   maintenanceOS MaintenanceOS @relation(fields: [maintenanceOSId], references: [id], onDelete: Cascade)
+}
+
+model MaintenanceOSFollowupBlock {
+  id              String                            @id @default(uuid())
+  maintenanceOSId String
+  type            String                            // TEXT | MEDIA | SIGNATURE
+  content         String?                           // TEXT: text content; SIGNATURE: base64 PNG data URL
+  order           Int                               @default(0)
+  isLocked        Boolean                           @default(false) // Signature lock — prevents further changes after client confirmation
+  createdAt       DateTime                          @default(now())
+  updatedAt       DateTime                          @updatedAt
+  maintenanceOS   MaintenanceOS                     @relation(fields: [maintenanceOSId], references: [id], onDelete: Cascade)
+  attachments     MaintenanceOSFollowupAttachment[]
+
+  @@index([maintenanceOSId])
+}
+
+model MaintenanceOSFollowupAttachment {
+  id        String                     @id @default(uuid())
+  blockId   String
+  fileName  String
+  filePath  String
+  mimeType  String?
+  createdAt DateTime                   @default(now())
+  block     MaintenanceOSFollowupBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@index([blockId])
 }
 
 // ─── Purchases ────────────────────────────────
