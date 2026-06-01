@@ -5,7 +5,6 @@ import { apiClient } from "@web/lib/api-client";
 import { useAuthedFetch } from "@web/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Badge } from "@web/components/ui/badge";
-import { Button } from "@web/components/ui/button";
 import { ClipboardList, ArrowLeft, RefreshCw, FileText, Image as ImageIcon, CheckSquare, Upload, Video } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 
@@ -31,22 +30,46 @@ function isVid(mime?: string | null, name?: string) {
 
 export default function ClientFollowupsPage() {
     const fetchOpts = useAuthedFetch();
-    const [selectedFollowup, setSelectedFollowup] = useState<any>(null);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
 
     const { data, isLoading, refetch } = useQuery({
         queryKey: ["client-followups"],
         queryFn: () => apiClient.get<{ data: any[]; total: number }>("/client/followups", fetchOpts),
     });
 
-    const list: any[] = data?.data ?? [];
+    // Fetch full detail (with blocks) only when a followup is selected
+    const { data: detailData, isLoading: detailLoading } = useQuery({
+        queryKey: ["client-followup-detail", selectedId],
+        queryFn: () => apiClient.get<{ data: any }>(`/client/followups/${selectedId}`, fetchOpts),
+        enabled: !!selectedId,
+    });
 
-    if (selectedFollowup) {
+    const list: any[] = data?.data ?? [];
+    const selectedFollowup = detailData?.data ?? null;
+
+    if (selectedId) {
+        if (detailLoading || !selectedFollowup) {
+            return (
+                <div className="space-y-4">
+                    <button
+                        onClick={() => setSelectedId(null)}
+                        className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] hover:text-white transition-colors"
+                    >
+                        <ArrowLeft size={16} /> Voltar
+                    </button>
+                    <div className="space-y-3">
+                        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 bg-[var(--zyllen-bg)]" />)}
+                    </div>
+                </div>
+            );
+        }
+
         const status = STATUS_CONFIG[selectedFollowup.status] ?? { label: selectedFollowup.status, variant: "default" as const };
 
         return (
             <div className="space-y-6">
                 <button
-                    onClick={() => setSelectedFollowup(null)}
+                    onClick={() => setSelectedId(null)}
                     className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] hover:text-white transition-colors"
                 >
                     <ArrowLeft size={16} /> Voltar
@@ -87,7 +110,7 @@ export default function ClientFollowupsPage() {
                 {/* Blocks */}
                 {selectedFollowup.blocks?.length > 0 && (
                     <div className="space-y-3">
-                        {selectedFollowup.blocks.map((block: any, idx: number) => (
+                        {selectedFollowup.blocks.map((block: any) => (
                             <Card key={block.id} className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
                                 <CardHeader className="p-3 pb-0">
                                     <div className="flex items-center gap-2">
@@ -98,14 +121,12 @@ export default function ClientFollowupsPage() {
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-3 pt-2">
-                                    {/* TEXT */}
                                     {block.type === "TEXT" && (
                                         <p className={`text-sm whitespace-pre-wrap ${block.content ? "text-white" : "text-[var(--zyllen-muted)] italic"}`}>
                                             {block.content || "Sem conteúdo"}
                                         </p>
                                     )}
 
-                                    {/* MEDIA */}
                                     {block.type === "MEDIA" && (
                                         <div className="space-y-2">
                                             {block.attachments?.length > 0 ? (
@@ -136,7 +157,6 @@ export default function ClientFollowupsPage() {
                                         </div>
                                     )}
 
-                                    {/* CHECKLIST */}
                                     {block.type === "CHECKLIST" && (
                                         <div className="space-y-1">
                                             {block.checklistItems?.length > 0 ? (
@@ -209,7 +229,7 @@ export default function ClientFollowupsPage() {
                             <Card
                                 key={followup.id}
                                 className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] hover:border-[var(--zyllen-highlight)]/30 transition-all cursor-pointer"
-                                onClick={() => setSelectedFollowup(followup)}
+                                onClick={() => setSelectedId(followup.id)}
                             >
                                 <CardContent className="py-4 flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-3 min-w-0">

@@ -87,6 +87,34 @@ export class RegistrationService {
             },
         });
 
+        // Auto-link existing OS whose clientName matches this company (exact or partial)
+        if (company) {
+            // Exact match (case-insensitive)
+            await this.prisma.maintenanceOS.updateMany({
+                where: { companyId: null, clientName: { equals: company.name, mode: 'insensitive' } },
+                data: { companyId: company.id },
+            });
+            // Partial match: clientName is contained in company name or vice versa
+            // Load unlinked OS and match in memory to avoid complex DB queries
+            const unlinked = await this.prisma.maintenanceOS.findMany({
+                where: { companyId: null, clientName: { not: null } },
+                select: { id: true, clientName: true },
+            });
+            const companyLower = company.name.toLowerCase();
+            const toLink = unlinked
+                .filter((os) => {
+                    const nameLower = os.clientName!.toLowerCase().trim();
+                    return companyLower.includes(nameLower) || nameLower.includes(companyLower);
+                })
+                .map((os) => os.id);
+            if (toLink.length > 0) {
+                await this.prisma.maintenanceOS.updateMany({
+                    where: { id: { in: toLink } },
+                    data: { companyId: company.id },
+                });
+            }
+        }
+
         return {
             message: 'Cadastro realizado com sucesso! Faça login para acessar.',
             user,
