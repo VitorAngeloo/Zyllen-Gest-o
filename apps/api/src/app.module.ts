@@ -32,12 +32,12 @@ import { ScheduleModule } from './modules/schedule/schedule.module';
             {
                 name: 'auth',
                 ttl: 60_000,  // 1-minute window
-                limit: 5,     // 5 requests/min for auth endpoints
+                limit: 20,    // 20 attempts/min per real IP (via CF-Connecting-IP)
             },
             {
                 name: 'api',
                 ttl: 60_000,  // 1-minute window
-                limit: 60,    // 60 requests/min for general endpoints
+                limit: 120,   // 120 requests/min for general endpoints
             },
         ]),
         ServeStaticModule.forRoot({

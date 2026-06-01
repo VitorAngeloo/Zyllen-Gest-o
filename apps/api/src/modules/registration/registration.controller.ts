@@ -17,7 +17,7 @@ export class RegistrationController {
     // ── Client self-registration (public) ──
     @Post('client')
     @UseGuards(ThrottlerGuard)
-    @Throttle({ auth: { ttl: 60000, limit: 5 } })
+    @Throttle({ auth: { ttl: 60000, limit: 30 } })
     async registerClient(
         @Body(new ZodValidationPipe(registerClientSchema)) body: {
             name: string;
@@ -40,7 +40,7 @@ export class RegistrationController {
     // ── Contractor self-registration (public) ──
     @Post('contractor')
     @UseGuards(ThrottlerGuard)
-    @Throttle({ auth: { ttl: 60000, limit: 5 } })
+    @Throttle({ auth: { ttl: 60000, limit: 30 } })
     async registerContractor(
         @Body(new ZodValidationPipe(registerContractorSchema)) body: {
             name: string;
@@ -59,7 +59,7 @@ export class RegistrationController {
     @Post('contractor/login')
     @HttpCode(HttpStatus.OK)
     @UseGuards(ThrottlerGuard)
-    @Throttle({ auth: { ttl: 60000, limit: 5 } })
+    @Throttle({ auth: { ttl: 60000, limit: 30 } })
     async loginContractor(
         @Body(new ZodValidationPipe(loginContractorSchema)) body: { email: string; password: string },
     ) {

@@ -40,7 +40,7 @@ export class AuthController {
     @Post('login')
     @HttpCode(HttpStatus.OK)
     @UseGuards(ThrottlerGuard)
-    @Throttle({ auth: { ttl: 60000, limit: 5 } })
+    @Throttle({ auth: { ttl: 60000, limit: 30 } })
     async login(
         @Body() dto: LoginDto,
         @Res({ passthrough: true }) res: ExpressResponse,
@@ -62,7 +62,7 @@ export class AuthController {
     @Post('refresh')
     @HttpCode(HttpStatus.OK)
     @UseGuards(ThrottlerGuard)
-    @Throttle({ auth: { ttl: 60000, limit: 10 } })
+    @Throttle({ auth: { ttl: 60000, limit: 30 } })
     async refresh(
         @Body() dto: RefreshTokenDto,
         @Req() req: ExpressRequest,
@@ -107,7 +107,7 @@ export class AuthController {
 
     @Post('setup-pin')
     @UseGuards(ThrottlerGuard, JwtAuthGuard)
-    @Throttle({ auth: { ttl: 60_000, limit: 5 } })
+    @Throttle({ auth: { ttl: 60000, limit: 30 } })
     @HttpCode(HttpStatus.OK)
     async setupPin(@Request() req: any, @Body() dto: ValidatePinDto) {
         await this.authService.setupPin(req.user.id, dto.pin);
@@ -209,7 +209,7 @@ export class AuthController {
 
     @Post('validate-pin')
     @UseGuards(ThrottlerGuard, JwtAuthGuard)
-    @Throttle({ auth: { ttl: 60000, limit: 10 } })
+    @Throttle({ auth: { ttl: 60000, limit: 30 } })
     @HttpCode(HttpStatus.OK)
     async validatePin(@Request() req: any, @Body() dto: ValidatePinDto) {
         const valid = await this.authService.validatePin(req.user.id, dto.pin);

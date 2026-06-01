@@ -8,6 +8,9 @@ import { ResponseInterceptor } from './interceptors/response.interceptor';
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
 
+    // Trust Cloudflare / reverse-proxy headers so throttler uses the real client IP
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
     // Parse httpOnly cookies (used for refresh token)
     app.use(cookieParser());
 

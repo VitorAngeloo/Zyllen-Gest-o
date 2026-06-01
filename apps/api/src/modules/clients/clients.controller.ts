@@ -25,7 +25,7 @@ export class ClientsController {
     @Post('login')
     @HttpCode(HttpStatus.OK)
     @UseGuards(ThrottlerGuard)
-    @Throttle({ auth: { ttl: 60000, limit: 5 } })
+    @Throttle({ auth: { ttl: 60000, limit: 30 } })
     async loginExternal(@Body(new ZodValidationPipe(loginExternalSchema)) body: { email: string; password: string }) {
         return this.clientsService.loginExternal(body.email, body.password);
     }
@@ -33,7 +33,7 @@ export class ClientsController {
     // ── Company search (public - for registration form, rate-limited) ──
     @Get('companies/search')
     @UseGuards(ThrottlerGuard)
-    @Throttle({ auth: { ttl: 60000, limit: 10 } })
+    @Throttle({ auth: { ttl: 60000, limit: 30 } })
     async searchCompanies(@Query('q') query?: string) {
         const data = await this.clientsService.searchCompanies(query);
         return { data };
@@ -42,7 +42,7 @@ export class ClientsController {
     // ── Public project list (for registration form, rate-limited) ──
     @Get('companies/:companyId/projects-public')
     @UseGuards(ThrottlerGuard)
-    @Throttle({ auth: { ttl: 60000, limit: 10 } })
+    @Throttle({ auth: { ttl: 60000, limit: 30 } })
     async findProjectsByCompanyPublic(@Param('companyId') companyId: string) {
         const data = await this.clientsService.findProjectsPublic(companyId);
         return { data };
