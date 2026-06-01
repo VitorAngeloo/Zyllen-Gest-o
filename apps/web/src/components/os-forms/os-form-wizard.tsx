@@ -117,10 +117,11 @@ export function OsFormWizard({
     const [startedAt, setStartedAt] = useState(initialData?.startedAt || "");
     const [endedAt, setEndedAt] = useState(initialData?.endedAt || "");
 
-    // Company combobox
+    // Company combobox — must select from list, no free text
     const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
     const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
     const [selectedCompanyId, setSelectedCompanyId] = useState(initialData?.companyId || "");
+    const [companySearch, setCompanySearch] = useState("");
 
     // Form-specific data
     const [formData, setFormData] = useState<Record<string, unknown>>(initialData?.formData || {});
@@ -408,33 +409,55 @@ export function OsFormWizard({
                                     </div>
                                 </div>
 
-                                {/* Empresa / Cliente — combobox from registered companies */}
+                                {/* Empresa / Cliente — must select from registered companies */}
                                 <div className="space-y-2 relative">
-                                    <Label className="text-[var(--zyllen-muted)]">Empresa / Cliente</Label>
-                                    <Input
-                                        placeholder={companies.length > 0 ? "Buscar empresa cadastrada..." : "Nome da empresa"}
-                                        value={clientName}
-                                        onChange={(e) => { setClientName(e.target.value); setSelectedCompanyId(""); setShowCompanyDropdown(true); }}
-                                        onFocus={() => setShowCompanyDropdown(true)}
-                                        onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 150)}
-                                        readOnly={readOnly}
-                                        autoComplete="off"
-                                        className={inputCls}
-                                    />
-                                    {showCompanyDropdown && !readOnly && companies.length > 0 && (() => {
-                                        const filtered = companies.filter((c) =>
-                                            c.name.toLowerCase().includes(clientName.toLowerCase())
-                                        ).slice(0, 8);
+                                    <Label className="text-[var(--zyllen-muted)]">Empresa / Cliente *</Label>
+                                    {/* Selected state: show chip with clear button */}
+                                    {clientName && selectedCompanyId && !showCompanyDropdown ? (
+                                        <div className={`flex items-center gap-2 h-9 px-3 rounded-md border ${readOnly ? "opacity-60" : ""} bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-highlight)]/40`}>
+                                            <span className="text-sm text-white flex-1 truncate">{clientName}</span>
+                                            {!readOnly && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setClientName(""); setSelectedCompanyId(""); setCompanySearch(""); setShowCompanyDropdown(true); }}
+                                                    className="text-[var(--zyllen-muted)] hover:text-white transition-colors shrink-0 text-xs"
+                                                    title="Trocar empresa"
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        /* Search state */
+                                        !readOnly && (
+                                            <Input
+                                                placeholder="Digite para filtrar empresas cadastradas..."
+                                                value={companySearch}
+                                                onChange={(e) => { setCompanySearch(e.target.value); setShowCompanyDropdown(true); }}
+                                                onFocus={() => setShowCompanyDropdown(true)}
+                                                onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 200)}
+                                                autoComplete="off"
+                                                autoFocus={showCompanyDropdown}
+                                                className={inputCls}
+                                            />
+                                        )
+                                    )}
+                                    {/* Dropdown list */}
+                                    {showCompanyDropdown && !readOnly && (() => {
+                                        const filtered = companies
+                                            .filter((c) => !companySearch || c.name.toLowerCase().includes(companySearch.toLowerCase()))
+                                            .slice(0, 10);
                                         return filtered.length > 0 ? (
-                                            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] rounded-md shadow-lg max-h-52 overflow-y-auto">
+                                            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] rounded-md shadow-lg max-h-56 overflow-y-auto">
                                                 {filtered.map((company) => (
                                                     <button
                                                         key={company.id}
                                                         type="button"
-                                                        className="w-full text-left px-3 py-2 text-sm text-white hover:bg-[var(--zyllen-highlight)]/20 transition-colors border-b border-[var(--zyllen-border)] last:border-0"
+                                                        className="w-full text-left px-3 py-2.5 text-sm text-white hover:bg-[var(--zyllen-highlight)]/20 transition-colors border-b border-[var(--zyllen-border)]/50 last:border-0"
                                                         onMouseDown={() => {
                                                             setClientName(company.name);
                                                             setSelectedCompanyId(company.id);
+                                                            setCompanySearch("");
                                                             setShowCompanyDropdown(false);
                                                         }}
                                                     >
@@ -442,7 +465,11 @@ export function OsFormWizard({
                                                     </button>
                                                 ))}
                                             </div>
-                                        ) : null;
+                                        ) : (
+                                            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] rounded-md shadow-lg px-3 py-2 text-sm text-[var(--zyllen-muted)]">
+                                                Nenhuma empresa encontrada
+                                            </div>
+                                        );
                                     })()}
                                 </div>
                             </>
