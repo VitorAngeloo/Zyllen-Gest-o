@@ -46,7 +46,6 @@ export class ClientMaintenanceController {
         const l = Math.min(50, Math.max(1, parseInt(limit ?? '20', 10) || 20));
         const result = await this.maintenanceService.findAll({
             companyId: req.user.companyId,
-            formType: 'INSTALACAO_SALA',
             status: status || undefined,
             skip: (p - 1) * l,
             take: l,
@@ -59,7 +58,6 @@ export class ClientMaintenanceController {
         this.assertCompany(req);
         const os = await this.maintenanceService.findById(id);
         if (os.companyId !== req.user.companyId) throw new ForbiddenException('OS não pertence à sua empresa');
-        if (os.formType !== 'INSTALACAO_SALA') throw new ForbiddenException('Tipo de OS não disponível no portal');
         return { data: os };
     }
 
