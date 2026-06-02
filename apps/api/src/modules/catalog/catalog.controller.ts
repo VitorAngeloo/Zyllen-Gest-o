@@ -99,7 +99,7 @@ export class CatalogController {
         @Query('limit') limit?: string,
     ) {
         const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
-        const l = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10) || 20));
+        const l = Math.min(1000, Math.max(1, parseInt(limit ?? '1000', 10) || 1000));
         const result = await this.catalogService.findAllSkuItems({ categoryId, search, skip: (p - 1) * l, take: l });
         return { data: result.data, total: result.total, page: p, limit: l };
     }
