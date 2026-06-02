@@ -9,7 +9,7 @@ import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
-import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Plus, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, AlertTriangle, MapPin, RefreshCw, FileDown, Zap, CheckCircle2 } from "lucide-react";
+import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, MapPin, RefreshCw, FileDown, Zap, CheckCircle2 } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import Link from "next/link";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
@@ -239,9 +239,7 @@ export default function EstoquePage() {
     });
 
     const selectedEntrySku = skus?.data?.find((s: any) => s.id === entryForm.skuId);
-    const entryIsAsset = selectedEntrySku?.trackingMode === "ASSET";
     const selectedExitSku = skus?.data?.find((s: any) => s.id === exitForm.skuId);
-    const exitIsAsset = selectedExitSku?.trackingMode === "ASSET";
 
     const normalizeStr = (s: string) => s?.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") ?? "";
 
@@ -288,14 +286,12 @@ export default function EstoquePage() {
 
     const exportCSV = () => {
         if (!balances?.data?.length) return;
-        const belowIds = new Set((stats?.data?.belowMinStock ?? []).map((i: any) => i.id));
-        const header = ["Código", "Item", "Local", "Quantidade", "Situação"];
+        const header = ["Código", "Item", "Local", "Qtd Patrimônios"];
         const rows = balances.data.map((b: any) => [
             b.sku?.skuCode ?? "",
             `"${(b.sku?.name ?? "").replace(/"/g, '""')}"`,
             `"${(b.location?.name ?? "").replace(/"/g, '""')}"`,
             b.quantity,
-            belowIds.has(b.sku?.id) ? "Abaixo do mínimo" : "OK",
         ]);
         const csv = [header.join(","), ...rows.map((r) => r.join(","))].join("\n");
         const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
@@ -506,9 +502,7 @@ export default function EstoquePage() {
                                             {bipeSku.barcode && <p className="text-xs text-[var(--zyllen-muted)] mt-0.5">Cód. barras: {bipeSku.barcode}</p>}
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <Badge variant={bipeSku.trackingMode === "ASSET" ? "default" : "secondary"}>
-                                                {bipeSku.trackingMode === "ASSET" ? "Patrimônio" : "Consumível"}
-                                            </Badge>
+                                            <Badge variant="default">Patrimônio</Badge>
                                             {balances?.data && (() => {
                                                 const total = balances.data.filter((b: any) => b.sku?.id === bipeSku.id || b.skuId === bipeSku.id).reduce((s: number, b: any) => s + b.quantity, 0);
                                                 return <p className="text-xs text-[var(--zyllen-muted)] mt-1">Estoque: <span className="text-white font-semibold">{total}</span> {bipeSku.unit ?? "UN"}</p>;
@@ -629,7 +623,7 @@ export default function EstoquePage() {
                                 <Label className="text-[var(--zyllen-muted)]">Item</Label>
                                 <SkuSearchCombobox skus={skus?.data ?? []} value={entryForm.skuId} onChange={(id) => { setEntryForm({ ...entryForm, skuId: id }); setCreatedAssetCodes([]); }} />
                             </div>
-                            {entryForm.skuId && entryIsAsset && (
+                            {entryForm.skuId && selectedEntrySku && (
                                 <div className="flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2.5">
                                     <Hash size={14} className="text-blue-400 mt-0.5 shrink-0" />
                                     <div>
@@ -638,12 +632,6 @@ export default function EstoquePage() {
                                             {entryForm.quantity} {entryForm.quantity === 1 ? "código de patrimônio será criado" : "códigos de patrimônio serão criados"} automaticamente (formato SKY-XXXXX).
                                         </p>
                                     </div>
-                                </div>
-                            )}
-                            {entryForm.skuId && !entryIsAsset && selectedEntrySku && (
-                                <div className="flex items-start gap-2 rounded-lg border border-[var(--zyllen-border)] bg-white/[0.03] px-3 py-2.5">
-                                    <Package size={14} className="text-[var(--zyllen-muted)] mt-0.5 shrink-0" />
-                                    <p className="text-[var(--zyllen-muted)] text-xs">Consumível — apenas a quantidade será atualizada no saldo.</p>
                                 </div>
                             )}
                             {createdAssetCodes.length > 0 && (
@@ -665,7 +653,7 @@ export default function EstoquePage() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label className="text-[var(--zyllen-muted)]">{entryIsAsset && entryForm.skuId ? "Quantidade (patrimônios)" : "Quantidade"}</Label>
+                                    <Label className="text-[var(--zyllen-muted)]">Quantidade (patrimônios)</Label>
                                     <Input type="number" min={1} value={entryForm.quantity} onChange={(e) => setEntryForm({ ...entryForm, quantity: +e.target.value })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                                 </div>
                                 <div className="space-y-2">
@@ -774,10 +762,10 @@ export default function EstoquePage() {
                                 <Label className="text-[var(--zyllen-muted)]">Item</Label>
                                 <SkuSearchCombobox skus={skus?.data ?? []} value={exitForm.skuId} onChange={(id) => setExitForm({ ...exitForm, skuId: id })} />
                             </div>
-                            {exitForm.skuId && exitIsAsset && (
+                            {exitForm.skuId && selectedExitSku && (
                                 <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
                                     <Hash size={14} className="text-amber-400 mt-0.5 shrink-0" />
-                                    <p className="text-amber-300/80 text-xs">Patrimônio rastreável — a saída irá descontar do saldo. Use a página <strong className="text-amber-300">Patrimônio</strong> para movimentar ativos individualmente por código.</p>
+                                    <p className="text-amber-300/80 text-xs">Use a página <strong className="text-amber-300">Patrimônio</strong> para movimentar itens individualmente por código SKY-XXXXX.</p>
                                 </div>
                             )}
                             <div className="space-y-2">
@@ -941,44 +929,6 @@ export default function EstoquePage() {
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* Alertas — abaixo do mínimo */}
-                                <Card className={`bg-[var(--zyllen-bg)] border-${stats.data.belowMinStock.length > 0 ? "amber-500/30" : "[var(--zyllen-border)]"}`}>
-                                    <CardHeader className="pb-3">
-                                        <CardTitle className="text-white text-sm flex items-center gap-2">
-                                            <AlertTriangle size={16} className={stats.data.belowMinStock.length > 0 ? "text-amber-400" : "text-[var(--zyllen-muted)]"} />
-                                            Abaixo do Estoque Mínimo
-                                            {stats.data.belowMinStock.length > 0 && (
-                                                <Badge variant="warning">{stats.data.belowMinStock.length}</Badge>
-                                            )}
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        {stats.data.belowMinStock.length > 0 ? (
-                                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                                                {stats.data.belowMinStock.map((item: any) => (
-                                                    <div key={item.id} className="flex items-center justify-between p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm text-white truncate font-medium">{item.name}</p>
-                                                            <p className="text-xs text-[var(--zyllen-muted)] font-mono">{item.skuCode}</p>
-                                                        </div>
-                                                        <div className="text-right shrink-0 ml-3">
-                                                            <p className="text-sm font-bold text-amber-400">
-                                                                {item.totalStock} / {item.minStock} {item.unit}
-                                                            </p>
-                                                            <p className="text-xs text-amber-400/70">falta {item.deficit} {item.unit}</p>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-6">
-                                                <Package size={28} className="mx-auto mb-2 text-emerald-400/40" />
-                                                <p className="text-sm text-emerald-400">Todos os itens acima do mínimo</p>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-
                                 {/* Status dos patrimônios */}
                                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
                                     <CardHeader className="pb-3">

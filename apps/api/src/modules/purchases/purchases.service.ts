@@ -191,14 +191,8 @@ export class PurchasesService {
                 },
             });
 
-            // Update stock balances and create stock movements for each received item
+            // Create stock movements for each received item (no more StockBalance)
             for (const item of normalizedItems) {
-                await tx.stockBalance.upsert({
-                    where: { skuId_locationId: { skuId: item.skuId, locationId: data.locationId } },
-                    update: { quantity: { increment: item.qtyReceived } },
-                    create: { skuId: item.skuId, locationId: data.locationId, quantity: item.qtyReceived },
-                });
-
                 // Create StockMovement for audit trail
                 await tx.stockMovement.create({
                     data: {

@@ -168,7 +168,6 @@ export default function EtiquetasPage() {
 
     const tabs = [
         { key: "print", label: "Patrimônios", icon: Printer },
-        { key: "consumables", label: "Consumíveis", icon: Package },
         { key: "batch", label: "Lote", icon: Layers },
         { key: "history", label: "Histórico", icon: History },
         { key: "templates", label: "Templates", icon: FileText },
@@ -352,8 +351,8 @@ export default function EtiquetasPage() {
                 </div>
             )}
 
-            {/* ═══ CONSUMÍVEIS ═══ */}
-            {tab === "consumables" && (
+            {/* ═══ CONSUMÍVEIS — removido ═══ */}
+            {false && tab === "consumables" && (
                 <div className="space-y-4 max-w-2xl">
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
                         <CardHeader className="pb-3">

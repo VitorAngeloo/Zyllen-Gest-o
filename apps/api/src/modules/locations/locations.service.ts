@@ -13,7 +13,7 @@ export class LocationsService {
         const [data, total] = await Promise.all([
             this.prisma.location.findMany({
                 include: {
-                    _count: { select: { stockBalances: true, assets: true } },
+                    _count: { select: { assets: true } },
                 },
                 orderBy: { name: 'asc' },
                 ...(pagination ? { skip: pagination.skip, take: pagination.take } : {}),
@@ -24,14 +24,7 @@ export class LocationsService {
     }
 
     async findById(id: string) {
-        const location = await this.prisma.location.findUnique({
-            where: { id },
-            include: {
-                stockBalances: {
-                    include: { sku: { select: { id: true, skuCode: true, name: true } } },
-                },
-            },
-        });
+        const location = await this.prisma.location.findUnique({ where: { id } });
         if (!location) throw new NotFoundException('Local não encontrado');
         return location;
     }
@@ -45,19 +38,14 @@ export class LocationsService {
     async update(id: string, data: { name?: string; description?: string }) {
         await this.findById(id);
         if (data.name) {
-            const existing = await this.prisma.location.findFirst({
-                where: { name: data.name, NOT: { id } },
-            });
+            const existing = await this.prisma.location.findFirst({ where: { name: data.name, NOT: { id } } });
             if (existing) throw new ConflictException('Local com este nome já existe');
         }
         return this.prisma.location.update({ where: { id }, data });
     }
 
     async delete(id: string) {
-        const location = await this.findById(id);
-        if (location.stockBalances.length > 0) {
-            throw new ConflictException('Não é possível excluir local com saldos de estoque');
-        }
+        await this.findById(id);
         const assetCount = await this.prisma.asset.count({ where: { currentLocationId: id } });
         if (assetCount > 0) {
             throw new ConflictException('Não é possível excluir local com patrimônios vinculados');

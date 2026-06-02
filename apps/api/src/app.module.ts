@@ -18,7 +18,6 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { LabelsModule } from './modules/labels/labels.module';
 import { RegistrationModule } from './modules/registration/registration.module';
-import { ProductExitsModule } from './modules/product-exits/product-exits.module';
 import { FollowupsModule } from './modules/followups/followups.module';
 import { ScheduleModule } from './modules/schedule/schedule.module';
 
@@ -59,7 +58,6 @@ import { ScheduleModule } from './modules/schedule/schedule.module';
         PurchasesModule,
         LabelsModule,
         RegistrationModule,
-        ProductExitsModule,
         FollowupsModule,
         ScheduleModule,
     ],

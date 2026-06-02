@@ -154,18 +154,13 @@ export const updateLocationSchema = z.object({
 });
 
 // ── SKU Item ──
-export const TRACKING_MODES = ['ASSET', 'CONSUMABLE'] as const;
-export type TrackingMode = (typeof TRACKING_MODES)[number];
-
 export const createSkuItemSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatório'),
     description: z.string().optional(),
     brand: z.string().optional(),
     barcode: z.string().optional(),
     categoryId: z.string().uuid('Category ID inválido'),
-    trackingMode: z.enum(TRACKING_MODES).default('ASSET'),
     unit: z.string().optional(),
-    minStock: z.coerce.number().int().min(0).default(0),
 });
 
 export const updateSkuItemSchema = z.object({
@@ -174,9 +169,7 @@ export const updateSkuItemSchema = z.object({
     brand: z.string().optional(),
     barcode: z.string().optional(),
     categoryId: z.string().uuid('Category ID inválido').optional(),
-    trackingMode: z.enum(TRACKING_MODES).optional(),
     unit: z.string().optional(),
-    minStock: z.coerce.number().int().min(0).optional(),
 });
 
 // ── Supplier ──
@@ -508,14 +501,6 @@ export const updateChecklistItemSchema = z.object({
     details: z.string().max(3000).optional(),
     checked: z.boolean().optional(),
     order: z.number().int().optional(),
-});
-
-// ── Product Exit ──
-export const createProductExitSchema = z.object({
-    skuId: z.string().uuid('ID do item inválido'),
-    locationId: z.string().uuid('Location ID inválido'),
-    quantity: z.number().int().positive('Quantidade deve ser um inteiro positivo'),
-    reason: z.string().optional(),
 });
 
 // ── Agenda Operacional ──

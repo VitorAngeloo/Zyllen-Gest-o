@@ -398,16 +398,15 @@ export class AuthService {
         if (!user) throw new NotFoundException('Usuário não encontrado');
 
         // Check for related records that block hard-delete
-        const [tickets, maintenance, movements, approvals, receivings, exits] = await Promise.all([
+        const [tickets, maintenance, movements, approvals, receivings] = await Promise.all([
             this.prisma.ticket.count({ where: { assignedToInternalUserId: id } }),
             this.prisma.maintenanceOS.count({ where: { openedById: id } }),
             this.prisma.stockMovement.count({ where: { createdByInternalUserId: id } }),
             this.prisma.approvalRequest.count({ where: { requestedById: id } }),
             this.prisma.receiving.count({ where: { receivedById: id } }),
-            this.prisma.productExit.count({ where: { createdById: id } }),
         ]);
 
-        if (tickets + maintenance + movements + approvals + receivings + exits > 0) {
+        if (tickets + maintenance + movements + approvals + receivings > 0) {
             throw new ConflictException(
                 'Este usuário possui registros vinculados (chamados, OS, movimentações ou aprovações). Desative-o ao invés de excluir.',
             );

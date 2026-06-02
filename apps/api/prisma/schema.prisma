@@ -41,7 +41,6 @@ model InternalUser {
   receivings          Receiving[]
   labelPrintJobs      LabelPrintJob[]
   auditLogs           AuditLog[]
-  productExits        ProductExit[]
   followupsCreated    Followup[]        @relation("FollowupCreatedBy")
   followupComments    FollowupComment[] @relation("FollowupComments")
   followupHistory     FollowupHistory[] @relation("FollowupHistoryUser")
@@ -181,19 +180,15 @@ model SkuItem {
   brand        String?
   barcode      String?
   categoryId   String
-  trackingMode String  @default("ASSET")  // ASSET | CONSUMABLE
   unit         String? @default("UN")     // UN, M, CX, KG, etc.
-  minStock     Int     @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   category        Category          @relation(fields: [categoryId], references: [id])
   assets          Asset[]
-  stockBalances   StockBalance[]
   stockMovements  StockMovement[]
   purchaseItems   PurchaseOrderItem[]
   receivingItems  ReceivingItem[]
-  productExits    ProductExit[]
   mediaAttachments ItemMediaAttachment[]
 }
 
@@ -240,24 +235,9 @@ model Location {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  stockBalances     StockBalance[]
   assets            Asset[]
   movementsFrom     StockMovement[] @relation("FromLocation")
   movementsTo       StockMovement[] @relation("ToLocation")
-  productExits      ProductExit[]
-}
-
-model StockBalance {
-  id         String @id @default(uuid())
-  skuId      String
-  locationId String
-  quantity   Int    @default(0)
-  updatedAt  DateTime @updatedAt
-
-  sku      SkuItem  @relation(fields: [skuId], references: [id])
-  location Location @relation(fields: [locationId], references: [id])
-
-  @@unique([skuId, locationId])
 }
 
 model StockMovement {
@@ -647,26 +627,6 @@ model FollowupHistory {
 
   followup Followup     @relation(fields: [followupId], references: [id], onDelete: Cascade)
   user     InternalUser @relation("FollowupHistoryUser", fields: [userId], references: [id])
-}
-
-// ─── Product Exits ────────────────────────────
-
-model ProductExit {
-  id           String   @id @default(uuid())
-  skuId        String
-  locationId   String
-  quantity     Int
-  reason       String?
-  createdById  String
-  createdAt    DateTime @default(now())
-
-  sku       SkuItem      @relation(fields: [skuId], references: [id])
-  location  Location     @relation(fields: [locationId], references: [id])
-  createdBy InternalUser @relation(fields: [createdById], references: [id])
-
-  @@index([createdById])
-  @@index([skuId])
-  @@index([createdAt])
 }
 
 model ItemMediaAttachment {

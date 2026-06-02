@@ -179,7 +179,7 @@ export class AssetsService {
     }
 
     // ── Bulk Equipment Registration ──
-    // Creates SkuItem + N Assets + StockBalance in a single transaction
+    // Creates SkuItem + N Assets in a single transaction
     async bulkRegister(data: {
         name: string;
         description?: string;
@@ -256,19 +256,10 @@ export class AssetsService {
                     status: 'ATIVO',
                 })),
             });
-            const assets = assetCodes;
-
-            // 3. Create StockBalance
-            await tx.stockBalance.upsert({
-                where: { skuId_locationId: { skuId: skuItem.id, locationId: data.locationId } },
-                update: { quantity: { increment: data.quantity } },
-                create: { skuId: skuItem.id, locationId: data.locationId, quantity: data.quantity },
-            });
-
             return {
                 sku: skuItem,
-                assetsCreated: assets.length,
-                assetCodes: assets,
+                assetsCreated: assetCodes.length,
+                assetCodes,
                 location: location.name,
             };
         });
@@ -294,10 +285,6 @@ export class AssetsService {
                 include: {
                     category: { select: { id: true, name: true } },
                     _count: { select: { assets: true } },
-                    stockBalances: {
-                        include: { location: { select: { id: true, name: true } } },
-                        where: { quantity: { gt: 0 } },
-                    },
                 },
                 orderBy: { createdAt: 'desc' },
                 ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
@@ -305,23 +292,41 @@ export class AssetsService {
             this.prisma.skuItem.count({ where }),
         ]);
 
-        const data = skus.map((sku) => ({
-            id: sku.id,
-            skuCode: sku.skuCode,
-            name: sku.name,
-            description: sku.description,
-            brand: sku.brand,
-            barcode: sku.barcode,
-            category: sku.category,
-            totalAssets: sku._count.assets,
-            totalStock: sku.stockBalances.reduce((sum, b) => sum + b.quantity, 0),
-            locations: sku.stockBalances.map((b) => ({
-                locationId: b.location.id,
-                locationName: b.location.name,
-                quantity: b.quantity,
-            })),
-            createdAt: sku.createdAt,
-        }));
+        // Count active assets per SKU per location
+        const skuIds = skus.map((s) => s.id);
+        const assetGroups = skuIds.length > 0
+            ? await this.prisma.asset.groupBy({
+                by: ['skuId', 'currentLocationId'],
+                where: { skuId: { in: skuIds }, status: { notIn: ['BAIXADO'] }, currentLocationId: { not: null } },
+                _count: { id: true },
+            })
+            : [];
+
+        const locationIds = [...new Set(assetGroups.map((g) => g.currentLocationId).filter(Boolean) as string[])];
+        const locationMap = locationIds.length > 0
+            ? new Map((await this.prisma.location.findMany({ where: { id: { in: locationIds } }, select: { id: true, name: true } })).map((l) => [l.id, l]))
+            : new Map<string, { id: string; name: string }>();
+
+        const data = skus.map((sku) => {
+            const groups = assetGroups.filter((g) => g.skuId === sku.id);
+            return {
+                id: sku.id,
+                skuCode: sku.skuCode,
+                name: sku.name,
+                description: sku.description,
+                brand: sku.brand,
+                barcode: sku.barcode,
+                category: sku.category,
+                totalAssets: sku._count.assets,
+                totalStock: groups.reduce((sum, g) => sum + ((g._count as any).id ?? 0), 0),
+                locations: groups.map((g) => ({
+                    locationId: g.currentLocationId,
+                    locationName: locationMap.get(g.currentLocationId!)?.name ?? '—',
+                    quantity: (g._count as any).id ?? 0,
+                })),
+                createdAt: sku.createdAt,
+            };
+        });
 
         return { data, total };
     }
