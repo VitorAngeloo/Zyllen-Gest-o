@@ -1,7 +1,8 @@
 "use client";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Label } from "@web/components/ui/label";
-import { Paperclip, X, Video, Loader2, Camera, AlertCircle, Check } from "lucide-react";
+import { Paperclip, X, Video, Loader2, Camera, AlertCircle, Check, ZoomIn } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -56,6 +57,15 @@ export function MediaUploader({
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [dragOver, setDragOver] = useState(false);
+    const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+    // Close lightbox on Escape
+    useEffect(() => {
+        if (!lightboxSrc) return;
+        const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxSrc(null); };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, [lightboxSrc]);
 
     const canUploadToServer = !!(osId && apiBasePath && onRefresh);
 
@@ -316,11 +326,15 @@ export function MediaUploader({
                                 className="relative group rounded-lg overflow-hidden border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]"
                             >
                                 {isImage(att.mimeType, att.fileName) ? (
-                                    <a href={fileUrl(att)} target="_blank" rel="noopener noreferrer">
+                                    <button
+                                        type="button"
+                                        className="w-full relative group/img"
+                                        onClick={() => setLightboxSrc(fileUrl(att))}
+                                    >
                                         <img
                                             src={fileUrl(att)}
                                             alt={att.fileName}
-                                            className="w-full h-28 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                            className="w-full h-28 object-cover hover:opacity-80 transition-opacity"
                                             onError={(e) => {
                                                 const img = e.currentTarget;
                                                 img.style.display = "none";
@@ -331,7 +345,10 @@ export function MediaUploader({
                                         <div className="img-placeholder w-full h-28 hidden items-center justify-center bg-[var(--zyllen-bg-dark)]">
                                             <Paperclip size={32} className="text-[var(--zyllen-muted)]" />
                                         </div>
-                                    </a>
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 bg-black/30 transition-opacity">
+                                            <ZoomIn size={22} className="text-white drop-shadow" />
+                                        </div>
+                                    </button>
                                 ) : isVideo(att.mimeType, att.fileName) ? (
                                     <a href={fileUrl(att)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center h-28 bg-black/40 hover:bg-black/60 transition-colors cursor-pointer">
                                         <Video size={32} className="text-[var(--zyllen-highlight)]" />
@@ -373,6 +390,29 @@ export function MediaUploader({
 
             {attachments.length === 0 && readOnly && (
                 <p className="text-xs text-[var(--zyllen-muted)]/50 italic">Nenhuma foto ou vídeo anexado</p>
+            )}
+
+            {/* Lightbox */}
+            {lightboxSrc && typeof window !== "undefined" && createPortal(
+                <div
+                    className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+                    onClick={() => setLightboxSrc(null)}
+                >
+                    <button
+                        type="button"
+                        className="absolute top-4 right-4 p-2 bg-black/60 rounded-full text-white hover:bg-black/80 transition-colors"
+                        onClick={() => setLightboxSrc(null)}
+                    >
+                        <X size={22} />
+                    </button>
+                    <img
+                        src={lightboxSrc}
+                        alt="Imagem ampliada"
+                        className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>,
+                document.body,
             )}
         </div>
     );

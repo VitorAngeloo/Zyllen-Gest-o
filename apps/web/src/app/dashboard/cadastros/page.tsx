@@ -11,18 +11,68 @@ import { Badge } from "@web/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@web/components/ui/dialog";
 import { Select, SelectOption } from "@web/components/ui/select";
 import { toast } from "sonner";
-import { Database, Layers, MapPin, Truck, Tag, Plus, Pencil, Trash2, X, Camera, Upload } from "lucide-react";
+import { Database, Layers, MapPin, Truck, Tag, Plus, Pencil, Trash2, X, Camera, Upload, Search, ChevronDown } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
 type Tab = "categories" | "skus" | "locations" | "suppliers" | "movementTypes";
 const ALLOWED_MEDIA_MIME = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"]);
 
+function SearchableCombobox({ options, value, onChange, placeholder = "Selecione..." }: {
+    options: { value: string; label: string }[];
+    value: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+}) {
+    const [query, setQuery] = useState("");
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const selected = options.find((o) => o.value === value);
+    const filtered = options.filter((o) => !query || o.label.toLowerCase().includes(query.toLowerCase())).slice(0, 30);
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    return (
+        <div ref={ref} className="relative">
+            <div className="relative">
+                <input
+                    value={open ? query : (selected?.label ?? "")}
+                    onChange={(e) => { setQuery(e.target.value); onChange(""); setOpen(true); }}
+                    onFocus={() => { setOpen(true); setQuery(""); }}
+                    placeholder={placeholder}
+                    className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-3 pr-8 text-sm placeholder:text-[var(--zyllen-muted)]/50 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                />
+                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)] pointer-events-none" />
+            </div>
+            {open && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] rounded-md shadow-xl max-h-52 overflow-y-auto">
+                    {filtered.length ? filtered.map((o) => (
+                        <button key={o.value} type="button"
+                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--zyllen-highlight)]/20 transition-colors border-b border-[var(--zyllen-border)]/40 last:border-0 ${o.value === value ? "text-[var(--zyllen-highlight)]" : "text-white"}`}
+                            onMouseDown={() => { onChange(o.value); setQuery(""); setOpen(false); }}>
+                            {o.label}
+                        </button>
+                    )) : <div className="px-3 py-2 text-sm text-[var(--zyllen-muted)]">Nenhum resultado</div>}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function CadastrosPage() {
     const { user } = useAuth();
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
-    const [tab, setTab] = useState<Tab>("categories");
+    const [tab, setTab] = useState<Tab>("skus");
+    const [filterCat, setFilterCat] = useState("");
+    const [filterSku, setFilterSku] = useState("");
+    const [filterLoc, setFilterLoc] = useState("");
+    const [filterSup, setFilterSup] = useState("");
+    const [filterMt, setFilterMt] = useState("");
 
     // ─── Queries ────────────────────────
     const { data: categories, isLoading: loadingCats } = useQuery({
@@ -219,8 +269,8 @@ export default function CadastrosPage() {
     };
 
     const tabs = [
-        { key: "categories", label: "Categorias", icon: Layers },
         { key: "skus", label: "Itens", icon: Tag },
+        { key: "categories", label: "Categorias", icon: Layers },
         { key: "locations", label: "Locais", icon: MapPin },
         { key: "suppliers", label: "Fornecedores", icon: Truck },
         { key: "movementTypes", label: "Tipos de Mov.", icon: Database },
@@ -260,10 +310,14 @@ export default function CadastrosPage() {
                         </CardContent>
                     </Card>
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                        <CardContent className="pt-6">
+                        <CardContent className="pt-6 space-y-4">
+                            <div className="relative max-w-sm">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                <Input value={filterCat} onChange={(e) => setFilterCat(e.target.value)} placeholder="Filtrar categorias..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9" />
+                            </div>
                             {categories?.data?.length ? (
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                    {categories.data.map((c: any) => (
+                                    {categories.data.filter((c: any) => !filterCat || c.name.toLowerCase().includes(filterCat.toLowerCase())).map((c: any) => (
                                         <div key={c.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]/50 text-white text-sm group">
                                             <span>{c.name}</span>
                                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -292,9 +346,12 @@ export default function CadastrosPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[var(--zyllen-muted)]">Categoria</Label>
-                                    <Select value={newSku.categoryId} onValueChange={(v) => setNewSku({ ...newSku, categoryId: v })} placeholder="Selecione..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" required>
-                                        {categories?.data?.map((c: any) => <SelectOption key={c.id} value={c.id}>{c.name}</SelectOption>)}
-                                    </Select>
+                                    <SearchableCombobox
+                                        options={(categories?.data ?? []).map((c: any) => ({ value: c.id, label: c.name }))}
+                                        value={newSku.categoryId}
+                                        onChange={(v) => setNewSku({ ...newSku, categoryId: v })}
+                                        placeholder="Buscar categoria..."
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[var(--zyllen-muted)]">Marca</Label>
@@ -392,7 +449,15 @@ export default function CadastrosPage() {
                     </Card>
 
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                        <CardHeader><CardTitle className="text-white">Itens Cadastrados</CardTitle></CardHeader>
+                        <CardHeader>
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                                <CardTitle className="text-white">Itens Cadastrados</CardTitle>
+                                <div className="relative w-64">
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                    <Input value={filterSku} onChange={(e) => setFilterSku(e.target.value)} placeholder="Filtrar itens..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9 h-8 text-sm" />
+                                </div>
+                            </div>
+                        </CardHeader>
                         <CardContent>
                             {skus?.data?.length ? (
                                 <div className="overflow-x-auto">
@@ -407,7 +472,11 @@ export default function CadastrosPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {skus.data.map((s: any) => (
+                                            {skus.data.filter((s: any) => {
+                                                if (!filterSku) return true;
+                                                const q = filterSku.toLowerCase();
+                                                return s.name?.toLowerCase().includes(q) || s.skuCode?.toLowerCase().includes(q) || s.category?.name?.toLowerCase().includes(q) || s.brand?.toLowerCase().includes(q);
+                                            }).map((s: any) => (
                                                 <tr key={s.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
                                                     <td className="py-3 font-mono text-[var(--zyllen-highlight)] text-xs">{s.skuCode}</td>
                                                     <td className="py-3 text-white">{s.name}</td>
@@ -445,10 +514,14 @@ export default function CadastrosPage() {
                         </CardContent>
                     </Card>
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                        <CardContent className="pt-6">
+                        <CardContent className="pt-6 space-y-4">
+                            <div className="relative max-w-sm">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                <Input value={filterLoc} onChange={(e) => setFilterLoc(e.target.value)} placeholder="Filtrar locais..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9" />
+                            </div>
                             {locations?.data?.length ? (
                                 <div className="space-y-2">
-                                    {locations.data.map((l: any) => (
+                                    {locations.data.filter((l: any) => !filterLoc || l.name?.toLowerCase().includes(filterLoc.toLowerCase()) || l.description?.toLowerCase().includes(filterLoc.toLowerCase())).map((l: any) => (
                                         <div key={l.id} className="flex items-center gap-3 p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]/50 group">
                                             <MapPin size={16} className="text-[var(--zyllen-highlight)]" />
                                             <div className="flex-1">
@@ -484,10 +557,14 @@ export default function CadastrosPage() {
                         </CardContent>
                     </Card>
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                        <CardContent className="pt-6">
+                        <CardContent className="pt-6 space-y-4">
+                            <div className="relative max-w-sm">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                <Input value={filterSup} onChange={(e) => setFilterSup(e.target.value)} placeholder="Filtrar fornecedores..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9" />
+                            </div>
                             {suppliers?.data?.length ? (
                                 <div className="space-y-2">
-                                    {suppliers.data.map((s: any) => (
+                                    {suppliers.data.filter((s: any) => !filterSup || s.name?.toLowerCase().includes(filterSup.toLowerCase()) || s.cnpj?.includes(filterSup)).map((s: any) => (
                                         <div key={s.id} className="flex items-center gap-3 p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]/50 group">
                                             <Truck size={16} className="text-[var(--zyllen-highlight)]" />
                                             <div className="flex-1">
@@ -533,11 +610,19 @@ export default function CadastrosPage() {
                     </Card>
 
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                        <CardHeader><CardTitle className="text-white">Tipos de Movimentação</CardTitle></CardHeader>
+                        <CardHeader>
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                                <CardTitle className="text-white">Tipos de Movimentação</CardTitle>
+                                <div className="relative w-52">
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                    <Input value={filterMt} onChange={(e) => setFilterMt(e.target.value)} placeholder="Filtrar tipos..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9 h-8 text-sm" />
+                                </div>
+                            </div>
+                        </CardHeader>
                         <CardContent>
                             {movementTypes?.data?.length ? (
                                 <div className="space-y-2">
-                                    {movementTypes.data.map((t: any) => (
+                                    {movementTypes.data.filter((t: any) => !filterMt || t.name?.toLowerCase().includes(filterMt.toLowerCase())).map((t: any) => (
                                         <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]/50 group">
                                             <div className="flex items-center gap-3">
                                                 <span className="text-white text-sm">{t.name}</span>
@@ -586,9 +671,12 @@ export default function CadastrosPage() {
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Categoria</Label>
-                                <Select value={editSku?.categoryId || ""} onValueChange={(v) => setEditSku({ ...editSku, categoryId: v })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white">
-                                    {categories?.data?.map((c: any) => <SelectOption key={c.id} value={c.id}>{c.name}</SelectOption>)}
-                                </Select>
+                                <SearchableCombobox
+                                    options={(categories?.data ?? []).map((c: any) => ({ value: c.id, label: c.name }))}
+                                    value={editSku?.categoryId || ""}
+                                    onChange={(v) => setEditSku({ ...editSku, categoryId: v })}
+                                    placeholder="Buscar categoria..."
+                                />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Marca</Label>
