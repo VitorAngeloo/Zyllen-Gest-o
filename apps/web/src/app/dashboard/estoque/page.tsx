@@ -1043,7 +1043,7 @@ export default function EstoquePage() {
 
             {/* Detail Dialog — patrimônios de um SKU */}
             <Dialog open={!!detailSku} onOpenChange={(open) => { if (!open) setDetailSku(null); }}>
-                <DialogContent className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-2xl">
+                <DialogContent className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-2xl" onClose={() => setDetailSku(null)}>
                     <DialogHeader>
                         <DialogTitle className="text-white flex items-center gap-2">
                             <Hash size={18} className="text-[var(--zyllen-highlight)]" />
@@ -1069,13 +1069,13 @@ export default function EstoquePage() {
                                     <tbody>
                                         {detailAssets.data.map((a: any) => (
                                             <tr key={a.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
-                                                <td className="py-2.5 font-mono text-[var(--zyllen-highlight)] text-xs">{a.code}</td>
+                                                <td className="py-2.5 font-mono text-[var(--zyllen-highlight)] text-xs">{a.assetCode}</td>
                                                 <td className="py-2.5">
                                                     <Badge variant={a.status === "ATIVO" ? "success" : a.status === "EM_USO" ? "default" : "destructive"}>
                                                         {a.status === "ATIVO" ? "Ativo" : a.status === "EM_USO" ? "Em Uso" : a.status === "EM_MANUTENCAO" ? "Manutenção" : a.status ?? "—"}
                                                     </Badge>
                                                 </td>
-                                                <td className="py-2.5 text-[var(--zyllen-muted)] text-xs hidden sm:table-cell">{a.location?.name ?? "—"}</td>
+                                                <td className="py-2.5 text-[var(--zyllen-muted)] text-xs hidden sm:table-cell">{a.currentLocation?.name ?? "—"}</td>
                                             </tr>
                                         ))}
                                     </tbody>
