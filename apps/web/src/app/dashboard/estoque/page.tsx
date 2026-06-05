@@ -103,7 +103,16 @@ export default function EstoquePage() {
     const [entryMediaFiles, setEntryMediaFiles] = useState<File[]>([]);
     const entryMediaFilesInputRef = useRef<HTMLInputElement>(null);
     const entryMediaCameraInputRef = useRef<HTMLInputElement>(null);
-    const [exitForm, setExitForm] = useState({ skuId: "", locationId: "", quantity: 1, pin: "", motivo: "", reason: "" });
+    // Exit — por patrimônio individual
+    const [exitSkuId, setExitSkuId] = useState("");
+    const [exitAsset, setExitAsset] = useState<any>(null);
+    const [exitCodeQuery, setExitCodeQuery] = useState("");
+    const [exitCodeOpen, setExitCodeOpen] = useState(false);
+    const [exitNewPin, setExitNewPin] = useState("");
+    const [exitNewMotivo, setExitNewMotivo] = useState("");
+    const [exitNewReason, setExitNewReason] = useState("");
+    const exitCodeRef = useRef<HTMLDivElement>(null);
+    const exitCodeInputRef = useRef<HTMLInputElement>(null);
 
     // Detail panel — click on a balance row to see all assets
     const [detailSku, setDetailSku] = useState<{ id: string; name: string; skuCode: string; codePrefix?: string } | null>(null);
@@ -193,6 +202,25 @@ export default function EstoquePage() {
         staleTime: 60_000,
     });
 
+    // Exit — lista de patrimônios do SKU selecionado
+    const { data: exitSkuAssetsData, isLoading: loadingExitSkuAssets } = useQuery({
+        queryKey: ["exit-sku-assets", exitSkuId],
+        queryFn: () => apiClient.get<{ data: any[] }>(`/assets?skuId=${exitSkuId}&limit=100`, fetchOpts),
+        enabled: !!exitSkuId && !exitAsset,
+    });
+    // Exit — busca por código (sem SKU selecionado, para o leitor de código de barras)
+    const { data: exitSearchData } = useQuery({
+        queryKey: ["exit-search", exitCodeQuery],
+        queryFn: () => apiClient.get<{ data: any[] }>(`/assets?search=${encodeURIComponent(exitCodeQuery)}&limit=20`, fetchOpts),
+        enabled: !exitSkuId && exitCodeQuery.length >= 2 && !exitAsset,
+        staleTime: 300,
+    });
+    const exitOptions: any[] = exitSkuId
+        ? (exitSkuAssetsData?.data ?? []).filter((a: any) =>
+            !exitCodeQuery || a.assetCode.toLowerCase().includes(exitCodeQuery.toLowerCase())
+        )
+        : (exitSearchData?.data ?? []);
+
     const findTypeId = (name: string) => movementTypes?.data?.find((t: any) => t.name.toLowerCase() === name.toLowerCase())?.id;
 
     const entryMut = useMutation({
@@ -241,14 +269,31 @@ export default function EstoquePage() {
         mutationFn: (data: any) => {
             const saidaId = findTypeId("Saída");
             const reasonText = [data.motivo, data.reason].filter(Boolean).join(" — ");
-            return apiClient.post("/inventory/exit", { skuId: data.skuId, fromLocationId: data.locationId, qty: data.quantity, movementTypeId: saidaId, pin: data.pin, reason: reasonText || undefined }, fetchOpts);
+            return apiClient.post("/inventory/exit", {
+                skuId: data.skuId,
+                fromLocationId: data.locationId,
+                qty: 1,
+                movementTypeId: saidaId,
+                pin: data.pin,
+                reason: reasonText || undefined,
+                assetId: data.assetId,
+            }, fetchOpts);
         },
-        onSuccess: () => { toast.success(TOASTS.exitRegistered); qc.invalidateQueries({ queryKey: ["balances"] }); qc.invalidateQueries({ queryKey: ["movements"] }); setExitForm({ skuId: "", locationId: "", quantity: 1, pin: "", motivo: "", reason: "" }); },
+        onSuccess: () => {
+            toast.success(TOASTS.exitRegistered);
+            qc.invalidateQueries({ queryKey: ["balances"] });
+            qc.invalidateQueries({ queryKey: ["movements"] });
+            qc.invalidateQueries({ queryKey: ["exit-sku-assets", exitSkuId] });
+            setExitAsset(null);
+            setExitCodeQuery("");
+            setExitNewPin("");
+            setExitNewMotivo("");
+            setExitNewReason("");
+        },
         onError: (e: any) => toast.error(e.message),
     });
 
     const selectedEntrySku = skus?.data?.find((s: any) => s.id === entryForm.skuId);
-    const selectedExitSku = skus?.data?.find((s: any) => s.id === exitForm.skuId);
 
     const normalizeStr = (s: string) => s?.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") ?? "";
 
@@ -291,6 +336,50 @@ export default function EstoquePage() {
         } catch {
             // errors handled by mutations
         }
+    };
+
+    // Fechar dropdown de código ao clicar fora
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (exitCodeRef.current && !exitCodeRef.current.contains(e.target as Node)) setExitCodeOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    const selectExitAsset = (asset: any) => {
+        setExitAsset(asset);
+        setExitCodeQuery(asset.assetCode);
+        setExitCodeOpen(false);
+    };
+
+    const handleExitCodeEnter = () => {
+        if (exitAsset) return;
+        const trimmed = exitCodeQuery.trim().toUpperCase();
+        if (!trimmed) return;
+        const exact = exitOptions.find((a: any) => a.assetCode.toUpperCase() === trimmed);
+        if (exact) { selectExitAsset(exact); return; }
+        if (exitOptions.length === 1) { selectExitAsset(exitOptions[0]); return; }
+        setExitCodeOpen(true);
+    };
+
+    const handleExitSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!exitAsset) { toast.error("Selecione ou bipe um código de patrimônio"); return; }
+        if (!exitNewMotivo) { toast.error("Selecione o motivo da saída"); return; }
+        if (!exitNewPin) { toast.error("Informe o PIN"); return; }
+        if (!exitAsset.currentLocationId) {
+            toast.error("Este patrimônio não possui local definido. Edite o patrimônio antes de dar saída.");
+            return;
+        }
+        exitMut.mutate({
+            skuId: exitAsset.skuId,
+            locationId: exitAsset.currentLocationId,
+            pin: exitNewPin,
+            motivo: exitNewMotivo,
+            reason: exitNewReason,
+            assetId: exitAsset.id,
+        });
     };
 
     const exportCSV = () => {
@@ -766,55 +855,154 @@ export default function EstoquePage() {
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-lg">
                     <CardHeader>
                         <CardTitle className="text-white flex items-center gap-2">
-                            <ArrowUpCircle className="text-rose-400" /> Saída de Estoque
+                            <ArrowUpCircle className="text-rose-400" /> Saída de Patrimônio
                         </CardTitle>
+                        <p className="text-xs text-[var(--zyllen-muted)] mt-1">Selecione o item para filtrar os códigos, ou bipe o código diretamente</p>
                     </CardHeader>
                     <CardContent>
-                        <form
-                            onSubmit={(e) => { e.preventDefault(); exitMut.mutate(exitForm); }}
-                            className="space-y-4"
-                        >
+                        <form onSubmit={handleExitSubmit} className="space-y-4">
+
+                            {/* Opção 1: Filtro por item (opcional) */}
                             <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Item</Label>
-                                <SkuSearchCombobox skus={skus?.data ?? []} value={exitForm.skuId} onChange={(id) => setExitForm({ ...exitForm, skuId: id })} />
+                                <Label className="text-[var(--zyllen-muted)]">
+                                    Item <span className="text-xs font-normal">(opcional — para filtrar patrimônios)</span>
+                                </Label>
+                                <SkuSearchCombobox
+                                    skus={skus?.data ?? []}
+                                    value={exitSkuId}
+                                    onChange={(id) => { setExitSkuId(id); setExitAsset(null); setExitCodeQuery(""); }}
+                                />
                             </div>
-                            {exitForm.skuId && selectedExitSku && (
-                                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-                                    <Hash size={14} className="text-amber-400 mt-0.5 shrink-0" />
-                                    <p className="text-amber-300/80 text-xs">Use a página <strong className="text-amber-300">Patrimônio</strong> para movimentar itens individualmente por código SKY-XXXXX.</p>
+
+                            {/* Caixa de patrimônio — filtro + bipe */}
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)] flex items-center gap-1.5">
+                                    <Hash size={13} /> Código de Patrimônio
+                                    <span className="text-[var(--zyllen-highlight)] text-xs font-normal">— bipe ou pesquise</span>
+                                </Label>
+                                <div ref={exitCodeRef} className="relative">
+                                    {exitAsset ? (
+                                        <div className="flex items-center gap-2 h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
+                                            <span className="font-mono text-[var(--zyllen-highlight)] text-xs">{exitAsset.assetCode}</span>
+                                            <span className="truncate flex-1 text-[var(--zyllen-muted)] text-xs">{exitAsset.sku?.name}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setExitAsset(null); setExitCodeQuery(""); setTimeout(() => exitCodeInputRef.current?.focus(), 50); }}
+                                                className="text-[var(--zyllen-muted)] hover:text-white ml-1"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="relative">
+                                            <Hash size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                            <input
+                                                ref={exitCodeInputRef}
+                                                type="text"
+                                                value={exitCodeQuery}
+                                                onChange={(e) => { setExitCodeQuery(e.target.value); setExitCodeOpen(true); }}
+                                                onFocus={() => exitOptions.length > 0 && setExitCodeOpen(true)}
+                                                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleExitCodeEnter(); } }}
+                                                placeholder={exitSkuId ? "Filtrar por código..." : "Digite ou bipe o código (ex: CFP-00012)"}
+                                                className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-8 pr-8 text-sm font-mono placeholder:text-[var(--zyllen-muted)]/60 placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                                            />
+                                            {exitSkuId && loadingExitSkuAssets && (
+                                                <Loader2 size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[var(--zyllen-muted)]" />
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Dropdown de códigos */}
+                                    {exitCodeOpen && !exitAsset && exitOptions.length > 0 && (
+                                        <div className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] shadow-xl">
+                                            {exitOptions.map((a: any) => (
+                                                <button
+                                                    key={a.id}
+                                                    type="button"
+                                                    onClick={() => selectExitAsset(a)}
+                                                    className="w-full text-left px-3 py-2.5 hover:bg-[var(--zyllen-highlight)]/10 transition-colors flex items-center gap-3 text-sm border-b border-[var(--zyllen-border)]/30 last:border-0"
+                                                >
+                                                    <span className="font-mono text-[var(--zyllen-highlight)] text-xs w-24 shrink-0">{a.assetCode}</span>
+                                                    <span className="text-white text-xs truncate flex-1">{a.sku?.name}</span>
+                                                    <span className="text-[var(--zyllen-muted)] text-xs shrink-0 flex items-center gap-1">
+                                                        <MapPin size={10} /> {a.currentLocation?.name ?? "Sem local"}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                {!exitSkuId && !exitAsset && exitCodeQuery.length < 2 && (
+                                    <p className="text-xs text-[var(--zyllen-muted)]/60">Selecione um item acima para ver os códigos, ou comece a digitar/bipar</p>
+                                )}
+                            </div>
+
+                            {/* Card do patrimônio selecionado */}
+                            {exitAsset && (
+                                <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="space-y-0.5">
+                                            <p className="font-mono text-rose-300 text-sm font-semibold">{exitAsset.assetCode}</p>
+                                            <p className="text-white text-sm">{exitAsset.sku?.name}</p>
+                                            {exitAsset.currentLocation ? (
+                                                <p className="text-[var(--zyllen-muted)] text-xs flex items-center gap-1">
+                                                    <MapPin size={11} /> Local atual: <span className="text-white">{exitAsset.currentLocation.name}</span>
+                                                </p>
+                                            ) : (
+                                                <p className="text-amber-400 text-xs">Sem local definido — edite o patrimônio antes</p>
+                                            )}
+                                        </div>
+                                        <Badge variant={exitAsset.status === "ATIVO" ? "success" : "default"}>
+                                            {exitAsset.status === "ATIVO" ? "Ativo" : exitAsset.status === "EM_USO" ? "Em Uso" : exitAsset.status ?? "—"}
+                                        </Badge>
+                                    </div>
                                 </div>
                             )}
-                            <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Local</Label>
-                                <select value={exitForm.locationId} onChange={(e) => setExitForm({ ...exitForm, locationId: e.target.value })} required className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
-                                    <option value="">Selecione...</option>
-                                    {locations?.data?.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                                </select>
-                            </div>
+
+                            {/* Motivo + Detalhe + PIN */}
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Motivo da Saída</Label>
-                                <select value={exitForm.motivo} onChange={(e) => setExitForm({ ...exitForm, motivo: e.target.value })} required className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
+                                <select
+                                    value={exitNewMotivo}
+                                    onChange={(e) => setExitNewMotivo(e.target.value)}
+                                    required
+                                    className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm"
+                                >
                                     <option value="">Selecione...</option>
                                     <option value="Uso">Uso</option>
+                                    <option value="Manutenção">Manutenção</option>
                                     <option value="Perda">Perda</option>
                                     <option value="Cliente">Cliente</option>
                                 </select>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-[var(--zyllen-muted)]">Quantidade</Label>
-                                    <Input type="number" min={1} value={exitForm.quantity} onChange={(e) => setExitForm({ ...exitForm, quantity: +e.target.value })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[var(--zyllen-muted)]">PIN</Label>
-                                    <Input type="password" maxLength={4} placeholder="••••" value={exitForm.pin} onChange={(e) => setExitForm({ ...exitForm, pin: e.target.value })} required className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center tracking-widest" />
-                                </div>
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)]">Detalhe (opcional)</Label>
+                                <Input
+                                    value={exitNewReason}
+                                    onChange={(e) => setExitNewReason(e.target.value)}
+                                    placeholder="Detalhes adicionais..."
+                                    className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
+                                />
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Motivo</Label>
-                                <Input value={exitForm.reason} onChange={(e) => setExitForm({ ...exitForm, reason: e.target.value })} placeholder="Detalhes adicionais..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                <Label className="text-[var(--zyllen-muted)]">PIN</Label>
+                                <Input
+                                    type="password"
+                                    maxLength={4}
+                                    placeholder="••••"
+                                    value={exitNewPin}
+                                    onChange={(e) => setExitNewPin(e.target.value)}
+                                    required
+                                    className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center tracking-widest"
+                                />
                             </div>
-                            <Button type="submit" variant="highlight" className="w-full" disabled={exitMut.isPending}>
+
+                            <Button
+                                type="submit"
+                                variant="highlight"
+                                className="w-full"
+                                disabled={exitMut.isPending || !exitAsset || !exitAsset?.currentLocationId}
+                            >
                                 {exitMut.isPending ? "Registrando..." : "Registrar Saída"}
                             </Button>
                         </form>
