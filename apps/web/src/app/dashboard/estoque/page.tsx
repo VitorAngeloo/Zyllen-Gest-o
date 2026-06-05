@@ -988,6 +988,7 @@ export default function EstoquePage() {
                                     value={exitNewReason}
                                     onChange={(e) => setExitNewReason(e.target.value)}
                                     placeholder="Detalhes adicionais..."
+                                    autoComplete="new-password"
                                     className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
                                 />
                             </div>
