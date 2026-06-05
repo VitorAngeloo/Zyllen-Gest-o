@@ -860,7 +860,7 @@ export default function EstoquePage() {
                         <p className="text-xs text-[var(--zyllen-muted)] mt-1">Selecione o item para filtrar os códigos, ou bipe o código diretamente</p>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleExitSubmit} className="space-y-4">
+                        <form onSubmit={handleExitSubmit} autoComplete="off" className="space-y-4">
 
                             {/* Opção 1: Filtro por item (opcional) */}
                             <div className="space-y-2">
