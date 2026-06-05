@@ -899,6 +899,7 @@ export default function EstoquePage() {
                                             <input
                                                 ref={exitCodeInputRef}
                                                 type="text"
+                                                autoComplete="off"
                                                 value={exitCodeQuery}
                                                 onChange={(e) => { setExitCodeQuery(e.target.value); setExitCodeOpen(true); }}
                                                 onFocus={() => { if (exitSkuId || exitCodeQuery.length >= 2) setExitCodeOpen(true); }}
