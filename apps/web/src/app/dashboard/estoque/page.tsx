@@ -901,7 +901,7 @@ export default function EstoquePage() {
                                                 type="text"
                                                 value={exitCodeQuery}
                                                 onChange={(e) => { setExitCodeQuery(e.target.value); setExitCodeOpen(true); }}
-                                                onFocus={() => exitOptions.length > 0 && setExitCodeOpen(true)}
+                                                onFocus={() => { if (exitSkuId || exitCodeQuery.length >= 2) setExitCodeOpen(true); }}
                                                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleExitCodeEnter(); } }}
                                                 placeholder={exitSkuId ? "Filtrar por código..." : "Digite ou bipe o código (ex: CFP-00012)"}
                                                 className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-8 pr-8 text-sm font-mono placeholder:text-[var(--zyllen-muted)]/60 placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
@@ -913,9 +913,13 @@ export default function EstoquePage() {
                                     )}
 
                                     {/* Dropdown de códigos */}
-                                    {exitCodeOpen && !exitAsset && exitOptions.length > 0 && (
+                                    {exitCodeOpen && !exitAsset && (exitSkuId || exitCodeQuery.length >= 2) && (
                                         <div className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] shadow-xl">
-                                            {exitOptions.map((a: any) => (
+                                            {loadingExitSkuAssets ? (
+                                                <div className="px-3 py-4 text-center text-[var(--zyllen-muted)] text-sm flex items-center justify-center gap-2">
+                                                    <Loader2 size={14} className="animate-spin" /> Carregando...
+                                                </div>
+                                            ) : exitOptions.length > 0 ? exitOptions.map((a: any) => (
                                                 <button
                                                     key={a.id}
                                                     type="button"
@@ -928,7 +932,9 @@ export default function EstoquePage() {
                                                         <MapPin size={10} /> {a.currentLocation?.name ?? "Sem local"}
                                                     </span>
                                                 </button>
-                                            ))}
+                                            )) : (
+                                                <div className="px-3 py-4 text-center text-[var(--zyllen-muted)] text-sm">Nenhum patrimônio encontrado</div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
