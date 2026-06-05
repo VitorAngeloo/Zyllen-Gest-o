@@ -119,6 +119,7 @@ export class CatalogService {
         brand?: string;
         barcode?: string;
         categoryId: string;
+        codePrefix: string;
         unit?: string;
         attachments?: {
             fileName: string;
@@ -143,6 +144,7 @@ export class CatalogService {
                     brand: data.brand,
                     barcode: data.barcode,
                     categoryId: data.categoryId,
+                    codePrefix: data.codePrefix.toUpperCase(),
                     unit: data.unit ?? 'UN',
                     skuCode,
                 },
@@ -183,7 +185,7 @@ export class CatalogService {
         });
     }
 
-    async updateSkuItem(id: string, data: { name?: string; description?: string; brand?: string; barcode?: string; categoryId?: string; unit?: string }) {
+    async updateSkuItem(id: string, data: { name?: string; description?: string; brand?: string; barcode?: string; categoryId?: string; codePrefix?: string; unit?: string }) {
         await this.findSkuById(id);
         if (data.categoryId) {
             const category = await this.prisma.category.findUnique({ where: { id: data.categoryId } });

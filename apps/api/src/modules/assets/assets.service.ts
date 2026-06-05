@@ -161,7 +161,7 @@ export class AssetsService {
         }
 
         return this.prisma.$transaction(async (tx) => {
-            const assetCode = await this.generateNextAssetCode(tx);
+            const assetCode = await this.generateNextAssetCode(tx, sku.codePrefix ?? 'SKY');
 
             return tx.asset.create({
                 data: {
@@ -214,32 +214,20 @@ export class AssetsService {
                 include: { category: { select: { id: true, name: true } } },
             });
 
-            // 2. Create N Assets — batch sequence increment to avoid N+1
-            let sequence = await tx.assetCodeSequence.findUnique({
-                where: { id: this.assetCodeSequenceId },
-            });
+            // 2. Create N Assets using the item's codePrefix
+            const prefix = skuItem.codePrefix ?? 'SKY';
+            let sequence = await tx.assetCodeSequence.findUnique({ where: { id: prefix } });
             if (!sequence) {
-                const existingAssets = await tx.asset.findMany({ select: { assetCode: true } });
-                let maxExistingCodeNumber = 0;
-                for (const a of existingAssets) {
-                    const match = /^SKY-(\d+)$/.exec(a.assetCode);
-                    if (match) {
-                        const parsed = Number(match[1]);
-                        if (Number.isFinite(parsed) && parsed > maxExistingCodeNumber) maxExistingCodeNumber = parsed;
-                    }
-                }
-                sequence = await tx.assetCodeSequence.create({
-                    data: { id: this.assetCodeSequenceId, currentValue: maxExistingCodeNumber },
-                });
+                sequence = await tx.assetCodeSequence.create({ data: { id: prefix, currentValue: 0 } });
             }
             sequence = await tx.assetCodeSequence.update({
-                where: { id: this.assetCodeSequenceId },
+                where: { id: prefix },
                 data: { currentValue: { increment: data.quantity } },
             });
             const endValue = sequence.currentValue;
             const startValue = endValue - data.quantity + 1;
             const assetCodes = Array.from({ length: data.quantity }, (_, i) =>
-                `SKY-${String(startValue + i).padStart(5, '0')}`,
+                `${prefix}-${String(startValue + i).padStart(5, '0')}`,
             );
             const collision = await tx.asset.findFirst({
                 where: { assetCode: { in: assetCodes } },
@@ -357,42 +345,19 @@ export class AssetsService {
         });
     }
 
-    private async generateNextAssetCode(tx: any): Promise<string> {
-        let sequence = await tx.assetCodeSequence.findUnique({
-            where: { id: this.assetCodeSequenceId },
-        });
-
+    private async generateNextAssetCode(tx: any, prefix: string): Promise<string> {
+        let sequence = await tx.assetCodeSequence.findUnique({ where: { id: prefix } });
         if (!sequence) {
-            const existingAssets = await tx.asset.findMany({
-                select: { assetCode: true },
-            });
-
-            let maxExistingCodeNumber = 0;
-            for (const asset of existingAssets) {
-                const match = /^SKY-(\d+)$/.exec(asset.assetCode);
-                if (!match) continue;
-                const parsed = Number(match[1]);
-                if (Number.isFinite(parsed) && parsed > maxExistingCodeNumber) {
-                    maxExistingCodeNumber = parsed;
-                }
-            }
-
-            sequence = await tx.assetCodeSequence.create({
-                data: {
-                    id: this.assetCodeSequenceId,
-                    currentValue: maxExistingCodeNumber,
-                },
-            });
+            sequence = await tx.assetCodeSequence.create({ data: { id: prefix, currentValue: 0 } });
         }
 
         const MAX_RETRIES = 200;
         for (let i = 0; i < MAX_RETRIES; i++) {
             sequence = await tx.assetCodeSequence.update({
-                where: { id: this.assetCodeSequenceId },
+                where: { id: prefix },
                 data: { currentValue: { increment: 1 } },
             });
-
-            const code = `SKY-${String(sequence.currentValue).padStart(5, '0')}`;
+            const code = `${prefix}-${String(sequence.currentValue).padStart(5, '0')}`;
             const existing = await tx.asset.findUnique({ where: { assetCode: code } });
             if (!existing) return code;
         }

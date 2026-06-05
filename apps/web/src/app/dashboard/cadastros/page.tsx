@@ -105,7 +105,7 @@ export default function CadastrosPage() {
     const [newCat, setNewCat] = useState("");
     const [newLoc, setNewLoc] = useState({ name: "", description: "" });
     const [newSup, setNewSup] = useState({ name: "", cnpj: "", contact: "" });
-    const [newSku, setNewSku] = useState({ name: "", brand: "", barcode: "", categoryId: "", unit: "UN" });
+    const [newSku, setNewSku] = useState({ name: "", brand: "", barcode: "", categoryId: "", codePrefix: "", unit: "UN" });
     const [newSkuMedia, setNewSkuMedia] = useState<File[]>([]);
     const skuMediaFilesInputRef = useRef<HTMLInputElement>(null);
     const skuMediaCameraInputRef = useRef<HTMLInputElement>(null);
@@ -186,12 +186,12 @@ export default function CadastrosPage() {
                 for (const file of data.files as File[]) formData.append("files", file);
                 return apiClient.upload("/catalog/skus", formData, fetchOpts);
             }
-            return apiClient.post("/catalog/skus", { name: data.name, brand: data.brand, barcode: data.barcode, categoryId: data.categoryId, unit: data.unit }, fetchOpts);
+            return apiClient.post("/catalog/skus", { name: data.name, brand: data.brand, barcode: data.barcode, categoryId: data.categoryId, codePrefix: data.codePrefix?.toUpperCase(), unit: data.unit }, fetchOpts);
         },
         onSuccess: () => {
             toast.success("Item criado!");
             qc.invalidateQueries({ queryKey: ["skus"] });
-            setNewSku({ name: "", brand: "", barcode: "", categoryId: "", unit: "UN" });
+            setNewSku({ name: "", brand: "", barcode: "", categoryId: "", codePrefix: "", unit: "UN" });
             setNewSkuMedia([]);
         },
         onError: (e: any) => toast.error(e.message),
@@ -362,6 +362,25 @@ export default function CadastrosPage() {
                                     <Input value={newSku.barcode} onChange={(e) => setNewSku({ ...newSku, barcode: e.target.value })} placeholder="Opcional" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                                 </div>
                                 <div className="space-y-2">
+                                    <Label className="text-[var(--zyllen-muted)]">Prefixo do patrimônio *</Label>
+                                    <div className="relative">
+                                        <Input
+                                            value={newSku.codePrefix}
+                                            onChange={(e) => setNewSku({ ...newSku, codePrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) })}
+                                            placeholder="Ex: CFP"
+                                            maxLength={3}
+                                            required
+                                            className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white font-mono tracking-widest uppercase"
+                                        />
+                                        {newSku.codePrefix.length === 3 && (
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--zyllen-muted)]">
+                                                → {newSku.codePrefix}-00001
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-[var(--zyllen-muted)]/70">3 letras/números maiúsculos. Único por item.</p>
+                                </div>
+                                <div className="space-y-2">
                                     <Label className="text-[var(--zyllen-muted)]">Unidade</Label>
                                     <Select value={newSku.unit || "UN"} onValueChange={(v) => setNewSku({ ...newSku, unit: v })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white">
                                         <SelectOption value="UN">UN — Unidade</SelectOption>
@@ -465,9 +484,10 @@ export default function CadastrosPage() {
                                         <thead>
                                             <tr className="border-b border-[var(--zyllen-border)]">
                                                 <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Código</th>
+                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Prefixo</th>
                                                 <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Nome</th>
                                                 <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Categoria</th>
-                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Marca</th>
+                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium hidden md:table-cell">Marca</th>
                                                 <th className="text-right py-3 text-[var(--zyllen-muted)] font-medium">Ações</th>
                                             </tr>
                                         </thead>
@@ -475,13 +495,14 @@ export default function CadastrosPage() {
                                             {skus.data.filter((s: any) => {
                                                 if (!filterSku) return true;
                                                 const q = filterSku.toLowerCase();
-                                                return s.name?.toLowerCase().includes(q) || s.skuCode?.toLowerCase().includes(q) || s.category?.name?.toLowerCase().includes(q) || s.brand?.toLowerCase().includes(q);
+                                                return s.name?.toLowerCase().includes(q) || s.skuCode?.toLowerCase().includes(q) || s.codePrefix?.toLowerCase().includes(q) || s.category?.name?.toLowerCase().includes(q) || s.brand?.toLowerCase().includes(q);
                                             }).map((s: any) => (
                                                 <tr key={s.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
                                                     <td className="py-3 font-mono text-[var(--zyllen-highlight)] text-xs">{s.skuCode}</td>
+                                                    <td className="py-3"><span className="font-mono text-xs font-bold text-white bg-[var(--zyllen-highlight)]/15 px-2 py-0.5 rounded">{s.codePrefix ?? "—"}</span></td>
                                                     <td className="py-3 text-white">{s.name}</td>
                                                     <td className="py-3 text-[var(--zyllen-muted)]">{s.category?.name}</td>
-                                                    <td className="py-3 text-[var(--zyllen-muted)]">{s.brand ?? "—"}</td>
+                                                    <td className="py-3 text-[var(--zyllen-muted)] hidden md:table-cell">{s.brand ?? "—"}</td>
                                                     <td className="py-3 text-right">
                                                         <div className="flex justify-end gap-1">
                                                             <button onClick={() => setEditSku({ id: s.id, name: s.name, brand: s.brand || "", barcode: s.barcode || "", categoryId: s.categoryId || s.category?.id || "", unit: s.unit || "UN" })} className="p-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"><Pencil size={14} /></button>

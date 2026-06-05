@@ -180,6 +180,7 @@ model SkuItem {
   brand        String?
   barcode      String?
   categoryId   String
+  codePrefix   String? @unique           // 3-letter prefix for asset codes (e.g. CFP, ATT)
   unit         String? @default("UN")     // UN, M, CX, KG, etc.
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

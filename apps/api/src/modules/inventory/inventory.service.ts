@@ -41,25 +41,34 @@ export class InventoryService {
     private async autoCreateAssets(tx: any, params: {
         skuId: string; locationId: string; quantity: number;
     }): Promise<string[]> {
-        const SEQ_ID = 'ASSET_CODE';
-        let sequence = await tx.assetCodeSequence.findUnique({ where: { id: SEQ_ID } });
+        // Resolve the item's codePrefix
+        const sku = await tx.skuItem.findUnique({ where: { id: params.skuId }, select: { codePrefix: true } });
+        const prefix = sku?.codePrefix ?? 'SKY';
+
+        // Per-prefix sequence
+        let sequence = await tx.assetCodeSequence.findUnique({ where: { id: prefix } });
         if (!sequence) {
-            const existing = await tx.asset.findMany({ select: { assetCode: true } });
+            // Bootstrap from existing codes for this prefix
+            const existing = await tx.asset.findMany({
+                where: { skuId: params.skuId },
+                select: { assetCode: true },
+            });
             let max = 0;
+            const re = new RegExp(`^${prefix}-(\\d+)$`);
             for (const a of existing) {
-                const m = /^SKY-(\d+)$/.exec(a.assetCode);
+                const m = re.exec(a.assetCode);
                 if (m) { const n = Number(m[1]); if (n > max) max = n; }
             }
-            sequence = await tx.assetCodeSequence.create({ data: { id: SEQ_ID, currentValue: max } });
+            sequence = await tx.assetCodeSequence.create({ data: { id: prefix, currentValue: max } });
         }
         sequence = await tx.assetCodeSequence.update({
-            where: { id: SEQ_ID },
+            where: { id: prefix },
             data: { currentValue: { increment: params.quantity } },
         });
         const end = sequence.currentValue;
         const start = end - params.quantity + 1;
         const codes = Array.from({ length: params.quantity }, (_, i) =>
-            `SKY-${String(start + i).padStart(5, '0')}`,
+            `${prefix}-${String(start + i).padStart(5, '0')}`,
         );
         const collision = await tx.asset.findFirst({ where: { assetCode: { in: codes } } });
         if (collision) throw new Error(`Conflito de código: ${collision.assetCode}. Tente novamente.`);
