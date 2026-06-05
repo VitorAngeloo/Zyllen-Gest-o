@@ -9,8 +9,9 @@ import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
-import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, MapPin, RefreshCw, FileDown, Zap, CheckCircle2 } from "lucide-react";
+import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, MapPin, RefreshCw, FileDown, Zap, CheckCircle2, ChevronRight } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@web/components/ui/dialog";
 import Link from "next/link";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
@@ -103,6 +104,14 @@ export default function EstoquePage() {
     const entryMediaFilesInputRef = useRef<HTMLInputElement>(null);
     const entryMediaCameraInputRef = useRef<HTMLInputElement>(null);
     const [exitForm, setExitForm] = useState({ skuId: "", locationId: "", quantity: 1, pin: "", motivo: "", reason: "" });
+
+    // Detail panel — click on a balance row to see all assets
+    const [detailSku, setDetailSku] = useState<{ id: string; name: string; skuCode: string; codePrefix?: string } | null>(null);
+    const { data: detailAssets, isLoading: loadingDetail } = useQuery({
+        queryKey: ["sku-assets-detail", detailSku?.id],
+        queryFn: () => apiClient.get<{ data: any[] }>(`/assets?skuId=${detailSku!.id}&limit=1000`, fetchOpts),
+        enabled: !!detailSku,
+    });
 
     // Bipagem Rápida
     const [bipeCode, setBipeCode] = useState("");
@@ -416,7 +425,11 @@ export default function EstoquePage() {
                                             </thead>
                                             <tbody>
                                                 {filtered.map((b: any) => (
-                                                    <tr key={b.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
+                                                    <tr
+                                                        key={`${b.skuId}-${b.locationId}`}
+                                                        className="border-b border-[var(--zyllen-border)]/50 hover:bg-[var(--zyllen-highlight)]/5 cursor-pointer transition-colors group"
+                                                        onClick={() => setDetailSku({ id: b.skuId, name: b.sku?.name, skuCode: b.sku?.skuCode, codePrefix: b.sku?.codePrefix })}
+                                                    >
                                                         <td className="py-3 font-mono text-[var(--zyllen-highlight)] text-xs">{b.sku?.skuCode}</td>
                                                         <td className="py-3">
                                                             <p className="text-white font-medium">{b.sku?.name}</p>
@@ -427,7 +440,10 @@ export default function EstoquePage() {
                                                         <td className="py-3 text-[var(--zyllen-muted)] text-xs hidden sm:table-cell">{b.sku?.brand ?? "—"}</td>
                                                         <td className="py-3 text-[var(--zyllen-muted)]">{b.location?.name}</td>
                                                         <td className="py-3 text-right">
-                                                            <Badge variant={b.quantity > 0 ? "success" : "destructive"}>{b.quantity}</Badge>
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <Badge variant={b.quantity > 0 ? "success" : "destructive"}>{b.quantity}</Badge>
+                                                                <ChevronRight size={14} className="text-[var(--zyllen-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -1024,6 +1040,56 @@ export default function EstoquePage() {
                     )}
                 </div>
             )}
+
+            {/* Detail Dialog — patrimônios de um SKU */}
+            <Dialog open={!!detailSku} onOpenChange={(open) => { if (!open) setDetailSku(null); }}>
+                <DialogContent className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-white flex items-center gap-2">
+                            <Hash size={18} className="text-[var(--zyllen-highlight)]" />
+                            Patrimônios — {detailSku?.name}
+                            {detailSku?.skuCode && <span className="font-mono text-xs text-[var(--zyllen-muted)]">{detailSku.skuCode}</span>}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <DialogBody>
+                        {loadingDetail ? (
+                            <div className="space-y-2">
+                                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+                            </div>
+                        ) : detailAssets?.data?.length ? (
+                            <div className="overflow-y-auto max-h-96">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-[var(--zyllen-border)]">
+                                            <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium">Código</th>
+                                            <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium">Status</th>
+                                            <th className="text-left py-2 text-[var(--zyllen-muted)] font-medium hidden sm:table-cell">Local</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {detailAssets.data.map((a: any) => (
+                                            <tr key={a.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
+                                                <td className="py-2.5 font-mono text-[var(--zyllen-highlight)] text-xs">{a.code}</td>
+                                                <td className="py-2.5">
+                                                    <Badge variant={a.status === "ATIVO" ? "success" : a.status === "EM_USO" ? "default" : "destructive"}>
+                                                        {a.status === "ATIVO" ? "Ativo" : a.status === "EM_USO" ? "Em Uso" : a.status === "EM_MANUTENCAO" ? "Manutenção" : a.status ?? "—"}
+                                                    </Badge>
+                                                </td>
+                                                <td className="py-2.5 text-[var(--zyllen-muted)] text-xs hidden sm:table-cell">{a.location?.name ?? "—"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="text-center py-8">
+                                <Package size={32} className="mx-auto mb-2 text-[var(--zyllen-muted)]/50" />
+                                <p className="text-[var(--zyllen-muted)] text-sm">Nenhum patrimônio encontrado para este item.</p>
+                            </div>
+                        )}
+                    </DialogBody>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
