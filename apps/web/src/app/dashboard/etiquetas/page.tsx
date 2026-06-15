@@ -61,6 +61,7 @@ export default function EtiquetasPage() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [batchSearch, setBatchSearch] = useState("");
     const [batchLabelData, setBatchLabelData] = useState<any[] | null>(null);
+    const [printColumns, setPrintColumns] = useState(2);
 
     // Template form
     const [newTemplate, setNewTemplate] = useState({ name: "", layout: "" });
@@ -134,16 +135,64 @@ export default function EtiquetasPage() {
         onError: (e: any) => toast.error(e.message),
     });
 
+    const openPrintWindow = (labelsHtml: string, columns: number) => {
+        const origin = window.location.origin;
+        const fixedHtml = labelsHtml.replace(/src="\/brand\//g, `src="${origin}/brand/`);
+        const popup = window.open("", "_blank", "width=900,height=700");
+        if (!popup) {
+            toast.error("Habilite popups para este site para imprimir etiquetas.");
+            return;
+        }
+        popup.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Etiquetas</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 0; background: white; font-family: Arial, sans-serif; }
+@page { margin: 3mm; }
+.sheet { display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 3mm; padding: 3mm; }
+</style>
+</head>
+<body>
+<div class="sheet">${fixedHtml}</div>
+<script>
+window.addEventListener('afterprint', function() { window.close(); });
+window.onload = function() { setTimeout(function() { window.print(); }, 250); };
+</script>
+</body>
+</html>`);
+        popup.document.close();
+    };
+
+    const handleSinglePrint = () => {
+        if (!labelData) return;
+        const el = document.getElementById("label-print-area");
+        const svg = el?.querySelector("svg");
+        const qrSvg = svg ? new XMLSerializer().serializeToString(svg) : "";
+        const origin = window.location.origin;
+        const html = `<div style="border:1px solid #ddd;border-radius:4px;padding:3mm;break-inside:avoid;background:white">
+<div style="border-bottom:1px solid #e5e7eb;margin-bottom:2mm;padding-bottom:1.5mm">
+<img src="${origin}/brand/logo-skyline-black.svg" alt="Skyline" style="height:14px;width:auto" />
+</div>
+<div style="display:flex;gap:3mm;align-items:flex-start">
+<div style="flex-shrink:0">${qrSvg}</div>
+<div>
+<p style="font-family:monospace;font-weight:bold;font-size:13px;margin:0;letter-spacing:0.05em">${labelData.contract.assetCode}</p>
+<p style="font-size:11px;margin:2px 0 0;line-height:1.3">${labelData.contract.skuName}</p>
+<p style="font-family:monospace;font-size:9px;color:#666;margin:2px 0 0">SKU ${labelData.contract.skuCode}</p>
+</div>
+</div>
+</div>`;
+        openPrintWindow(html, 1);
+    };
+
     const handleBatchPrint = (labels: any[]) => {
-        const style = document.createElement("style");
-        style.id = "__batch_print_style__";
-        style.innerHTML = `@media print { body > *:not(#batch-print-sheet) { display: none !important; } #batch-print-sheet { display: grid !important; position: fixed; inset: 0; z-index: 99999; background: white; } }`;
-        document.head.appendChild(style);
-        window.print();
-        setTimeout(() => {
-            const el = document.getElementById("__batch_print_style__");
-            if (el) el.remove();
-        }, 1000);
+        const sheet = document.getElementById("batch-print-sheet");
+        if (!sheet || !sheet.children.length) return;
+        const labelsHtml = Array.from(sheet.children).map((el) => el.outerHTML).join("");
+        openPrintWindow(labelsHtml, printColumns);
     };
 
     const normalize = (s: string) => s?.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") ?? "";
@@ -304,8 +353,8 @@ export default function EtiquetasPage() {
                                     <Button
                                         variant="outline"
                                         className="border-[var(--zyllen-border)] text-white hover:bg-white/5 gap-2"
-                                        onClick={() => window.print()}
-                                        title="Imprimir página"
+                                        onClick={handleSinglePrint}
+                                        title="Imprimir etiqueta"
                                     >
                                         <Download size={16} /> Imprimir
                                     </Button>
@@ -578,6 +627,23 @@ export default function EtiquetasPage() {
                                 placeholder="Filtrar por código ou nome..."
                                 className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-8 h-9 text-sm font-mono"
                             />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-[var(--zyllen-muted)] whitespace-nowrap">Colunas</span>
+                            <div className="flex gap-1">
+                                {[1, 2, 3, 4].map((n) => (
+                                    <button
+                                        key={n}
+                                        onClick={() => setPrintColumns(n)}
+                                        className={`w-7 h-7 rounded text-xs font-medium border transition-colors ${printColumns === n
+                                            ? "bg-[var(--zyllen-highlight)] border-[var(--zyllen-highlight)] text-[var(--zyllen-bg)]"
+                                            : "border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white"
+                                        }`}
+                                    >
+                                        {n}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         {selectedIds.size > 0 && (
                             <Button
