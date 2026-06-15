@@ -2,7 +2,9 @@ import {
     Injectable,
     NotFoundException,
     ConflictException,
+    BadRequestException,
 } from '@nestjs/common';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -136,13 +138,27 @@ export class CatalogService {
         // Generate unique 6-digit SKU code
         const skuCode = await this.generateUniqueSku();
 
+        try { return await this._createSkuTransaction(data, skuCode); }
+        catch (err) {
+            if (err instanceof PrismaClientKnownRequestError && err.code === 'P2002') {
+                const field = (err.meta?.target as string[] | undefined)?.[0];
+                if (field === 'codePrefix') throw new ConflictException('Este prefixo de patrimônio já está em uso. Escolha outro.');
+                if (field === 'skuCode') throw new BadRequestException('Conflito ao gerar código SKU. Tente novamente.');
+                if (field === 'barcode') throw new ConflictException('Este código de barras já está cadastrado em outro item.');
+                throw new ConflictException('Dado duplicado. Verifique os campos e tente novamente.');
+            }
+            throw err;
+        }
+    }
+
+    private async _createSkuTransaction(data: Parameters<CatalogService['createSkuItem']>[0], skuCode: string) {
         return this.prisma.$transaction(async (tx) => {
             const skuItem = await tx.skuItem.create({
                 data: {
                     name: data.name,
-                    description: data.description,
-                    brand: data.brand,
-                    barcode: data.barcode,
+                    description: data.description || undefined,
+                    brand: data.brand || undefined,
+                    barcode: data.barcode || undefined,
                     categoryId: data.categoryId,
                     codePrefix: data.codePrefix.toUpperCase(),
                     unit: data.unit ?? 'UN',
