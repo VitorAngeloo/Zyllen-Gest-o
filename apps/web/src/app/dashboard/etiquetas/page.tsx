@@ -62,6 +62,8 @@ export default function EtiquetasPage() {
     const [batchSearch, setBatchSearch] = useState("");
     const [batchLabelData, setBatchLabelData] = useState<any[] | null>(null);
     const [printColumns, setPrintColumns] = useState(2);
+    const [labelWidth, setLabelWidth] = useState(46);
+    const [labelHeight, setLabelHeight] = useState(20);
 
     // Template form
     const [newTemplate, setNewTemplate] = useState({ name: "", layout: "" });
@@ -143,6 +145,8 @@ export default function EtiquetasPage() {
             toast.error("Habilite popups para este site para imprimir etiquetas.");
             return;
         }
+        const pageW = labelWidth * columns;
+        const qrPx = Math.max(Math.round((labelHeight - 8) * 3.78), 20);
         popup.document.write(`<!DOCTYPE html>
 <html>
 <head>
@@ -150,9 +154,14 @@ export default function EtiquetasPage() {
 <title>Etiquetas</title>
 <style>
 * { box-sizing: border-box; }
-body { margin: 0; padding: 0; background: white; font-family: Arial, sans-serif; }
-@page { margin: 3mm; }
-.sheet { display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 3mm; padding: 3mm; }
+html, body { margin: 0; padding: 0; background: white; font-family: Arial, sans-serif; }
+@page { size: ${pageW}mm ${labelHeight}mm; margin: 0; }
+.sheet { display: grid; grid-template-columns: repeat(${columns}, ${labelWidth}mm); gap: 0; width: ${pageW}mm; }
+.sheet > div { width: ${labelWidth}mm !important; height: ${labelHeight}mm !important; overflow: hidden !important; padding: 1.5mm !important; border: none !important; border-radius: 0 !important; background: white !important; }
+.sheet > div > div:first-child { margin-bottom: 0.5mm !important; padding-bottom: 0.5mm !important; }
+.sheet > div img { height: 8px !important; width: auto !important; }
+.sheet > div svg { width: ${qrPx}px !important; height: ${qrPx}px !important; }
+.sheet p { margin: 0 !important; line-height: 1.2 !important; }
 </style>
 </head>
 <body>
@@ -170,18 +179,23 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
         if (!labelData) return;
         const el = document.getElementById("label-print-area");
         const svg = el?.querySelector("svg");
-        const qrSvg = svg ? new XMLSerializer().serializeToString(svg) : "";
+        const qrPx = Math.max(Math.round((labelHeight - 8) * 3.78), 20);
+        let qrSvg = svg ? new XMLSerializer().serializeToString(svg) : "";
+        qrSvg = qrSvg.replace(/width="[^"]*"/, `width="${qrPx}"`).replace(/height="[^"]*"/, `height="${qrPx}"`);
         const origin = window.location.origin;
-        const html = `<div style="border:1px solid #ddd;border-radius:4px;padding:3mm;break-inside:avoid;background:white">
-<div style="border-bottom:1px solid #e5e7eb;margin-bottom:2mm;padding-bottom:1.5mm">
-<img src="${origin}/brand/logo-skyline-black.svg" alt="Skyline" style="height:14px;width:auto" />
+        const fSm = Math.max(6, Math.round(labelHeight * 0.32));
+        const fMd = Math.max(7, Math.round(labelHeight * 0.38));
+        const fLg = Math.max(8, Math.round(labelHeight * 0.44));
+        const html = `<div style="width:${labelWidth}mm;height:${labelHeight}mm;overflow:hidden;padding:1.5mm;background:white">
+<div style="border-bottom:1px solid #e5e7eb;margin-bottom:0.5mm;padding-bottom:0.5mm">
+<img src="${origin}/brand/logo-skyline-black.svg" alt="Skyline" style="height:8px;width:auto" />
 </div>
-<div style="display:flex;gap:3mm;align-items:flex-start">
+<div style="display:flex;gap:2mm;align-items:flex-start">
 <div style="flex-shrink:0">${qrSvg}</div>
-<div>
-<p style="font-family:monospace;font-weight:bold;font-size:13px;margin:0;letter-spacing:0.05em">${labelData.contract.assetCode}</p>
-<p style="font-size:11px;margin:2px 0 0;line-height:1.3">${labelData.contract.skuName}</p>
-<p style="font-family:monospace;font-size:9px;color:#666;margin:2px 0 0">SKU ${labelData.contract.skuCode}</p>
+<div style="min-width:0;overflow:hidden">
+<p style="font-family:monospace;font-weight:bold;font-size:${fLg}px;margin:0;letter-spacing:0.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${labelData.contract.assetCode}</p>
+<p style="font-size:${fMd}px;margin:1px 0 0;line-height:1.2;overflow:hidden">${labelData.contract.skuName}</p>
+<p style="font-family:monospace;font-size:${fSm}px;color:#666;margin:1px 0 0">SKU ${labelData.contract.skuCode}</p>
 </div>
 </div>
 </div>`;
@@ -229,19 +243,40 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
             </h1>
             <p className="text-sm text-[var(--zyllen-muted)] mt-1">{PAGE_DESCRIPTIONS.etiquetas}</p>
 
-            <div className="flex gap-1 bg-[var(--zyllen-bg)] rounded-xl p-1 border border-[var(--zyllen-border)] w-fit">
-                {tabs.map((t) => (
-                    <button
-                        key={t.key}
-                        onClick={() => setTab(t.key as Tab)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key
-                                ? "bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg)]"
-                                : "text-[var(--zyllen-muted)] hover:text-white"
-                            }`}
-                    >
-                        <t.icon size={16} /> {t.label}
-                    </button>
-                ))}
+            <div className="flex flex-wrap items-center gap-4">
+                <div className="flex gap-1 bg-[var(--zyllen-bg)] rounded-xl p-1 border border-[var(--zyllen-border)] w-fit">
+                    {tabs.map((t) => (
+                        <button
+                            key={t.key}
+                            onClick={() => setTab(t.key as Tab)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key
+                                    ? "bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg)]"
+                                    : "text-[var(--zyllen-muted)] hover:text-white"
+                                }`}
+                        >
+                            <t.icon size={16} /> {t.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-[var(--zyllen-muted)]">Etiqueta:</span>
+                    <input
+                        type="number"
+                        value={labelWidth}
+                        onChange={(e) => setLabelWidth(Math.max(10, Number(e.target.value)))}
+                        className="w-14 h-7 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white text-center text-xs focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                        title="Largura da etiqueta em mm"
+                    />
+                    <span className="text-xs text-[var(--zyllen-muted)]">×</span>
+                    <input
+                        type="number"
+                        value={labelHeight}
+                        onChange={(e) => setLabelHeight(Math.max(5, Number(e.target.value)))}
+                        className="w-14 h-7 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white text-center text-xs focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                        title="Altura da etiqueta em mm"
+                    />
+                    <span className="text-xs text-[var(--zyllen-muted)]">mm</span>
+                </div>
             </div>
 
             {/* ═══ PRINT ═══ */}
