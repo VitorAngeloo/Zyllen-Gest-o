@@ -182,6 +182,7 @@ export default function CadastrosPage() {
                 if (data.barcode) formData.append("barcode", data.barcode);
                 if (data.description) formData.append("description", data.description);
                 formData.append("categoryId", data.categoryId);
+                formData.append("codePrefix", (data.codePrefix ?? "").toUpperCase());
                 if (data.unit) formData.append("unit", data.unit);
                 for (const file of data.files as File[]) formData.append("files", file);
                 return apiClient.upload("/catalog/skus", formData, fetchOpts);

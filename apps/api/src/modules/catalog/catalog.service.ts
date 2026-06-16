@@ -131,6 +131,8 @@ export class CatalogService {
             uploadedById: string;
         }[];
     }) {
+        if (!data.codePrefix) throw new BadRequestException('Prefixo de patrimônio é obrigatório');
+
         // Verify category exists
         const category = await this.prisma.category.findUnique({ where: { id: data.categoryId } });
         if (!category) throw new NotFoundException('Categoria não encontrada');
