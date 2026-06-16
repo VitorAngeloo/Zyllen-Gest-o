@@ -175,12 +175,13 @@ export class InventoryController {
         @Query('skuId') skuId?: string,
         @Query('locationId') locationId?: string,
         @Query('typeId') typeId?: string,
+        @Query('search') search?: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
     ) {
         const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
-        const l = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10) || 20));
-        const result = await this.inventoryService.findAllMovements({ skuId, locationId, typeId, skip: (p - 1) * l, take: l });
+        const l = Math.min(200, Math.max(1, parseInt(limit ?? '20', 10) || 20));
+        const result = await this.inventoryService.findAllMovements({ skuId, locationId, typeId, search, skip: (p - 1) * l, take: l });
         return { data: result.data, total: result.total, page: p, limit: l };
     }
 

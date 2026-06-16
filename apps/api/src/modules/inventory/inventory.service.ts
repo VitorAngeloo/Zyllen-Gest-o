@@ -387,12 +387,27 @@ export class InventoryService {
     }
 
     // ── List movements ──
-    async findAllMovements(params?: { skuId?: string; locationId?: string; typeId?: string; skip?: number; take?: number }) {
-        const where = {
-            ...(params?.skuId ? { skuId: params.skuId } : {}),
-            ...(params?.locationId ? { OR: [{ fromLocationId: params.locationId }, { toLocationId: params.locationId }] } : {}),
-            ...(params?.typeId ? { typeId: params.typeId } : {}),
-        };
+    async findAllMovements(params?: { skuId?: string; locationId?: string; typeId?: string; search?: string; skip?: number; take?: number }) {
+        const filters: any[] = [];
+        if (params?.skuId) filters.push({ skuId: params.skuId });
+        if (params?.locationId) filters.push({ OR: [{ fromLocationId: params.locationId }, { toLocationId: params.locationId }] });
+        if (params?.typeId) filters.push({ typeId: params.typeId });
+        if (params?.search?.trim()) {
+            const s = params.search.trim();
+            filters.push({
+                OR: [
+                    { sku: { skuCode: { contains: s, mode: 'insensitive' as const } } },
+                    { sku: { name: { contains: s, mode: 'insensitive' as const } } },
+                    { asset: { assetCode: { contains: s, mode: 'insensitive' as const } } },
+                    { reason: { contains: s, mode: 'insensitive' as const } },
+                    { createdBy: { name: { contains: s, mode: 'insensitive' as const } } },
+                    { type: { name: { contains: s, mode: 'insensitive' as const } } },
+                    { fromLocation: { name: { contains: s, mode: 'insensitive' as const } } },
+                    { toLocation: { name: { contains: s, mode: 'insensitive' as const } } },
+                ],
+            });
+        }
+        const where = filters.length ? { AND: filters } : {};
         const [data, total] = await Promise.all([
             this.prisma.stockMovement.findMany({
                 where,

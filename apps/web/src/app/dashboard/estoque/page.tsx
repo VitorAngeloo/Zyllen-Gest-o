@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
 import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
@@ -98,6 +98,11 @@ export default function EstoquePage() {
     const qc = useQueryClient();
     const [tab, setTab] = useState<"balances" | "bipe" | "entry" | "exit" | "movements" | "reports">("balances");
     const [balancesSearch, setBalancesSearch] = useState("");
+    // Histórico — busca + paginação (server-side)
+    const MOVEMENTS_PER_PAGE = 50;
+    const [movementsSearch, setMovementsSearch] = useState("");
+    const [debouncedMovementsSearch, setDebouncedMovementsSearch] = useState("");
+    const [movementsPage, setMovementsPage] = useState(1);
     const [entryForm, setEntryForm] = useState({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
     const [createdAssetCodes, setCreatedAssetCodes] = useState<string[]>([]);
     const [entryMediaFiles, setEntryMediaFiles] = useState<File[]>([]);
@@ -177,11 +182,26 @@ export default function EstoquePage() {
         queryKey: ["balances"],
         queryFn: () => apiClient.get<{ data: any[] }>("/inventory/balances", fetchOpts),
     });
-    const { data: movements, isLoading: loadingMovements } = useQuery({
-        queryKey: ["movements"],
-        queryFn: () => apiClient.get<{ data: any[] }>("/inventory/movements", fetchOpts),
+    // Debounce da busca do histórico (evita 1 request por tecla)
+    useEffect(() => {
+        const t = setTimeout(() => {
+            setDebouncedMovementsSearch(movementsSearch.trim());
+            setMovementsPage(1);
+        }, 350);
+        return () => clearTimeout(t);
+    }, [movementsSearch]);
+
+    const { data: movements, isLoading: loadingMovements, isFetching: fetchingMovements } = useQuery({
+        queryKey: ["movements", debouncedMovementsSearch, movementsPage],
+        queryFn: () => apiClient.get<{ data: any[]; total: number; page: number; limit: number }>(
+            `/inventory/movements?page=${movementsPage}&limit=${MOVEMENTS_PER_PAGE}${debouncedMovementsSearch ? `&search=${encodeURIComponent(debouncedMovementsSearch)}` : ""}`,
+            fetchOpts,
+        ),
         enabled: tab === "movements",
+        placeholderData: keepPreviousData,
     });
+    const movementsTotal = movements?.total ?? 0;
+    const movementsTotalPages = Math.max(1, Math.ceil(movementsTotal / MOVEMENTS_PER_PAGE));
     const { data: skus } = useQuery({
         queryKey: ["skus"],
         queryFn: () => apiClient.get<{ data: any[] }>("/catalog/skus", fetchOpts),
@@ -1020,8 +1040,27 @@ export default function EstoquePage() {
 
             {tab === "movements" && (
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                    <CardHeader>
-                        <CardTitle className="text-white">Histórico de Movimentações</CardTitle>
+                    <CardHeader className="space-y-3">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <CardTitle className="text-white">Histórico de Movimentações</CardTitle>
+                            <span className="text-xs text-[var(--zyllen-muted)]">
+                                {movementsTotal} movimentaç{movementsTotal === 1 ? "ão" : "ões"}
+                                {debouncedMovementsSearch && " encontrada(s)"}
+                            </span>
+                        </div>
+                        <div className="relative max-w-md">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                            {fetchingMovements && (
+                                <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[var(--zyllen-muted)]" />
+                            )}
+                            <input
+                                type="text"
+                                value={movementsSearch}
+                                onChange={(e) => setMovementsSearch(e.target.value)}
+                                placeholder="Buscar por código, item, patrimônio, responsável, motivo ou local..."
+                                className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9 pr-9 text-sm placeholder:text-[var(--zyllen-muted)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                            />
+                        </div>
                     </CardHeader>
                     <CardContent>
                         {loadingMovements ? (
@@ -1058,7 +1097,12 @@ export default function EstoquePage() {
                                                         {m.type?.name ?? (m.toLocationId ? "Entrada" : "Saída")}
                                                     </Badge>
                                                 </td>
-                                                <td className="py-3 pr-4 font-mono text-[var(--zyllen-highlight)] text-xs">{m.sku?.skuCode}</td>
+                                                <td className="py-3 pr-4 text-xs">
+                                                    <span className="font-mono text-[var(--zyllen-highlight)]">{m.sku?.skuCode}</span>
+                                                    {m.asset?.assetCode && (
+                                                        <span className="block font-mono text-[var(--zyllen-muted)]">{m.asset.assetCode}</span>
+                                                    )}
+                                                </td>
                                                 <td className="py-3 pr-6 text-right text-white font-semibold">{m.qty}</td>
                                                 <td className="py-3 pr-4 text-white text-xs">{m.createdBy?.name ?? "—"}</td>
                                                 <td className="py-3 text-[var(--zyllen-muted)]">{m.reason ?? "—"}</td>
@@ -1070,7 +1114,40 @@ export default function EstoquePage() {
                         ) : (
                             <div className="text-center py-12">
                                 <History size={36} className="mx-auto mb-3 text-[var(--zyllen-muted)]/50" />
-                                <p className="text-[var(--zyllen-muted)]">{EMPTY_STATES.movements}</p>
+                                <p className="text-[var(--zyllen-muted)]">
+                                    {debouncedMovementsSearch
+                                        ? `Nenhuma movimentação encontrada para "${debouncedMovementsSearch}".`
+                                        : EMPTY_STATES.movements}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Paginação */}
+                        {movementsTotalPages > 1 && (
+                            <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-[var(--zyllen-border)]/50 flex-wrap">
+                                <span className="text-xs text-[var(--zyllen-muted)]">
+                                    Página {movementsPage} de {movementsTotalPages}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-[var(--zyllen-border)] text-white hover:bg-white/5 disabled:opacity-40"
+                                        onClick={() => setMovementsPage((p) => Math.max(1, p - 1))}
+                                        disabled={movementsPage <= 1 || fetchingMovements}
+                                    >
+                                        Anterior
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-[var(--zyllen-border)] text-white hover:bg-white/5 disabled:opacity-40"
+                                        onClick={() => setMovementsPage((p) => Math.min(movementsTotalPages, p + 1))}
+                                        disabled={movementsPage >= movementsTotalPages || fetchingMovements}
+                                    >
+                                        Próxima
+                                    </Button>
+                                </div>
                             </div>
                         )}
                     </CardContent>
