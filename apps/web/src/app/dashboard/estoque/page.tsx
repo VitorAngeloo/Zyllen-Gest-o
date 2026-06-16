@@ -16,6 +16,7 @@ import Link from "next/link";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
 const ALLOWED_MEDIA_MIME = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"]);
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 function SkuSearchCombobox({ skus, value, onChange }: { skus: any[]; value: string; onChange: (id: string) => void }) {
     const [query, setQuery] = useState("");
@@ -103,6 +104,7 @@ export default function EstoquePage() {
     const [movementsSearch, setMovementsSearch] = useState("");
     const [debouncedMovementsSearch, setDebouncedMovementsSearch] = useState("");
     const [movementsPage, setMovementsPage] = useState(1);
+    const [detailMovement, setDetailMovement] = useState<any>(null);
     const [entryForm, setEntryForm] = useState({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
     const [createdAssetCodes, setCreatedAssetCodes] = useState<string[]>([]);
     const [entryMediaFiles, setEntryMediaFiles] = useState<File[]>([]);
@@ -1090,8 +1092,17 @@ export default function EstoquePage() {
                                     </thead>
                                     <tbody>
                                         {movements.data.map((m: any) => (
-                                            <tr key={m.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
-                                                <td className="py-3 pr-4 text-[var(--zyllen-muted)] text-xs">{new Date(m.createdAt).toLocaleString("pt-BR")}</td>
+                                            <tr
+                                                key={m.id}
+                                                onClick={() => setDetailMovement(m)}
+                                                className="border-b border-[var(--zyllen-border)]/50 hover:bg-[var(--zyllen-highlight)]/5 cursor-pointer transition-colors group"
+                                            >
+                                                <td className="py-3 pr-4 text-[var(--zyllen-muted)] text-xs">
+                                                    <span className="inline-flex items-center gap-1.5">
+                                                        {new Date(m.createdAt).toLocaleString("pt-BR")}
+                                                        <ChevronRight size={13} className="text-[var(--zyllen-highlight)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                    </span>
+                                                </td>
                                                 <td className="py-3 pr-4">
                                                     <Badge variant={m.toLocationId ? "success" : "destructive"}>
                                                         {m.type?.name ?? (m.toLocationId ? "Entrada" : "Saída")}
@@ -1360,6 +1371,88 @@ export default function EstoquePage() {
                                 <p className="text-[var(--zyllen-muted)] text-sm">Nenhum patrimônio encontrado para este item.</p>
                             </div>
                         )}
+                    </DialogBody>
+                </DialogContent>
+            </Dialog>
+
+            {/* Detail Dialog — detalhe de uma movimentação */}
+            <Dialog open={!!detailMovement} onOpenChange={(open) => { if (!open) setDetailMovement(null); }}>
+                <DialogContent className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-lg" onClose={() => setDetailMovement(null)}>
+                    <DialogHeader>
+                        <DialogTitle className="text-white flex items-center gap-2">
+                            <History size={18} className="text-[var(--zyllen-highlight)]" />
+                            Detalhe da Movimentação
+                        </DialogTitle>
+                    </DialogHeader>
+                    <DialogBody>
+                        {detailMovement && (() => {
+                            const m = detailMovement;
+                            const isEntrada = !!m.toLocationId && !m.fromLocationId;
+                            const isSaida = !m.toLocationId && !!m.fromLocationId;
+                            const tipoLabel = m.type?.name ?? (isEntrada ? "Entrada" : isSaida ? "Saída" : "Transferência");
+                            const rows: { label: string; value: React.ReactNode }[] = [
+                                { label: "Data e hora", value: new Date(m.createdAt).toLocaleString("pt-BR") },
+                                { label: "Item", value: <span><span className="font-mono text-[var(--zyllen-highlight)]">{m.sku?.skuCode}</span>{m.sku?.name ? ` — ${m.sku.name}` : ""}</span> },
+                                ...(m.asset?.assetCode ? [{ label: "Patrimônio", value: <span className="font-mono text-white">{m.asset.assetCode}</span> }] : []),
+                                { label: "Quantidade", value: <span className="text-white font-semibold">{m.qty}</span> },
+                                { label: "Origem", value: m.fromLocation?.name ?? "—" },
+                                { label: "Destino", value: m.toLocation?.name ?? "—" },
+                                { label: "Responsável", value: m.createdBy?.name ?? "—" },
+                                { label: "Motivo", value: m.reason ?? "—" },
+                            ];
+                            return (
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <Badge variant={isSaida ? "destructive" : "success"}>{tipoLabel}</Badge>
+                                        {m.fromLocation?.name && m.toLocation?.name && (
+                                            <span className="text-xs text-[var(--zyllen-muted)] flex items-center gap-1">
+                                                <MapPin size={11} /> {m.fromLocation.name} <ChevronRight size={12} /> {m.toLocation.name}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="rounded-lg border border-[var(--zyllen-border)] divide-y divide-[var(--zyllen-border)]/50">
+                                        {rows.map((r) => (
+                                            <div key={r.label} className="flex items-start justify-between gap-4 px-3 py-2.5 text-sm">
+                                                <span className="text-[var(--zyllen-muted)] shrink-0">{r.label}</span>
+                                                <span className="text-white text-right">{r.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Anexos de mídia */}
+                                    {m.mediaAttachments?.length > 0 && (
+                                        <div className="space-y-2">
+                                            <p className="text-xs text-[var(--zyllen-muted)] flex items-center gap-1.5">
+                                                <Camera size={13} /> Anexos ({m.mediaAttachments.length})
+                                            </p>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {m.mediaAttachments.map((att: any) => {
+                                                    const url = `${API_BASE}${att.filePath}`;
+                                                    const isImage = att.mediaType === "IMAGE" || att.mimeType?.startsWith("image/");
+                                                    return (
+                                                        <a
+                                                            key={att.id}
+                                                            href={url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="block rounded-lg overflow-hidden border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] hover:border-[var(--zyllen-highlight)]/40 transition-colors"
+                                                            title={att.fileName}
+                                                        >
+                                                            {isImage ? (
+                                                                <img src={url} alt={att.fileName} className="h-20 w-full object-cover" />
+                                                            ) : (
+                                                                <video src={url} className="h-20 w-full object-cover" />
+                                                            )}
+                                                        </a>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
                     </DialogBody>
                 </DialogContent>
             </Dialog>
