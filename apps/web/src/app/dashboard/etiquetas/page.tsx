@@ -69,8 +69,19 @@ export default function EtiquetasPage() {
 
     // URL do Zebra Browser Print (vazio = localhost; pode ser um túnel)
     const [printerUrl, setPrinterUrl] = useState("");
-    useEffect(() => { setPrinterUrl(getZebraPrintUrl()); }, []);
+    // Deslocamento fino da impressão em mm (calibragem de posição na etiqueta)
+    const [offsetX, setOffsetX] = useState(0);
+    const [offsetY, setOffsetY] = useState(0);
+    useEffect(() => {
+        setPrinterUrl(getZebraPrintUrl());
+        const sx = Number(localStorage.getItem("labelOffsetX"));
+        const sy = Number(localStorage.getItem("labelOffsetY"));
+        if (!Number.isNaN(sx)) setOffsetX(sx);
+        if (!Number.isNaN(sy)) setOffsetY(sy);
+    }, []);
     const savePrinterUrl = (v: string) => { setPrinterUrl(v); setZebraPrintUrl(v); };
+    const saveOffsetX = (v: number) => { setOffsetX(v); localStorage.setItem("labelOffsetX", String(v)); };
+    const saveOffsetY = (v: number) => { setOffsetY(v); localStorage.setItem("labelOffsetY", String(v)); };
 
     // Template form
     const [newTemplate, setNewTemplate] = useState({ name: "", layout: "" });
@@ -183,7 +194,7 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
     };
 
     // ─── Impressão ZPL direta (Zebra Browser Print) ─────────────────────
-    const zplOpts = { widthMm: labelWidth, heightMm: labelHeight };
+    const zplOpts = { widthMm: labelWidth, heightMm: labelHeight, offsetXMm: offsetX, offsetYMm: offsetY };
 
     // Impressão unitária: gera ZPL e envia para a ZD220 via Browser Print.
     // Se falhar, mostra o erro real e cai para a impressão HTML do navegador.
@@ -324,6 +335,27 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                         title="Altura da etiqueta em mm"
                     />
                     <span className="text-xs text-[var(--zyllen-muted)]">mm</span>
+                </div>
+                <div className="flex items-center gap-2" title="Desloca a impressão dentro da etiqueta (mm). Use valores negativos para mover para cima/esquerda.">
+                    <span className="text-xs text-[var(--zyllen-muted)]">Ajuste:</span>
+                    <input
+                        type="number"
+                        step="0.5"
+                        value={offsetX}
+                        onChange={(e) => saveOffsetX(Number(e.target.value))}
+                        className="w-14 h-7 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white text-center text-xs focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                        title="Horizontal (mm): + direita / − esquerda"
+                    />
+                    <span className="text-xs text-[var(--zyllen-muted)]">↔</span>
+                    <input
+                        type="number"
+                        step="0.5"
+                        value={offsetY}
+                        onChange={(e) => saveOffsetY(Number(e.target.value))}
+                        className="w-14 h-7 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white text-center text-xs focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                        title="Vertical (mm): + baixo / − cima"
+                    />
+                    <span className="text-xs text-[var(--zyllen-muted)]">↕</span>
                 </div>
                 <div className="flex items-center gap-2 flex-1 min-w-[260px]">
                     <Printer size={14} className="text-[var(--zyllen-muted)] shrink-0" />

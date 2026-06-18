@@ -17,6 +17,8 @@ export type LabelZplOptions = {
     dpi?: number;       // resolução da impressora (ZD220 = 203)
     qrMagnification?: number; // ampliação do QR (1–10, padrão 3)
     copies?: number;    // cópias por etiqueta (padrão 1)
+    offsetXMm?: number; // deslocamento horizontal (mm; +direita / −esquerda)
+    offsetYMm?: number; // deslocamento vertical (mm; +baixo / −cima)
 };
 
 const DEFAULTS = {
@@ -25,6 +27,8 @@ const DEFAULTS = {
     dpi: 203,
     qrMagnification: 3,
     copies: 1,
+    offsetXMm: 0,
+    offsetYMm: 0,
 };
 
 // Converte milímetros em dots conforme o DPI da impressora.
@@ -57,27 +61,19 @@ export function buildLabelZpl(data: LabelZplData, options: LabelZplOptions = {})
     const pw = d(opt.widthMm);
     const ll = d(opt.heightMm);
 
-    // Posições em mm → dots
-    const headerX = d(2);
-    const headerY = d(1.2);
+    // Deslocamento aplicado a todos os elementos (calibragem fina de posição).
+    const ox = d(opt.offsetXMm);
+    const oy = d(opt.offsetYMm);
+    // Coordenada de origem (^FO) de um elemento, em mm, já com deslocamento.
+    // Clampa em 0 porque o ZPL não aceita coordenadas negativas.
+    const at = (xMm: number, yMm: number) =>
+        `${Math.max(0, d(xMm) + ox)},${Math.max(0, d(yMm) + oy)}`;
+
     const headerH = d(3.2);
-
-    const lineX = d(2);
-    const lineY = d(5.6);
     const lineW = d(opt.widthMm - 4);
-
-    const qrX = d(1.5);
-    const qrY = d(6.8);
-
-    const textX = d(20);
-    const codeY = d(7);
     const codeH = d(4.2);
-
-    const nameY = d(12.5);
     const nameH = d(3);
     const nameBlockW = d(opt.widthMm - 21);
-
-    const skuY = d(22);
     const skuH = d(2.6);
 
     const assetCode = sanitize(data.assetCode);
@@ -92,12 +88,12 @@ export function buildLabelZpl(data: LabelZplData, options: LabelZplOptions = {})
         `^PW${pw}`,
         `^LL${ll}`,
         "^LH0,0",
-        `^FO${headerX},${headerY}^A0N,${headerH},${headerH}^FDSKYLINE^FS`,
-        `^FO${lineX},${lineY}^GB${lineW},2,2^FS`,
-        `^FO${qrX},${qrY}^BQN,2,${opt.qrMagnification}^FDMA,${qr}^FS`,
-        `^FO${textX},${codeY}^A0N,${codeH},${codeH}^FD${assetCode}^FS`,
-        `^FO${textX},${nameY}^A0N,${nameH},${nameH}^FB${nameBlockW},2,3,L^FD${skuName}^FS`,
-        `^FO${textX},${skuY}^A0N,${skuH},${skuH}^FDSKU ${skuCode}^FS`,
+        `^FO${at(2, 1.2)}^A0N,${headerH},${headerH}^FDSKYLINE^FS`,
+        `^FO${at(2, 5.6)}^GB${lineW},2,2^FS`,
+        `^FO${at(1.5, 6.8)}^BQN,2,${opt.qrMagnification}^FDMA,${qr}^FS`,
+        `^FO${at(20, 7)}^A0N,${codeH},${codeH}^FD${assetCode}^FS`,
+        `^FO${at(20, 12.5)}^A0N,${nameH},${nameH}^FB${nameBlockW},2,3,L^FD${skuName}^FS`,
+        `^FO${at(20, 22)}^A0N,${skuH},${skuH}^FDSKU ${skuCode}^FS`,
         opt.copies > 1 ? `^PQ${opt.copies}` : "",
         "^XZ",
     ]
