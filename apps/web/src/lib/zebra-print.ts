@@ -13,10 +13,40 @@
 const BP_HTTP = "http://127.0.0.1:9100";
 const BP_HTTPS = "https://127.0.0.1:9101";
 
-// Em páginas HTTPS (skylineti.com) o Browser Print só aceita conexão pelo
-// endpoint HTTPS (9101) — o certificado local precisa estar confiável. Em
-// páginas HTTP usamos o endpoint HTTP. Tentamos ambos por segurança.
+const STORAGE_KEY = "zebraPrintUrl";
+
+const stripTrailingSlash = (url: string) => url.trim().replace(/\/+$/, "");
+
+/** URL do Browser Print configurada na tela (salva no navegador). */
+export function getZebraPrintUrl(): string {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(STORAGE_KEY) ?? "";
+}
+
+/** Salva (ou limpa) a URL do Browser Print no navegador. */
+export function setZebraPrintUrl(url: string): void {
+    if (typeof window === "undefined") return;
+    const clean = stripTrailingSlash(url);
+    if (clean) window.localStorage.setItem(STORAGE_KEY, clean);
+    else window.localStorage.removeItem(STORAGE_KEY);
+}
+
+// Base configurada manualmente: campo da tela tem prioridade, depois a
+// variável de ambiente NEXT_PUBLIC_ZEBRA_PRINT_URL (definida no build).
+function getConfiguredBase(): string | null {
+    const fromUi = getZebraPrintUrl();
+    if (fromUi) return stripTrailingSlash(fromUi);
+    const fromEnv = process.env.NEXT_PUBLIC_ZEBRA_PRINT_URL;
+    if (fromEnv) return stripTrailingSlash(fromEnv);
+    return null;
+}
+
+// Lista de endpoints a tentar. Se houver uma URL configurada (ex.: túnel do
+// tunnelmole), usa só ela. Caso contrário, tenta os endpoints locais — em
+// páginas HTTPS o Browser Print só aceita o endpoint HTTPS (9101).
 function bpHosts(): string[] {
+    const configured = getConfiguredBase();
+    if (configured) return [configured];
     const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
     return isHttps ? [BP_HTTPS, BP_HTTP] : [BP_HTTP, BP_HTTPS];
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
 import { useAuthedFetch } from "@web/lib/auth-context";
@@ -17,7 +17,7 @@ import QRCode from "react-qr-code";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 import { buildLabelZpl, buildBatchZpl, type LabelZplData } from "@web/lib/label-zpl";
-import { sendZpl } from "@web/lib/zebra-print";
+import { sendZpl, getZebraPrintUrl, setZebraPrintUrl } from "@web/lib/zebra-print";
 
 type Tab = "print" | "consumables" | "batch" | "history" | "templates";
 
@@ -66,6 +66,11 @@ export default function EtiquetasPage() {
     const [printColumns, setPrintColumns] = useState(2);
     const [labelWidth, setLabelWidth] = useState(50);
     const [labelHeight, setLabelHeight] = useState(30);
+
+    // URL do Zebra Browser Print (vazio = localhost; pode ser um túnel)
+    const [printerUrl, setPrinterUrl] = useState("");
+    useEffect(() => { setPrinterUrl(getZebraPrintUrl()); }, []);
+    const savePrinterUrl = (v: string) => { setPrinterUrl(v); setZebraPrintUrl(v); };
 
     // Template form
     const [newTemplate, setNewTemplate] = useState({ name: "", layout: "" });
@@ -319,6 +324,18 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                         title="Altura da etiqueta em mm"
                     />
                     <span className="text-xs text-[var(--zyllen-muted)]">mm</span>
+                </div>
+                <div className="flex items-center gap-2 flex-1 min-w-[260px]">
+                    <Printer size={14} className="text-[var(--zyllen-muted)] shrink-0" />
+                    <input
+                        type="text"
+                        value={printerUrl}
+                        onChange={(e) => setPrinterUrl(e.target.value)}
+                        onBlur={(e) => savePrinterUrl(e.target.value)}
+                        placeholder="URL da impressora (vazio = localhost) — ex: https://abc.tunnelmole.net"
+                        className="flex-1 h-7 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                        title="Endereço do Zebra Browser Print. Deixe vazio para usar a máquina local (127.0.0.1)."
+                    />
                 </div>
             </div>
 
