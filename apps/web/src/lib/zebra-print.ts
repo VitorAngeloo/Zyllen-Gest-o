@@ -10,8 +10,16 @@
 // Como a página roda em HTTPS (skylineti.com) e a API é local, o Chrome permite
 // chamadas para 127.0.0.1 (loopback é tratado como contexto seguro).
 
-// Tenta HTTP primeiro (mais simples); cai para HTTPS se necessário.
-const BP_HOSTS = ["http://127.0.0.1:9100", "https://127.0.0.1:9101"];
+const BP_HTTP = "http://127.0.0.1:9100";
+const BP_HTTPS = "https://127.0.0.1:9101";
+
+// Em páginas HTTPS (skylineti.com) o Browser Print só aceita conexão pelo
+// endpoint HTTPS (9101) — o certificado local precisa estar confiável. Em
+// páginas HTTP usamos o endpoint HTTP. Tentamos ambos por segurança.
+function bpHosts(): string[] {
+    const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+    return isHttps ? [BP_HTTPS, BP_HTTP] : [BP_HTTP, BP_HTTPS];
+}
 
 export type ZebraDevice = {
     name: string;
@@ -30,9 +38,9 @@ const withTimeout = (ms: number) => {
 };
 
 // Faz fetch tentando cada host do Browser Print em sequência.
-async function bpFetch(path: string, init: RequestInit, timeoutMs = 5000): Promise<Response> {
+async function bpFetch(path: string, init: RequestInit, timeoutMs = 4000): Promise<Response> {
     let lastErr: unknown;
-    for (const host of BP_HOSTS) {
+    for (const host of bpHosts()) {
         const t = withTimeout(timeoutMs);
         try {
             const res = await fetch(host + path, { ...init, signal: t.signal });
