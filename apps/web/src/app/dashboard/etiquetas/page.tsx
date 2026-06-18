@@ -16,6 +16,8 @@ import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, Download
 import QRCode from "react-qr-code";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
+import { buildLabelZpl, buildBatchZpl, type LabelZplData } from "@web/lib/label-zpl";
+import { sendZpl, isBrowserPrintAvailable } from "@web/lib/zebra-print";
 
 type Tab = "print" | "consumables" | "batch" | "history" | "templates";
 
@@ -62,8 +64,8 @@ export default function EtiquetasPage() {
     const [batchSearch, setBatchSearch] = useState("");
     const [batchLabelData, setBatchLabelData] = useState<any[] | null>(null);
     const [printColumns, setPrintColumns] = useState(2);
-    const [labelWidth, setLabelWidth] = useState(46);
-    const [labelHeight, setLabelHeight] = useState(20);
+    const [labelWidth, setLabelWidth] = useState(50);
+    const [labelHeight, setLabelHeight] = useState(30);
 
     // Template form
     const [newTemplate, setNewTemplate] = useState({ name: "", layout: "" });
@@ -175,7 +177,58 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
         popup.document.close();
     };
 
-    const handleSinglePrint = () => {
+    // ─── Impressão ZPL direta (Zebra Browser Print) ─────────────────────
+    const zplOpts = { widthMm: labelWidth, heightMm: labelHeight };
+
+    // Impressão unitária: gera ZPL e envia para a ZD220. Cai para o popup
+    // HTML caso o Zebra Browser Print não esteja instalado na máquina.
+    const handleSinglePrint = async () => {
+        if (!labelData) return;
+        const c = labelData.contract;
+        const zplData: LabelZplData = {
+            assetCode: c.assetCode,
+            skuName: c.skuName,
+            skuCode: c.skuCode,
+            qrContent: c.qrContent,
+        };
+        if (await isBrowserPrintAvailable()) {
+            try {
+                await sendZpl(buildLabelZpl(zplData, zplOpts));
+                toast.success("Etiqueta enviada para a impressora");
+                return;
+            } catch (e: any) {
+                toast.error(`Falha ao imprimir: ${e?.message ?? "erro desconhecido"}`);
+                return;
+            }
+        }
+        toast.message("Browser Print não detectado — usando impressão pelo navegador.");
+        handleSinglePrintHtml();
+    };
+
+    // Impressão em lote: concatena o ZPL de cada etiqueta selecionada.
+    const handleBatchPrint = async (labels: any[]) => {
+        const zplLabels: LabelZplData[] = labels.map((l) => ({
+            assetCode: l.assetCode,
+            skuName: l.skuName,
+            skuCode: l.skuCode,
+            qrContent: l.qrContent,
+        }));
+        if (await isBrowserPrintAvailable()) {
+            try {
+                await sendZpl(buildBatchZpl(zplLabels, zplOpts));
+                toast.success(`${zplLabels.length} etiqueta(s) enviada(s) para a impressora`);
+                return;
+            } catch (e: any) {
+                toast.error(`Falha ao imprimir: ${e?.message ?? "erro desconhecido"}`);
+                return;
+            }
+        }
+        toast.message("Browser Print não detectado — usando impressão pelo navegador.");
+        handleBatchPrintHtml();
+    };
+
+    // ─── Fallback: impressão via popup HTML do navegador ────────────────
+    const handleSinglePrintHtml = () => {
         if (!labelData) return;
         const el = document.getElementById("label-print-area");
         const svg = el?.querySelector("svg");
@@ -202,7 +255,7 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
         openPrintWindow(html, 1);
     };
 
-    const handleBatchPrint = (labels: any[]) => {
+    const handleBatchPrintHtml = () => {
         const sheet = document.getElementById("batch-print-sheet");
         if (!sheet || !sheet.children.length) return;
         const labelsHtml = Array.from(sheet.children).map((el) => el.outerHTML).join("");
