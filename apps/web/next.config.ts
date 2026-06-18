@@ -15,7 +15,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: ${API_URL}`,
       `media-src 'self' blob: ${API_URL}`,
-      `connect-src 'self' ${API_URL} https://servicodados.ibge.gov.br https://nominatim.openstreetmap.org`,
+      `connect-src 'self' ${API_URL} https://servicodados.ibge.gov.br https://nominatim.openstreetmap.org https://*.tunnelmole.net http://127.0.0.1:9100 https://127.0.0.1:9101 http://localhost:9100 https://localhost:9101`,
       "font-src 'self'",
       "frame-ancestors 'none'",
     ].join("; "),
