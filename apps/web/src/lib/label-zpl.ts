@@ -52,29 +52,20 @@ const qrModulesForData = (byteLen: number): number => {
     return 177; // versão 40
 };
 
-// Calcula a posição e o tamanho REAIS do QR na etiqueta. O QR mantém o
-// tamanho desejado (sizeMm) e, se não couber na posição definida, é movido
-// para CIMA/ESQUERDA o necessário para caber inteiro — em vez de cortar.
-// Só encolhe se for maior que a própria etiqueta. Usado por preview e ZPL.
-export function qrLayout(
-    sizeMm: number, dpi: number, byteLen: number,
-    labelWmm: number, labelHmm: number, xMm: number, yMm: number,
-): { mag: number; printedMm: number; xMm: number; yMm: number } {
+// Ampliação do QR a partir do tamanho desejado (sizeMm) e do volume de dados.
+export const qrMagnification = (sizeMm: number, dpi: number, byteLen: number): number => {
     const modules = qrModulesForData(byteLen);
-    const magDesired = Math.round(mmToDots(sizeMm, dpi) / modules);
-    const maxMagW = Math.floor(mmToDots(labelWmm, dpi) / modules);
-    const maxMagH = Math.floor(mmToDots(labelHmm, dpi) / modules);
-    const mag = Math.max(1, Math.min(10, magDesired, maxMagW, maxMagH));
-    const printedMm = (modules * mag * 25.4) / dpi;
-    // Move para dentro da etiqueta (sobe/encosta à esquerda se passar).
-    const fx = Math.max(0, Math.min(labelWmm - printedMm, xMm));
-    const fy = Math.max(0, Math.min(labelHmm - printedMm, yMm));
-    return { mag, printedMm, xMm: fx, yMm: fy };
-}
+    return Math.max(1, Math.min(10, Math.round(mmToDots(sizeMm, dpi) / modules)));
+};
+
+// Tamanho real (mm) que o QR vai ocupar — usado para o preview ser fiel.
+export const qrPrintedSizeMm = (sizeMm: number, dpi: number, byteLen: number): number => {
+    const modules = qrModulesForData(byteLen);
+    return (modules * qrMagnification(sizeMm, dpi, byteLen) * 25.4) / dpi;
+};
 
 // Gera o comando ZPL de um único elemento, já com o deslocamento aplicado.
-// labelWmm/labelHmm = tamanho da etiqueta (uma coluna) para o QR caber.
-function elementZpl(el: LabelElement, data: LabelData, dpi: number, ox: number, oy: number, logos?: Record<string, string>, labelWmm?: number, labelHmm?: number): string {
+function elementZpl(el: LabelElement, data: LabelData, dpi: number, ox: number, oy: number, logos?: Record<string, string>): string {
     const d = (mm: number) => mmToDots(mm, dpi);
     // Clampa em 0 porque o ZPL não aceita coordenadas negativas.
     const x = Math.max(0, d(el.xMm) + ox);
@@ -83,10 +74,8 @@ function elementZpl(el: LabelElement, data: LabelData, dpi: number, ox: number, 
     switch (el.type) {
         case "qrcode": {
             const qr = sanitize(data.qrContent);
-            const lay = qrLayout(el.sizeMm ?? 17, dpi, qr.length, labelWmm ?? 1000, labelHmm ?? 1000, el.xMm, el.yMm);
-            const qx = Math.max(0, d(lay.xMm) + ox);
-            const qy = Math.max(0, d(lay.yMm) + oy);
-            return `^FO${qx},${qy}^BQN,2,${lay.mag}^FDMA,${qr}^FS`;
+            const mag = qrMagnification(el.sizeMm ?? 17, dpi, qr.length);
+            return `^FO${x},${y}^BQN,2,${mag}^FDMA,${qr}^FS`;
         }
         case "barcode": {
             const value = sanitize(data.assetCode);
@@ -125,7 +114,7 @@ export function buildLabelZplFromTemplate(
     const ll = mmToDots(template.heightMm, dpi);
 
     const body = template.elements
-        .map((el) => elementZpl(el, data, dpi, ox, oy, opts.logos, template.widthMm, template.heightMm))
+        .map((el) => elementZpl(el, data, dpi, ox, oy, opts.logos))
         .filter(Boolean)
         .join("\n");
 
@@ -180,7 +169,7 @@ export function buildBatchZplFromTemplate(
         const body = group
             .flatMap((data, col) => {
                 const colOx = ox + mmToDots(col * (colW + gap), dpi);
-                return template.elements.map((el) => elementZpl(el, data, dpi, colOx, oy, opts.logos, colW, template.heightMm));
+                return template.elements.map((el) => elementZpl(el, data, dpi, colOx, oy, opts.logos));
             })
             .filter(Boolean)
             .join("\n");

@@ -12,7 +12,7 @@ import {
     type LabelElement,
     resolveElementText,
 } from "@web/lib/label-template";
-import { qrLayout } from "@web/lib/label-zpl";
+import { qrPrintedSizeMm } from "@web/lib/label-zpl";
 
 type Props = {
     template: LabelTemplate;
@@ -80,8 +80,6 @@ export function LabelPreview({ template, data, pxPerMm = 5, selectedId, onSelect
                     data={data}
                     s={s}
                     dpi={template.dpi || 203}
-                    labelWmm={template.widthMm}
-                    labelHmm={template.heightMm}
                     selected={selectedId === el.id}
                     editable={editable}
                     onSelect={onSelect}
@@ -111,14 +109,12 @@ function setBox(el: LabelElement, wMm: number, hMm: number): Partial<LabelElemen
 }
 
 function ElementView({
-    el, data, s, dpi, labelWmm, labelHmm, selected, editable, onSelect, onStartDrag, onStartResize,
+    el, data, s, dpi, selected, editable, onSelect, onStartDrag, onStartResize,
 }: {
     el: LabelElement;
     data: LabelData;
     s: number;
     dpi: number;
-    labelWmm: number;
-    labelHmm: number;
     selected?: boolean;
     editable?: boolean;
     onSelect?: (id: string) => void;
@@ -149,12 +145,10 @@ function ElementView({
     ) : null;
 
     if (el.type === "qrcode") {
-        // Mesma lógica da impressão: tamanho real e posição já reposicionada
-        // para caber inteiro (sobe/encosta à esquerda se passar da borda).
-        const lay = qrLayout(el.sizeMm ?? 17, dpi, (data.qrContent || " ").length, labelWmm, labelHmm, el.xMm, el.yMm);
-        const size = lay.printedMm * s;
+        // Tamanho real impresso, na posição exata do elemento (fiel à impressão).
+        const size = qrPrintedSizeMm(el.sizeMm ?? 17, dpi, (data.qrContent || " ").length) * s;
         return (
-            <div style={{ ...baseStyle, left: lay.xMm * s, top: lay.yMm * s }} {...handlers}>
+            <div style={baseStyle} {...handlers}>
                 <QRCode value={data.qrContent || " "} size={size} level="M" />
                 {resizeHandle}
             </div>
