@@ -18,6 +18,7 @@ export type PrintOptions = {
     copies?: number;
     offsetXMm?: number; // deslocamento global horizontal (+direita / −esquerda)
     offsetYMm?: number; // deslocamento global vertical (+baixo / −cima)
+    logos?: Record<string, string>; // id-do-elemento → comando ^GF pré-renderizado
 };
 
 // Converte milímetros em dots conforme o DPI da impressora.
@@ -39,7 +40,7 @@ const qrMagFromSize = (sizeMm: number, dpi: number) =>
     Math.max(1, Math.min(10, Math.round(mmToDots(sizeMm, dpi) / 42)));
 
 // Gera o comando ZPL de um único elemento, já com o deslocamento aplicado.
-function elementZpl(el: LabelElement, data: LabelData, dpi: number, ox: number, oy: number): string {
+function elementZpl(el: LabelElement, data: LabelData, dpi: number, ox: number, oy: number, logos?: Record<string, string>): string {
     const d = (mm: number) => mmToDots(mm, dpi);
     // Clampa em 0 porque o ZPL não aceita coordenadas negativas.
     const x = Math.max(0, d(el.xMm) + ox);
@@ -61,9 +62,10 @@ function elementZpl(el: LabelElement, data: LabelData, dpi: number, ox: number, 
             const th = Math.max(1, d(el.heightMm ?? 0.3));
             return `^FO${x},${y}^GB${w},${th},${th}^FS`;
         }
-        case "logo":
-            // Fase 4: requer conversão da imagem para bitmap (^GF).
-            return "";
+        case "logo": {
+            const gf = logos?.[el.id];
+            return gf ? `^FO${x},${y}${gf}` : "";
+        }
         default: {
             const text = sanitize(resolveElementText(el, data));
             if (!text) return "";
@@ -87,7 +89,7 @@ export function buildLabelZplFromTemplate(
     const ll = mmToDots(template.heightMm, dpi);
 
     const body = template.elements
-        .map((el) => elementZpl(el, data, dpi, ox, oy))
+        .map((el) => elementZpl(el, data, dpi, ox, oy, opts.logos))
         .filter(Boolean)
         .join("\n");
 

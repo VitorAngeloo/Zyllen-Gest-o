@@ -24,6 +24,7 @@ import {
 } from "@web/lib/label-template";
 import { LabelPreview } from "@web/components/etiquetas/label-preview";
 import { TemplateEditor } from "@web/components/etiquetas/template-editor";
+import { prepareTemplateLogos } from "@web/lib/logo-zpl";
 import { sendZpl, getZebraPrintUrl, setZebraPrintUrl } from "@web/lib/zebra-print";
 
 type Tab = "selection" | "printing" | "templates" | "history";
@@ -222,7 +223,9 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
             setHtmlLabels(items.flatMap((it) => Array(Math.max(1, it.copies)).fill(it.data)));
             qc.invalidateQueries({ queryKey: ["label-history"] });
             try {
-                await sendZpl(buildBatchZplFromTemplate(activeTemplate, items, printOpts));
+                // Rasteriza os logos do template (^GF) antes de gerar o ZPL.
+                const logos = await prepareTemplateLogos(activeTemplate);
+                await sendZpl(buildBatchZplFromTemplate(activeTemplate, items, { ...printOpts, logos }));
                 toast.success(`${totalLabels} etiqueta(s) enviada(s) para a impressora`);
             } catch (e: any) {
                 toast.error(`Browser Print indisponível (${e?.message ?? "erro"}). Usando navegador.`);
