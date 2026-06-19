@@ -565,22 +565,29 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                 </div>
                             </div>
 
-                            {/* Preview */}
+                            {/* Preview — mostra a 1ª linha conforme as colunas do template */}
                             <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-highlight)]/20 h-fit">
                                 <CardHeader className="pb-3"><CardTitle className="text-white text-sm flex items-center gap-2"><Tag size={16} className="text-[var(--zyllen-highlight)]" /> Preview</CardTitle></CardHeader>
                                 <CardContent className="flex flex-col items-center">
-                                    <LabelPreview
-                                        template={activeTemplate}
-                                        data={{
-                                            assetCode: queue[0].assetCode,
-                                            skuName: queue[0].skuName,
-                                            skuCode: queue[0].skuCode,
-                                            qrContent: queue[0].qrContent,
-                                            location: queue[0].location,
-                                        }}
-                                        pxPerMm={6}
-                                    />
-                                    <p className="text-xs text-[var(--zyllen-muted)] mt-3 text-center">Prévia do 1º item · fiel à impressão</p>
+                                    <div style={{ display: "flex", gap: (activeTemplate.gapXMm || 0) * 6, background: "white", padding: 2 }}>
+                                        {queue.slice(0, Math.max(1, activeTemplate.columns || 1)).map((q) => (
+                                            <LabelPreview
+                                                key={q.assetId}
+                                                template={{ ...activeTemplate, columns: 1 }}
+                                                data={{
+                                                    assetCode: q.assetCode,
+                                                    skuName: q.skuName,
+                                                    skuCode: q.skuCode,
+                                                    qrContent: q.qrContent,
+                                                    location: q.location,
+                                                }}
+                                                pxPerMm={6}
+                                            />
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-[var(--zyllen-muted)] mt-3 text-center">
+                                        {(activeTemplate.columns || 1) > 1 ? `1ª linha · ${activeTemplate.columns} colunas` : "Prévia do 1º item"} · fiel à impressão
+                                    </p>
                                 </CardContent>
                             </Card>
                         </div>

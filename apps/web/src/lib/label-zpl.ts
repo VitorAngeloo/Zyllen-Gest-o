@@ -107,13 +107,48 @@ export function buildLabelZplFromTemplate(
         .join("\n");
 }
 
-/** Gera o ZPL de VÁRIAS etiquetas (lote), cada item com sua quantidade. */
+/**
+ * Gera o ZPL de VÁRIAS etiquetas (lote), respeitando as COLUNAS do template.
+ *
+ * Em mídia multi-coluna (ex.: rolo 2-across), a impressora trata a linha
+ * inteira como uma única etiqueta. Por isso, para cada linha geramos UM bloco
+ * ^XA com a largura total (colunas × largura + vãos) e posicionamos cada item
+ * deslocado horizontalmente por (largura + espaçamento da coluna).
+ */
 export function buildBatchZplFromTemplate(
     template: LabelTemplate,
     items: Array<{ data: LabelData; copies?: number }>,
     opts: PrintOptions = {},
 ): string {
-    return items
-        .map((it) => buildLabelZplFromTemplate(template, it.data, { ...opts, copies: it.copies }))
-        .join("\n");
+    const dpi = template.dpi || 203;
+    const cols = Math.max(1, Math.round(template.columns || 1));
+    const colW = template.widthMm;
+    const gap = template.gapXMm || 0;
+
+    const pw = mmToDots(cols * colW + (cols - 1) * gap, dpi);
+    const ll = mmToDots(template.heightMm, dpi);
+    const ox = mmToDots(opts.offsetXMm ?? 0, dpi);
+    const oy = mmToDots(opts.offsetYMm ?? 0, dpi);
+
+    // Expande por cópias para uma lista plana de etiquetas.
+    const flat: LabelData[] = [];
+    for (const it of items) {
+        const n = Math.max(1, it.copies ?? 1);
+        for (let i = 0; i < n; i++) flat.push(it.data);
+    }
+
+    // Agrupa em linhas de `cols` etiquetas → um bloco ^XA por linha.
+    const rows: string[] = [];
+    for (let i = 0; i < flat.length; i += cols) {
+        const group = flat.slice(i, i + cols);
+        const body = group
+            .flatMap((data, col) => {
+                const colOx = ox + mmToDots(col * (colW + gap), dpi);
+                return template.elements.map((el) => elementZpl(el, data, dpi, colOx, oy, opts.logos));
+            })
+            .filter(Boolean)
+            .join("\n");
+        rows.push(["^XA", "^CI28", `^PW${pw}`, `^LL${ll}`, "^LH0,0", body, "^XZ"].join("\n"));
+    }
+    return rows.join("\n");
 }
