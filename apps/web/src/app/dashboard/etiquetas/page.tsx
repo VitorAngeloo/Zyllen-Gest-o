@@ -6,18 +6,24 @@ import { useAuthedFetch } from "@web/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
-import { Label } from "@web/components/ui/label";
 import { Badge } from "@web/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@web/components/ui/dialog";
-import { Textarea } from "@web/components/ui/textarea";
 import { toast } from "sonner";
-import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, X, CheckSquare, Send, Minus, ListChecks } from "lucide-react";
+import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, X, CheckSquare, Send, Minus, ListChecks, Copy, Star } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 import { buildBatchZplFromTemplate } from "@web/lib/label-zpl";
-import { DEFAULT_TEMPLATE, type LabelData } from "@web/lib/label-template";
+import {
+    DEFAULT_TEMPLATE,
+    type LabelData,
+    type LabelTemplate,
+    blankTemplate,
+    parseTemplate,
+    serializeTemplate,
+} from "@web/lib/label-template";
 import { LabelPreview } from "@web/components/etiquetas/label-preview";
+import { TemplateEditor } from "@web/components/etiquetas/template-editor";
 import { sendZpl, getZebraPrintUrl, setZebraPrintUrl } from "@web/lib/zebra-print";
 
 type Tab = "selection" | "printing" | "templates" | "history";
@@ -71,25 +77,25 @@ export default function EtiquetasPage() {
 
     // ─── Configuração de impressão ──────
     const [printColumns, setPrintColumns] = useState(2);
-    const [labelWidth, setLabelWidth] = useState(50);
-    const [labelHeight, setLabelHeight] = useState(30);
     const [printerUrl, setPrinterUrl] = useState("");
     const [offsetX, setOffsetX] = useState(0);
     const [offsetY, setOffsetY] = useState(0);
+    const [selectedTemplateId, setSelectedTemplateId] = useState("default");
     useEffect(() => {
         setPrinterUrl(getZebraPrintUrl());
         const sx = Number(localStorage.getItem("labelOffsetX"));
         const sy = Number(localStorage.getItem("labelOffsetY"));
         if (!Number.isNaN(sx)) setOffsetX(sx);
         if (!Number.isNaN(sy)) setOffsetY(sy);
+        setSelectedTemplateId(localStorage.getItem("defaultTemplateId") || "default");
     }, []);
     const savePrinterUrl = (v: string) => { setPrinterUrl(v); setZebraPrintUrl(v); };
     const saveOffsetX = (v: number) => { setOffsetX(v); localStorage.setItem("labelOffsetX", String(v)); };
     const saveOffsetY = (v: number) => { setOffsetY(v); localStorage.setItem("labelOffsetY", String(v)); };
 
-    // ─── Templates (CRUD JSON — vira editor visual na Fase 4) ───
-    const [newTemplate, setNewTemplate] = useState({ name: "", layout: "" });
-    const [editTemplate, setEditTemplate] = useState<any>(null);
+    // ─── Editor de templates ────────────
+    const [editorTemplate, setEditorTemplate] = useState<LabelTemplate>(blankTemplate());
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
 
     // ─── Queries ────────────────────────
@@ -108,11 +114,18 @@ export default function EtiquetasPage() {
     const { data: templates } = useQuery({
         queryKey: ["label-templates"],
         queryFn: () => apiClient.get<{ data: any[] }>("/labels/templates", fetchOpts),
-        enabled: tab === "templates",
+        enabled: tab === "templates" || tab === "printing",
     });
 
-    // Template ativo (Fase 1: padrão com o tamanho escolhido).
-    const activeTemplate = { ...DEFAULT_TEMPLATE, widthMm: labelWidth, heightMm: labelHeight };
+    // Templates salvos no novo modelo (ignora formatos legados sem `elements`).
+    const savedTemplates: LabelTemplate[] = (templates?.data ?? [])
+        .map((t: any) => { const p = parseTemplate(t.layout); return p ? { ...p, id: t.id, name: t.name } : null; })
+        .filter(Boolean) as LabelTemplate[];
+
+    // Template ativo usado na impressão e no preview.
+    const activeTemplate: LabelTemplate = selectedTemplateId === "default"
+        ? DEFAULT_TEMPLATE
+        : savedTemplates.find((t) => t.id === selectedTemplateId) ?? DEFAULT_TEMPLATE;
     const printOpts = { offsetXMm: offsetX, offsetYMm: offsetY };
     const totalLabels = queue.reduce((s, q) => s + Math.max(1, q.copies), 0);
 
@@ -157,6 +170,8 @@ export default function EtiquetasPage() {
         const fixedHtml = labelsHtml.replace(/src="\/brand\//g, `src="${origin}/brand/`);
         const popup = window.open("", "_blank", "width=900,height=700");
         if (!popup) { toast.error("Habilite popups para este site para imprimir etiquetas."); return; }
+        const labelWidth = activeTemplate.widthMm;
+        const labelHeight = activeTemplate.heightMm;
         const pageW = labelWidth * columns;
         const qrPx = Math.max(Math.round((labelHeight - 8) * 3.78), 20);
         popup.document.write(`<!DOCTYPE html>
@@ -231,22 +246,48 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
         printQueueMut.mutate(queue.map((q) => q.assetId));
     };
 
-    // ─── Templates CRUD ─────────────────
+    // ─── Templates (novo modelo via editor) ─────
     const createTemplate = useMutation({
-        mutationFn: (data: any) => apiClient.post("/labels/templates", data, fetchOpts),
-        onSuccess: () => { toast.success("Template criado!"); qc.invalidateQueries({ queryKey: ["label-templates"] }); setNewTemplate({ name: "", layout: "" }); },
+        mutationFn: (data: any) => apiClient.post<{ data: any }>("/labels/templates", data, fetchOpts),
+        onSuccess: (res: any) => { toast.success("Template salvo!"); qc.invalidateQueries({ queryKey: ["label-templates"] }); if (res?.data?.id) setEditingId(res.data.id); },
         onError: (e: any) => toast.error(e.message),
     });
     const updateTemplate = useMutation({
         mutationFn: (data: any) => apiClient.put(`/labels/templates/${data.id}`, { name: data.name, layout: data.layout }, fetchOpts),
-        onSuccess: () => { toast.success("Template atualizado!"); qc.invalidateQueries({ queryKey: ["label-templates"] }); setEditTemplate(null); },
+        onSuccess: () => { toast.success("Template atualizado!"); qc.invalidateQueries({ queryKey: ["label-templates"] }); },
         onError: (e: any) => toast.error(e.message),
     });
     const deleteTemplate = useMutation({
         mutationFn: (id: string) => apiClient.delete(`/labels/templates/${id}`, fetchOpts),
-        onSuccess: () => { toast.success("Template excluído!"); qc.invalidateQueries({ queryKey: ["label-templates"] }); setDeleteConfirm(null); },
+        onSuccess: (_res: any, id: string) => {
+            toast.success("Template excluído!");
+            qc.invalidateQueries({ queryKey: ["label-templates"] });
+            setDeleteConfirm(null);
+            if (editingId === id) { setEditorTemplate(blankTemplate()); setEditingId(null); }
+            if (selectedTemplateId === id) setSelectedTemplateId("default");
+        },
         onError: (e: any) => toast.error(e.message),
     });
+
+    const newTemplateEditor = () => { setEditorTemplate(blankTemplate()); setEditingId(null); };
+    const loadTemplateToEditor = (t: LabelTemplate) => { setEditorTemplate(t); setEditingId(t.id ?? null); };
+    const saveTemplate = () => {
+        if (!editorTemplate.name.trim()) { toast.error("Dê um nome ao template"); return; }
+        const payload = { name: editorTemplate.name, layout: serializeTemplate(editorTemplate) };
+        if (editingId) updateTemplate.mutate({ id: editingId, ...payload });
+        else createTemplate.mutate(payload);
+    };
+    const duplicateTemplate = () => {
+        const name = `${editorTemplate.name} (cópia)`;
+        setEditingId(null);
+        setEditorTemplate({ ...editorTemplate, name });
+        createTemplate.mutate({ name, layout: serializeTemplate({ ...editorTemplate, name }) });
+    };
+    const setDefaultTemplate = (id: string) => {
+        localStorage.setItem("defaultTemplateId", id);
+        setSelectedTemplateId(id);
+        toast.success("Template definido como padrão");
+    };
 
     const tabs = [
         { key: "selection", label: "Seleção", icon: ListChecks },
@@ -430,12 +471,13 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                 <span className="text-xs text-[var(--zyllen-muted)]">Template:</span>
                                 <select
                                     className="h-8 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white px-2 text-xs focus:outline-none"
-                                    value="default"
-                                    onChange={() => { }}
-                                    title="Mais templates virão com o editor visual (Fase 4)"
+                                    value={selectedTemplateId}
+                                    onChange={(e) => setSelectedTemplateId(e.target.value)}
                                 >
                                     <option value="default">{DEFAULT_TEMPLATE.name}</option>
+                                    {savedTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                                 </select>
+                                <span className="text-[10px] text-[var(--zyllen-muted)]">{activeTemplate.widthMm}×{activeTemplate.heightMm}mm</span>
                             </div>
                             <div className="flex items-center gap-2 flex-1 min-w-[220px]">
                                 <Printer size={14} className="text-[var(--zyllen-muted)] shrink-0" />
@@ -448,13 +490,6 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                     className="flex-1 h-8 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
                                     title="Endereço do Zebra Browser Print. Vazio = máquina local (127.0.0.1)."
                                 />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-[var(--zyllen-muted)]">Etiqueta:</span>
-                                <input type="number" value={labelWidth} onChange={(e) => setLabelWidth(Math.max(10, Number(e.target.value)))} className="w-14 h-8 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white text-center text-xs focus:outline-none" title="Largura (mm)" />
-                                <span className="text-xs text-[var(--zyllen-muted)]">×</span>
-                                <input type="number" value={labelHeight} onChange={(e) => setLabelHeight(Math.max(5, Number(e.target.value)))} className="w-14 h-8 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white text-center text-xs focus:outline-none" title="Altura (mm)" />
-                                <span className="text-xs text-[var(--zyllen-muted)]">mm</span>
                             </div>
                             <div className="flex items-center gap-2" title="Desloca a impressão dentro da etiqueta (mm). Negativo move para cima/esquerda.">
                                 <span className="text-xs text-[var(--zyllen-muted)]">Ajuste:</span>
@@ -618,42 +653,50 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
             {/* ═══ TEMPLATES ═══ */}
             {tab === "templates" && (
                 <div className="space-y-4">
-                    <div className="rounded-lg border border-[var(--zyllen-highlight)]/30 bg-[var(--zyllen-highlight)]/5 px-4 py-3 text-xs text-[var(--zyllen-muted)]">
-                        O editor visual de templates (arrastar e soltar elementos) chega na próxima fase. Por enquanto, o layout padrão 50×30 é usado na impressão.
-                    </div>
-                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-lg">
-                        <CardHeader><CardTitle className="text-white">Novo Template</CardTitle></CardHeader>
-                        <CardContent>
-                            <form onSubmit={(e) => { e.preventDefault(); createTemplate.mutate(newTemplate); }} className="space-y-3">
-                                <div className="space-y-2">
-                                    <Label className="text-[var(--zyllen-muted)]">Nome</Label>
-                                    <Input value={newTemplate.name} onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })} placeholder="Nome do template..." required className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[var(--zyllen-muted)]">Layout (JSON)</Label>
-                                    <Textarea value={newTemplate.layout} onChange={(e) => setNewTemplate({ ...newTemplate, layout: e.target.value })} placeholder='{"widthMm":50,"heightMm":30,"elements":[...]}' required className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white font-mono text-xs min-h-[120px]" />
-                                </div>
-                                <Button type="submit" variant="highlight" className="w-full" disabled={createTemplate.isPending}>
-                                    <Plus size={16} /> {createTemplate.isPending ? "Criando..." : "Criar Template"}
+                    {/* Ações */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" className="border-[var(--zyllen-border)] text-white gap-1" onClick={newTemplateEditor}>
+                            <Plus size={15} /> Novo
+                        </Button>
+                        <Button variant="highlight" className="gap-1" onClick={saveTemplate} disabled={createTemplate.isPending || updateTemplate.isPending}>
+                            {editingId ? "Salvar alterações" : "Salvar template"}
+                        </Button>
+                        {editingId && (
+                            <>
+                                <Button variant="outline" className="border-[var(--zyllen-border)] text-white gap-1" onClick={duplicateTemplate}>
+                                    <Copy size={15} /> Duplicar
                                 </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
+                                <Button variant="outline" className="border-[var(--zyllen-border)] text-white gap-1" onClick={() => setDefaultTemplate(editingId)}>
+                                    <Star size={15} /> Definir padrão
+                                </Button>
+                            </>
+                        )}
+                        {editingId && (
+                            <span className="text-xs text-[var(--zyllen-muted)]">Editando: <span className="text-white">{editorTemplate.name}</span></span>
+                        )}
+                    </div>
 
+                    {/* Editor */}
+                    <TemplateEditor template={editorTemplate} onChange={setEditorTemplate} />
+
+                    {/* Templates salvos */}
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                        <CardHeader><CardTitle className="text-white">Templates</CardTitle></CardHeader>
+                        <CardHeader><CardTitle className="text-white text-sm">Templates salvos</CardTitle></CardHeader>
                         <CardContent>
-                            {templates?.data?.length ? (
+                            {savedTemplates.length ? (
                                 <div className="space-y-2">
-                                    {templates.data.map((t: any) => (
-                                        <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]/50 group">
-                                            <div>
-                                                <p className="text-white text-sm font-medium">{t.name}</p>
-                                                <p className="text-xs text-[var(--zyllen-muted)] font-mono truncate max-w-md">{t.layout}</p>
-                                            </div>
+                                    {savedTemplates.map((t) => (
+                                        <div key={t.id} className={`flex items-center justify-between p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border ${editingId === t.id ? "border-[var(--zyllen-highlight)]/50" : "border-[var(--zyllen-border)]/50"} group`}>
+                                            <button className="text-left flex-1" onClick={() => loadTemplateToEditor(t)}>
+                                                <p className="text-white text-sm font-medium flex items-center gap-2">
+                                                    {t.name}
+                                                    {selectedTemplateId === t.id && <span className="text-[10px] text-[var(--zyllen-highlight)] flex items-center gap-0.5"><Star size={10} /> padrão</span>}
+                                                </p>
+                                                <p className="text-xs text-[var(--zyllen-muted)]">{t.widthMm}×{t.heightMm}mm · {t.elements.length} elemento(s)</p>
+                                            </button>
                                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => setEditTemplate({ id: t.id, name: t.name, layout: t.layout })} className="p-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"><Pencil size={14} /></button>
-                                                <button onClick={() => setDeleteConfirm(t)} className="p-1 text-[var(--zyllen-muted)] hover:text-red-400"><Trash2 size={14} /></button>
+                                                <button onClick={() => loadTemplateToEditor(t)} className="p-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]" title="Editar"><Pencil size={14} /></button>
+                                                <button onClick={() => setDeleteConfirm({ id: t.id, name: t.name })} className="p-1 text-[var(--zyllen-muted)] hover:text-red-400" title="Excluir"><Trash2 size={14} /></button>
                                             </div>
                                         </div>
                                     ))}
@@ -663,29 +706,6 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                     </Card>
                 </div>
             )}
-
-            {/* ═══ EDIT TEMPLATE ═══ */}
-            <Dialog open={!!editTemplate} onOpenChange={(o) => !o && setEditTemplate(null)}>
-                <DialogContent onClose={() => setEditTemplate(null)} className="border-[var(--zyllen-border)]">
-                    <DialogHeader><DialogTitle>Editar Template</DialogTitle></DialogHeader>
-                    <DialogBody>
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Nome</Label>
-                                <Input value={editTemplate?.name || ""} onChange={(e) => setEditTemplate({ ...editTemplate, name: e.target.value })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Layout (JSON)</Label>
-                                <Textarea value={editTemplate?.layout || ""} onChange={(e) => setEditTemplate({ ...editTemplate, layout: e.target.value })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white font-mono text-xs min-h-[120px]" />
-                            </div>
-                        </div>
-                    </DialogBody>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setEditTemplate(null)}>Cancelar</Button>
-                        <Button variant="highlight" onClick={() => updateTemplate.mutate(editTemplate)} disabled={updateTemplate.isPending}>Salvar</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             {/* ═══ DELETE CONFIRM ═══ */}
             <Dialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
