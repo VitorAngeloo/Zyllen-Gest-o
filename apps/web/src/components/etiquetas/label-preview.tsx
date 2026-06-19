@@ -80,6 +80,8 @@ export function LabelPreview({ template, data, pxPerMm = 5, selectedId, onSelect
                     data={data}
                     s={s}
                     dpi={template.dpi || 203}
+                    labelWmm={template.widthMm}
+                    labelHmm={template.heightMm}
                     selected={selectedId === el.id}
                     editable={editable}
                     onSelect={onSelect}
@@ -109,12 +111,14 @@ function setBox(el: LabelElement, wMm: number, hMm: number): Partial<LabelElemen
 }
 
 function ElementView({
-    el, data, s, dpi, selected, editable, onSelect, onStartDrag, onStartResize,
+    el, data, s, dpi, labelWmm, labelHmm, selected, editable, onSelect, onStartDrag, onStartResize,
 }: {
     el: LabelElement;
     data: LabelData;
     s: number;
     dpi: number;
+    labelWmm: number;
+    labelHmm: number;
     selected?: boolean;
     editable?: boolean;
     onSelect?: (id: string) => void;
@@ -145,8 +149,9 @@ function ElementView({
     ) : null;
 
     if (el.type === "qrcode") {
-        // Tamanho real que será impresso (fiel à etiqueta), não o teórico.
-        const printedMm = qrPrintedSizeMm(el.sizeMm ?? 17, dpi, (data.qrContent || " ").length);
+        // Tamanho real que será impresso, já encolhido para caber na etiqueta.
+        const availMm = Math.min(labelWmm - el.xMm, labelHmm - el.yMm);
+        const printedMm = qrPrintedSizeMm(el.sizeMm ?? 17, dpi, (data.qrContent || " ").length, availMm);
         const size = printedMm * s;
         return (
             <div style={baseStyle} {...handlers}>

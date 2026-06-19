@@ -42,11 +42,13 @@ type QueueItem = {
 };
 
 // Reproduz o conteúdo do QR igual ao backend (apenas para o preview na tela).
+// Usa um preenchimento do tamanho de um cuid quando o skuId não vem na lista,
+// para o QR do preview ter o mesmo tamanho do impresso.
 const buildQrContent = (a: any) => JSON.stringify({
     contractVersion: "v1",
     assetId: a.id,
     assetCode: a.assetCode,
-    skuId: a.skuId ?? a.sku?.id ?? "",
+    skuId: a.skuId ?? a.sku?.id ?? "0000000000000000000000000",
     skuCode: a.sku?.skuCode ?? "",
 });
 
