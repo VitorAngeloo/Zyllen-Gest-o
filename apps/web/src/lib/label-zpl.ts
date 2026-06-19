@@ -52,25 +52,25 @@ const qrModulesForData = (byteLen: number): number => {
     return 177; // versão 40
 };
 
-// Ampliação do QR. Aproxima o tamanho desejado (sizeMm) e, se `availMm` for
-// informado, NUNCA deixa o QR ultrapassar esse espaço disponível — assim ele
-// encolhe para caber na etiqueta em vez de cortar.
-export const qrMagnification = (sizeMm: number, dpi: number, byteLen: number, availMm?: number): number => {
+// Calcula a posição e o tamanho REAIS do QR na etiqueta. O QR mantém o
+// tamanho desejado (sizeMm) e, se não couber na posição definida, é movido
+// para CIMA/ESQUERDA o necessário para caber inteiro — em vez de cortar.
+// Só encolhe se for maior que a própria etiqueta. Usado por preview e ZPL.
+export function qrLayout(
+    sizeMm: number, dpi: number, byteLen: number,
+    labelWmm: number, labelHmm: number, xMm: number, yMm: number,
+): { mag: number; printedMm: number; xMm: number; yMm: number } {
     const modules = qrModulesForData(byteLen);
-    let mag = Math.round(mmToDots(sizeMm, dpi) / modules);
-    if (availMm != null && availMm > 0) {
-        mag = Math.min(mag, Math.floor(mmToDots(availMm, dpi) / modules));
-    }
-    return Math.max(1, Math.min(10, mag));
-};
-
-// Tamanho real (mm) que o QR vai ocupar na impressão — usado para o preview
-// ser fiel (módulos × ampliação convertidos de dots para mm).
-export const qrPrintedSizeMm = (sizeMm: number, dpi: number, byteLen: number, availMm?: number): number => {
-    const modules = qrModulesForData(byteLen);
-    const mag = qrMagnification(sizeMm, dpi, byteLen, availMm);
-    return (modules * mag * 25.4) / dpi;
-};
+    const magDesired = Math.round(mmToDots(sizeMm, dpi) / modules);
+    const maxMagW = Math.floor(mmToDots(labelWmm, dpi) / modules);
+    const maxMagH = Math.floor(mmToDots(labelHmm, dpi) / modules);
+    const mag = Math.max(1, Math.min(10, magDesired, maxMagW, maxMagH));
+    const printedMm = (modules * mag * 25.4) / dpi;
+    // Move para dentro da etiqueta (sobe/encosta à esquerda se passar).
+    const fx = Math.max(0, Math.min(labelWmm - printedMm, xMm));
+    const fy = Math.max(0, Math.min(labelHmm - printedMm, yMm));
+    return { mag, printedMm, xMm: fx, yMm: fy };
+}
 
 // Gera o comando ZPL de um único elemento, já com o deslocamento aplicado.
 // labelWmm/labelHmm = tamanho da etiqueta (uma coluna) para o QR caber.
@@ -83,12 +83,10 @@ function elementZpl(el: LabelElement, data: LabelData, dpi: number, ox: number, 
     switch (el.type) {
         case "qrcode": {
             const qr = sanitize(data.qrContent);
-            // Espaço disponível da posição do QR até a borda da etiqueta.
-            const availMm = labelWmm != null && labelHmm != null
-                ? Math.min(labelWmm - el.xMm, labelHmm - el.yMm)
-                : undefined;
-            const mag = qrMagnification(el.sizeMm ?? 17, dpi, qr.length, availMm);
-            return `^FO${x},${y}^BQN,2,${mag}^FDMA,${qr}^FS`;
+            const lay = qrLayout(el.sizeMm ?? 17, dpi, qr.length, labelWmm ?? 1000, labelHmm ?? 1000, el.xMm, el.yMm);
+            const qx = Math.max(0, d(lay.xMm) + ox);
+            const qy = Math.max(0, d(lay.yMm) + oy);
+            return `^FO${qx},${qy}^BQN,2,${lay.mag}^FDMA,${qr}^FS`;
         }
         case "barcode": {
             const value = sanitize(data.assetCode);
