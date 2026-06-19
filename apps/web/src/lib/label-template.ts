@@ -175,11 +175,13 @@ export function parseTemplate(layout: string): LabelTemplate | null {
     }
 }
 
-// Dados de exemplo para o preview do editor.
+// Dados de exemplo para o preview do editor. O qrContent usa IDs com o
+// mesmo tamanho dos reais (cuid ~25 chars) para que o QR no editor tenha o
+// MESMO tamanho do que será impresso.
 export const SAMPLE_DATA: LabelData = {
     assetCode: "AST-000123",
     skuName: "Notebook Dell Latitude 3440",
     skuCode: "NOTE-001",
-    qrContent: JSON.stringify({ contractVersion: "v1", assetId: "exemplo", assetCode: "AST-000123", skuId: "sku", skuCode: "NOTE-001" }),
+    qrContent: JSON.stringify({ contractVersion: "v1", assetId: "clz8h2k9a0001qw3e5r7t9y1u", assetCode: "AST-000123", skuId: "clz8h2k9a0002qw3e5r7t9y2v", skuCode: "NOTE-001" }),
     location: "Sala TI",
 };

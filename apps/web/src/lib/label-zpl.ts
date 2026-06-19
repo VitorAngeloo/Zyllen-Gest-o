@@ -52,11 +52,12 @@ const qrModulesForData = (byteLen: number): number => {
     return 177; // versão 40
 };
 
-// Ampliação que faz o QR CABER no tamanho desejado (sizeMm) sem estourar.
-// Arredonda PARA BAIXO: assim o QR impresso nunca passa da caixa e não corta.
+// Ampliação que melhor aproxima o QR do tamanho desejado (sizeMm).
+// Arredonda para o mais próximo — o preview mostra o tamanho real e corta na
+// borda da etiqueta, então dá para ajustar visualmente se passar.
 export const qrMagnification = (sizeMm: number, dpi: number, byteLen: number): number => {
     const modules = qrModulesForData(byteLen);
-    return Math.max(1, Math.min(10, Math.floor(mmToDots(sizeMm, dpi) / modules)));
+    return Math.max(1, Math.min(10, Math.round(mmToDots(sizeMm, dpi) / modules)));
 };
 
 // Tamanho real (mm) que o QR vai ocupar na impressão — usado para o preview
