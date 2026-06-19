@@ -46,6 +46,8 @@ export interface LabelTemplate {
     marginTopMm: number;
     marginLeftMm: number;
     dpi: number;
+    offsetXMm?: number; // calibragem de impressão (+direita / −esquerda)
+    offsetYMm?: number; // calibragem de impressão (+baixo / −cima)
     elements: LabelElement[];
 }
 
@@ -85,6 +87,8 @@ export const DEFAULT_TEMPLATE: LabelTemplate = {
     marginTopMm: 1.5,
     marginLeftMm: 1.5,
     dpi: 203,
+    offsetXMm: 0,
+    offsetYMm: 0,
     elements: [
         { id: "header", type: "text", text: "SKYLINE", xMm: 2, yMm: 1.2, fontMm: 3.2 },
         { id: "divider", type: "line", xMm: 2, yMm: 5.6, widthMm: 46, heightMm: 0.3 },
@@ -148,6 +152,8 @@ export function blankTemplate(): LabelTemplate {
         marginTopMm: 1.5,
         marginLeftMm: 1.5,
         dpi: 203,
+        offsetXMm: 0,
+        offsetYMm: 0,
         elements: [],
     };
 }

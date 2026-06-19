@@ -90,6 +90,10 @@ export function TemplateEditor({ template, onChange }: Props) {
                         <Num label="Margem esq." value={template.marginLeftMm} step={0.5} min={0} onChange={(v) => patch({ marginLeftMm: v })} />
                         <Num label="Espaço col." value={template.gapXMm} step={0.5} min={0} onChange={(v) => patch({ gapXMm: v })} />
                     </div>
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[var(--zyllen-border)]/50">
+                        <Num label="Calibragem ↔ (mm)" value={template.offsetXMm} step={0.5} onChange={(v) => patch({ offsetXMm: v })} />
+                        <Num label="Calibragem ↕ (mm)" value={template.offsetYMm} step={0.5} onChange={(v) => patch({ offsetYMm: v })} />
+                    </div>
                 </div>
 
                 {/* Adicionar elemento */}
@@ -136,13 +140,15 @@ export function TemplateEditor({ template, onChange }: Props) {
             {/* ─── Preview ─── */}
             <div className="lg:sticky lg:top-4 h-fit">
                 <div className="rounded-lg border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] p-6 flex flex-col items-center">
-                    <p className="text-xs text-[var(--zyllen-muted)] mb-4">Preview (clique num elemento para selecionar)</p>
+                    <p className="text-xs text-[var(--zyllen-muted)] mb-4">Arraste para mover · alça no canto para redimensionar</p>
                     <LabelPreview
                         template={template}
                         data={SAMPLE_DATA}
                         pxPerMm={7}
                         selectedId={selectedId}
                         onSelect={setSelectedId}
+                        editable
+                        onElementChange={updateEl}
                     />
                     <p className="text-[10px] text-[var(--zyllen-muted)] mt-3">{template.widthMm}×{template.heightMm}mm · {template.columns} coluna(s)</p>
                 </div>

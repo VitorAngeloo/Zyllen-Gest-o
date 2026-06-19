@@ -76,22 +76,13 @@ export default function EtiquetasPage() {
     const [htmlLabels, setHtmlLabels] = useState<LabelData[] | null>(null); // fallback HTML
 
     // ─── Configuração de impressão ──────
-    const [printColumns, setPrintColumns] = useState(2);
     const [printerUrl, setPrinterUrl] = useState("");
-    const [offsetX, setOffsetX] = useState(0);
-    const [offsetY, setOffsetY] = useState(0);
     const [selectedTemplateId, setSelectedTemplateId] = useState("default");
     useEffect(() => {
         setPrinterUrl(getZebraPrintUrl());
-        const sx = Number(localStorage.getItem("labelOffsetX"));
-        const sy = Number(localStorage.getItem("labelOffsetY"));
-        if (!Number.isNaN(sx)) setOffsetX(sx);
-        if (!Number.isNaN(sy)) setOffsetY(sy);
         setSelectedTemplateId(localStorage.getItem("defaultTemplateId") || "default");
     }, []);
     const savePrinterUrl = (v: string) => { setPrinterUrl(v); setZebraPrintUrl(v); };
-    const saveOffsetX = (v: number) => { setOffsetX(v); localStorage.setItem("labelOffsetX", String(v)); };
-    const saveOffsetY = (v: number) => { setOffsetY(v); localStorage.setItem("labelOffsetY", String(v)); };
 
     // ─── Editor de templates ────────────
     const [editorTemplate, setEditorTemplate] = useState<LabelTemplate>(blankTemplate());
@@ -126,7 +117,7 @@ export default function EtiquetasPage() {
     const activeTemplate: LabelTemplate = selectedTemplateId === "default"
         ? DEFAULT_TEMPLATE
         : savedTemplates.find((t) => t.id === selectedTemplateId) ?? DEFAULT_TEMPLATE;
-    const printOpts = { offsetXMm: offsetX, offsetYMm: offsetY };
+    const printOpts = { offsetXMm: activeTemplate.offsetXMm ?? 0, offsetYMm: activeTemplate.offsetYMm ?? 0 };
     const totalLabels = queue.reduce((s, q) => s + Math.max(1, q.copies), 0);
 
     // ─── Fila ───────────────────────────
@@ -206,7 +197,7 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
         const sheet = document.getElementById("queue-print-sheet");
         if (!sheet || !sheet.children.length) return;
         const labelsHtml = Array.from(sheet.children).map((el) => el.outerHTML).join("");
-        openPrintWindow(labelsHtml, printColumns);
+        openPrintWindow(labelsHtml, activeTemplate.columns || 1);
     };
 
     // Registra no histórico e imprime via ZPL (Browser Print). O conteúdo do
@@ -491,13 +482,6 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                     title="Endereço do Zebra Browser Print. Vazio = máquina local (127.0.0.1)."
                                 />
                             </div>
-                            <div className="flex items-center gap-2" title="Desloca a impressão dentro da etiqueta (mm). Negativo move para cima/esquerda.">
-                                <span className="text-xs text-[var(--zyllen-muted)]">Ajuste:</span>
-                                <input type="number" step="0.5" value={offsetX} onChange={(e) => saveOffsetX(Number(e.target.value))} className="w-14 h-8 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white text-center text-xs focus:outline-none" title="Horizontal (mm)" />
-                                <span className="text-xs text-[var(--zyllen-muted)]">↔</span>
-                                <input type="number" step="0.5" value={offsetY} onChange={(e) => saveOffsetY(Number(e.target.value))} className="w-14 h-8 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white text-center text-xs focus:outline-none" title="Vertical (mm)" />
-                                <span className="text-xs text-[var(--zyllen-muted)]">↕</span>
-                            </div>
                         </CardContent>
                     </Card>
 
@@ -549,15 +533,7 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                     </CardContent>
                                 </Card>
 
-                                <div className="flex items-center justify-between gap-3 flex-wrap">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs text-[var(--zyllen-muted)] whitespace-nowrap">Colunas (fallback navegador)</span>
-                                        <div className="flex gap-1">
-                                            {[1, 2, 3, 4].map((n) => (
-                                                <button key={n} onClick={() => setPrintColumns(n)} className={`w-7 h-7 rounded text-xs font-medium border transition-colors ${printColumns === n ? "bg-[var(--zyllen-highlight)] border-[var(--zyllen-highlight)] text-[var(--zyllen-bg)]" : "border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white"}`}>{n}</button>
-                                            ))}
-                                        </div>
-                                    </div>
+                                <div className="flex items-center justify-end gap-3 flex-wrap">
                                     <Button variant="highlight" className="gap-2" onClick={printQueue} disabled={printQueueMut.isPending}>
                                         <Printer size={16} />
                                         {printQueueMut.isPending ? "Imprimindo..." : `Imprimir fila (${totalLabels})`}
