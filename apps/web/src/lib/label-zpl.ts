@@ -1,41 +1,30 @@
-// ─── Gerador de ZPL para etiquetas Zebra (ZD220 — 203 DPI) ───────────────
+// ─── Gerador de ZPL a partir do template ─────────────────────────────────
 //
-// Gera o código ZPL (Zebra Programming Language) nativo da impressora a partir
-// dos dados do patrimônio. Enviado direto para a ZD220 via Zebra Browser Print,
-// sem passar pelo diálogo de impressão do navegador.
+// Gera o ZPL (linguagem nativa da Zebra ZD220 — 203 DPI) percorrendo os
+// elementos do template. É a MESMA fonte de dados do preview na tela, então
+// o que aparece na tela é o que sai na impressora.
 
-export type LabelZplData = {
-    assetCode: string;
-    skuName: string;
-    skuCode: string;
-    qrContent: string;
-};
+import {
+    type LabelTemplate,
+    type LabelData,
+    type LabelElement,
+    resolveElementText,
+} from "./label-template";
 
-export type LabelZplOptions = {
-    widthMm?: number;   // largura da etiqueta em mm (padrão 50)
-    heightMm?: number;  // altura da etiqueta em mm (padrão 30)
-    dpi?: number;       // resolução da impressora (ZD220 = 203)
-    qrMagnification?: number; // ampliação do QR (1–10, padrão 3)
-    copies?: number;    // cópias por etiqueta (padrão 1)
-    offsetXMm?: number; // deslocamento horizontal (mm; +direita / −esquerda)
-    offsetYMm?: number; // deslocamento vertical (mm; +baixo / −cima)
-};
+// Mantido para compatibilidade com chamadas existentes.
+export type { LabelData as LabelZplData };
 
-const DEFAULTS = {
-    widthMm: 50,
-    heightMm: 30,
-    dpi: 203,
-    qrMagnification: 3,
-    copies: 1,
-    offsetXMm: 0,
-    offsetYMm: 0,
+export type PrintOptions = {
+    copies?: number;
+    offsetXMm?: number; // deslocamento global horizontal (+direita / −esquerda)
+    offsetYMm?: number; // deslocamento global vertical (+baixo / −cima)
 };
 
 // Converte milímetros em dots conforme o DPI da impressora.
 const mmToDots = (mm: number, dpi: number) => Math.round((mm * dpi) / 25.4);
 
-// ^ e ~ são caracteres de controle do ZPL — precisam ser removidos do texto
-// para não corromper o comando. Também remove caracteres de controle.
+// ^ e ~ são caracteres de controle do ZPL — removidos do texto para não
+// corromper o comando.
 const sanitize = (s: string) =>
     (s ?? "")
         .replace(/[\^~]/g, " ")
@@ -43,44 +32,64 @@ const sanitize = (s: string) =>
         .replace(/[\x00-\x1f]/g, " ")
         .trim();
 
-/**
- * Gera o ZPL de UMA etiqueta.
- *
- * Layout (50×30mm):
- *   SKYLINE                    ← cabeçalho
- *   ────────────────────────
- *   ┌──────┐  ASSET-CODE       ← código do patrimônio (grande)
- *   │  QR  │  Nome do item     ← nome do SKU (com quebra de linha)
- *   └──────┘  SKU CÓDIGO       ← código do SKU
- */
-export function buildLabelZpl(data: LabelZplData, options: LabelZplOptions = {}): string {
-    const opt = { ...DEFAULTS, ...options };
-    const dpi = opt.dpi;
+// Estima a ampliação do QR a partir do tamanho desejado (mm). O número de
+// módulos depende do volume de dados (~45 para o nosso JSON), então é uma
+// aproximação; o usuário ajusta o tamanho no editor.
+const qrMagFromSize = (sizeMm: number, dpi: number) =>
+    Math.max(1, Math.min(10, Math.round(mmToDots(sizeMm, dpi) / 42)));
+
+// Gera o comando ZPL de um único elemento, já com o deslocamento aplicado.
+function elementZpl(el: LabelElement, data: LabelData, dpi: number, ox: number, oy: number): string {
     const d = (mm: number) => mmToDots(mm, dpi);
-
-    const pw = d(opt.widthMm);
-    const ll = d(opt.heightMm);
-
-    // Deslocamento aplicado a todos os elementos (calibragem fina de posição).
-    const ox = d(opt.offsetXMm);
-    const oy = d(opt.offsetYMm);
-    // Coordenada de origem (^FO) de um elemento, em mm, já com deslocamento.
     // Clampa em 0 porque o ZPL não aceita coordenadas negativas.
-    const at = (xMm: number, yMm: number) =>
-        `${Math.max(0, d(xMm) + ox)},${Math.max(0, d(yMm) + oy)}`;
+    const x = Math.max(0, d(el.xMm) + ox);
+    const y = Math.max(0, d(el.yMm) + oy);
 
-    const headerH = d(3.2);
-    const lineW = d(opt.widthMm - 4);
-    const codeH = d(4.2);
-    const nameH = d(3);
-    const nameBlockW = d(opt.widthMm - 21);
-    const skuH = d(2.6);
+    switch (el.type) {
+        case "qrcode": {
+            const qr = sanitize(data.qrContent);
+            const mag = qrMagFromSize(el.sizeMm ?? 17, dpi);
+            return `^FO${x},${y}^BQN,2,${mag}^FDMA,${qr}^FS`;
+        }
+        case "barcode": {
+            const value = sanitize(data.assetCode);
+            const h = d(el.heightMm ?? 8);
+            return `^FO${x},${y}^BCN,${h},Y,N,N^FD${value}^FS`;
+        }
+        case "line": {
+            const w = d(el.widthMm ?? 40);
+            const th = Math.max(1, d(el.heightMm ?? 0.3));
+            return `^FO${x},${y}^GB${w},${th},${th}^FS`;
+        }
+        case "logo":
+            // Fase 4: requer conversão da imagem para bitmap (^GF).
+            return "";
+        default: {
+            const text = sanitize(resolveElementText(el, data));
+            if (!text) return "";
+            const fh = d(el.fontMm ?? 3);
+            const block = el.widthMm ? `^FB${d(el.widthMm)},${el.maxLines ?? 1},3,L` : "";
+            return `^FO${x},${y}^A0N,${fh},${fh}${block}^FD${text}^FS`;
+        }
+    }
+}
 
-    const assetCode = sanitize(data.assetCode);
-    const skuName = sanitize(data.skuName);
-    const skuCode = sanitize(data.skuCode);
-    // O conteúdo do QR é JSON — não contém ^ nem ~, mas sanitizamos por segurança.
-    const qr = sanitize(data.qrContent);
+/** Gera o ZPL de UMA etiqueta a partir do template e dos dados do item. */
+export function buildLabelZplFromTemplate(
+    template: LabelTemplate,
+    data: LabelData,
+    opts: PrintOptions = {},
+): string {
+    const dpi = template.dpi || 203;
+    const ox = mmToDots(opts.offsetXMm ?? 0, dpi);
+    const oy = mmToDots(opts.offsetYMm ?? 0, dpi);
+    const pw = mmToDots(template.widthMm, dpi);
+    const ll = mmToDots(template.heightMm, dpi);
+
+    const body = template.elements
+        .map((el) => elementZpl(el, data, dpi, ox, oy))
+        .filter(Boolean)
+        .join("\n");
 
     return [
         "^XA",
@@ -88,23 +97,21 @@ export function buildLabelZpl(data: LabelZplData, options: LabelZplOptions = {})
         `^PW${pw}`,
         `^LL${ll}`,
         "^LH0,0",
-        `^FO${at(2, 1.2)}^A0N,${headerH},${headerH}^FDSKYLINE^FS`,
-        `^FO${at(2, 5.6)}^GB${lineW},2,2^FS`,
-        `^FO${at(1.5, 6.8)}^BQN,2,${opt.qrMagnification}^FDMA,${qr}^FS`,
-        `^FO${at(20, 7)}^A0N,${codeH},${codeH}^FD${assetCode}^FS`,
-        `^FO${at(20, 12.5)}^A0N,${nameH},${nameH}^FB${nameBlockW},2,3,L^FD${skuName}^FS`,
-        `^FO${at(20, 22)}^A0N,${skuH},${skuH}^FDSKU ${skuCode}^FS`,
-        opt.copies > 1 ? `^PQ${opt.copies}` : "",
+        body,
+        opts.copies && opts.copies > 1 ? `^PQ${opts.copies}` : "",
         "^XZ",
     ]
         .filter(Boolean)
         .join("\n");
 }
 
-/**
- * Gera o ZPL de VÁRIAS etiquetas concatenadas (impressão em lote).
- * Cada etiqueta é um bloco ^XA…^XZ independente.
- */
-export function buildBatchZpl(labels: LabelZplData[], options: LabelZplOptions = {}): string {
-    return labels.map((l) => buildLabelZpl(l, options)).join("\n");
+/** Gera o ZPL de VÁRIAS etiquetas (lote), cada item com sua quantidade. */
+export function buildBatchZplFromTemplate(
+    template: LabelTemplate,
+    items: Array<{ data: LabelData; copies?: number }>,
+    opts: PrintOptions = {},
+): string {
+    return items
+        .map((it) => buildLabelZplFromTemplate(template, it.data, { ...opts, copies: it.copies }))
+        .join("\n");
 }

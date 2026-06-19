@@ -16,7 +16,9 @@ import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, Download
 import QRCode from "react-qr-code";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
-import { buildLabelZpl, buildBatchZpl, type LabelZplData } from "@web/lib/label-zpl";
+import { buildLabelZplFromTemplate, buildBatchZplFromTemplate } from "@web/lib/label-zpl";
+import { DEFAULT_TEMPLATE, type LabelData } from "@web/lib/label-template";
+import { LabelPreview } from "@web/components/etiquetas/label-preview";
 import { sendZpl, getZebraPrintUrl, setZebraPrintUrl } from "@web/lib/zebra-print";
 
 type Tab = "print" | "consumables" | "batch" | "history" | "templates";
@@ -194,21 +196,25 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
     };
 
     // ─── Impressão ZPL direta (Zebra Browser Print) ─────────────────────
-    const zplOpts = { widthMm: labelWidth, heightMm: labelHeight, offsetXMm: offsetX, offsetYMm: offsetY };
+    // Template ativo = template padrão com o tamanho de etiqueta escolhido.
+    // (Na Fase 3/4 isso virá do template selecionado pelo usuário.)
+    const activeTemplate = { ...DEFAULT_TEMPLATE, widthMm: labelWidth, heightMm: labelHeight };
+    const printOpts = { offsetXMm: offsetX, offsetYMm: offsetY };
 
-    // Impressão unitária: gera ZPL e envia para a ZD220 via Browser Print.
+    // Impressão unitária: gera ZPL a partir do template e envia para a ZD220.
     // Se falhar, mostra o erro real e cai para a impressão HTML do navegador.
     const handleSinglePrint = async () => {
         if (!labelData) return;
         const c = labelData.contract;
-        const zplData: LabelZplData = {
+        const data: LabelData = {
             assetCode: c.assetCode,
             skuName: c.skuName,
             skuCode: c.skuCode,
             qrContent: c.qrContent,
+            location: c.location,
         };
         try {
-            await sendZpl(buildLabelZpl(zplData, zplOpts));
+            await sendZpl(buildLabelZplFromTemplate(activeTemplate, data, printOpts));
             toast.success("Etiqueta enviada para a impressora");
         } catch (e: any) {
             toast.error(`Browser Print indisponível (${e?.message ?? "erro"}). Usando navegador.`);
@@ -218,15 +224,18 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
 
     // Impressão em lote: concatena o ZPL de cada etiqueta selecionada.
     const handleBatchPrint = async (labels: any[]) => {
-        const zplLabels: LabelZplData[] = labels.map((l) => ({
-            assetCode: l.assetCode,
-            skuName: l.skuName,
-            skuCode: l.skuCode,
-            qrContent: l.qrContent,
+        const items = labels.map((l) => ({
+            data: {
+                assetCode: l.assetCode,
+                skuName: l.skuName,
+                skuCode: l.skuCode,
+                qrContent: l.qrContent,
+                location: l.location,
+            } as LabelData,
         }));
         try {
-            await sendZpl(buildBatchZpl(zplLabels, zplOpts));
-            toast.success(`${zplLabels.length} etiqueta(s) enviada(s) para a impressora`);
+            await sendZpl(buildBatchZplFromTemplate(activeTemplate, items, printOpts));
+            toast.success(`${items.length} etiqueta(s) enviada(s) para a impressora`);
         } catch (e: any) {
             toast.error(`Browser Print indisponível (${e?.message ?? "erro"}). Usando navegador.`);
             handleBatchPrintHtml();
@@ -433,38 +442,21 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                     </div>
                                 </div>
 
-                                {/* Label Preview */}
-                                <div className="border-2 border-dashed border-[var(--zyllen-border)] rounded-lg p-6 text-center mb-4">
-                                    <p className="text-[var(--zyllen-muted)] text-sm mb-4">Preview da Etiqueta</p>
-                                    <div
-                                        id="label-print-area"
-                                        className="inline-block bg-white text-black rounded-lg p-3 text-left shadow-lg"
-                                        style={{ minWidth: 220 }}
-                                    >
-                                        {/* Logo header */}
-                                        <div className="mb-2 pb-1.5 border-b border-gray-200">
-                                            <img src="/brand/logo-skyline-black.svg" alt="Skyline" style={{ height: 18, width: "auto" }} />
-                                        </div>
-                                        <div className="flex items-start gap-3">
-                                            <div className="shrink-0 bg-white p-1 rounded border border-gray-200">
-                                                <QRCode
-                                                    value={labelData.contract.qrContent}
-                                                    size={68}
-                                                    level="M"
-                                                />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="font-bold text-base font-mono tracking-wider leading-tight">
-                                                    {labelData.contract.assetCode}
-                                                </p>
-                                                <p className="text-sm font-medium mt-0.5 leading-tight">
-                                                    {labelData.contract.skuName}
-                                                </p>
-                                                <p className="text-xs text-gray-500 font-mono mt-1">
-                                                    SKU {labelData.contract.skuCode}
-                                                </p>
-                                            </div>
-                                        </div>
+                                {/* Label Preview — fiel à impressão (mesma fonte do ZPL) */}
+                                <div className="border-2 border-dashed border-[var(--zyllen-border)] rounded-lg p-6 flex flex-col items-center mb-4">
+                                    <p className="text-[var(--zyllen-muted)] text-sm mb-4">Preview da Etiqueta (fiel à impressão)</p>
+                                    <div id="label-print-area">
+                                        <LabelPreview
+                                            template={activeTemplate}
+                                            data={{
+                                                assetCode: labelData.contract.assetCode,
+                                                skuName: labelData.contract.skuName,
+                                                skuCode: labelData.contract.skuCode,
+                                                qrContent: labelData.contract.qrContent,
+                                                location: labelData.contract.location,
+                                            }}
+                                            pxPerMm={6}
+                                        />
                                     </div>
                                 </div>
 
