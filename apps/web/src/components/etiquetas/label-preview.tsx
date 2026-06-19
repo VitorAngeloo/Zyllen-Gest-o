@@ -12,6 +12,7 @@ import {
     type LabelElement,
     resolveElementText,
 } from "@web/lib/label-template";
+import { qrPrintedSizeMm } from "@web/lib/label-zpl";
 
 type Props = {
     template: LabelTemplate;
@@ -78,6 +79,7 @@ export function LabelPreview({ template, data, pxPerMm = 5, selectedId, onSelect
                     el={el}
                     data={data}
                     s={s}
+                    dpi={template.dpi || 203}
                     selected={selectedId === el.id}
                     editable={editable}
                     onSelect={onSelect}
@@ -107,11 +109,12 @@ function setBox(el: LabelElement, wMm: number, hMm: number): Partial<LabelElemen
 }
 
 function ElementView({
-    el, data, s, selected, editable, onSelect, onStartDrag, onStartResize,
+    el, data, s, dpi, selected, editable, onSelect, onStartDrag, onStartResize,
 }: {
     el: LabelElement;
     data: LabelData;
     s: number;
+    dpi: number;
     selected?: boolean;
     editable?: boolean;
     onSelect?: (id: string) => void;
@@ -142,7 +145,9 @@ function ElementView({
     ) : null;
 
     if (el.type === "qrcode") {
-        const size = (el.sizeMm ?? 17) * s;
+        // Tamanho real que será impresso (fiel à etiqueta), não o teórico.
+        const printedMm = qrPrintedSizeMm(el.sizeMm ?? 17, dpi, (data.qrContent || " ").length);
+        const size = printedMm * s;
         return (
             <div style={baseStyle} {...handlers}>
                 <QRCode value={data.qrContent || " "} size={size} level="M" />
