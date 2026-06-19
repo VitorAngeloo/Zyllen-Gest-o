@@ -76,6 +76,9 @@ export default function EtiquetasPage() {
     const [queue, setQueue] = useState<QueueItem[]>([]);
     const [htmlLabels, setHtmlLabels] = useState<LabelData[] | null>(null); // fallback HTML
 
+    // ─── Histórico ──────────────────────
+    const [historySearch, setHistorySearch] = useState("");
+
     // ─── Configuração de impressão ──────
     const [printerUrl, setPrinterUrl] = useState("");
     const [selectedTemplateId, setSelectedTemplateId] = useState("default");
@@ -155,6 +158,24 @@ export default function EtiquetasPage() {
         setQueue((prev) => prev.map((q) => q.assetId === assetId ? { ...q, copies: Math.max(1, Math.min(99, copies)) } : q));
     const removeFromQueue = (assetId: string) =>
         setQueue((prev) => prev.filter((q) => q.assetId !== assetId));
+
+    // Reimprime a partir do histórico: adiciona o patrimônio à fila.
+    const reprintFromHistory = (h: any) => {
+        const assetId = h.assetId ?? h.asset?.id;
+        if (!assetId) { toast.error("Não foi possível identificar o patrimônio"); return; }
+        const item: QueueItem = {
+            assetId,
+            assetCode: h.asset?.assetCode ?? "",
+            skuName: h.asset?.sku?.name ?? "",
+            skuCode: h.asset?.sku?.skuCode ?? "",
+            qrContent: JSON.stringify({ contractVersion: "v1", assetId, assetCode: h.asset?.assetCode ?? "", skuId: "", skuCode: h.asset?.sku?.skuCode ?? "" }),
+            location: "Sem local",
+            copies: 1,
+        };
+        setQueue((prev) => prev.some((q) => q.assetId === assetId) ? prev : [...prev, item]);
+        setTab("printing");
+        toast.success("Adicionado à fila para reimpressão");
+    };
 
     // ─── Impressão ──────────────────────
     const openPrintWindow = (labelsHtml: string, columns: number) => {
@@ -591,7 +612,18 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
             {/* ═══ HISTÓRICO ═══ */}
             {tab === "history" && (
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                    <CardHeader><CardTitle className="text-white">Histórico de Impressões</CardTitle></CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
+                        <CardTitle className="text-white">Histórico de Impressões</CardTitle>
+                        <div className="relative w-full sm:w-64">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                            <Input
+                                value={historySearch}
+                                onChange={(e) => setHistorySearch(e.target.value)}
+                                placeholder="Buscar por patrimônio ou usuário..."
+                                className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-8 h-9 text-sm"
+                            />
+                        </div>
+                    </CardHeader>
                     <CardContent>
                         {loadingHistory ? (
                             <div className="space-y-3">
@@ -603,28 +635,45 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                     </div>
                                 ))}
                             </div>
-                        ) : history?.data?.length ? (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="border-b border-[var(--zyllen-border)]">
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Data</th>
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Patrimônio</th>
-                                            <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Impresso por</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {history.data.map((h: any) => (
-                                            <tr key={h.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
-                                                <td className="py-3 text-[var(--zyllen-muted)] text-xs">{new Date(h.printedAt).toLocaleString("pt-BR")}</td>
-                                                <td className="py-3 font-mono text-[var(--zyllen-highlight)] text-xs">{h.asset?.assetCode}</td>
-                                                <td className="py-3 text-white">{h.printedBy?.name}</td>
+                        ) : (() => {
+                            const rows = (history?.data ?? []).filter((h: any) => {
+                                if (!historySearch.trim()) return true;
+                                const q = normalize(historySearch);
+                                return normalize(h.asset?.assetCode ?? "").includes(q) || normalize(h.printedBy?.name ?? "").includes(q);
+                            });
+                            return rows.length ? (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b border-[var(--zyllen-border)]">
+                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Data</th>
+                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Patrimônio</th>
+                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Item</th>
+                                                <th className="text-left py-3 text-[var(--zyllen-muted)] font-medium">Impresso por</th>
+                                                <th className="text-right py-3 text-[var(--zyllen-muted)] font-medium">Ação</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ) : <div className="text-center py-12"><History size={36} className="mx-auto mb-3 text-[var(--zyllen-muted)]/50" /><p className="text-[var(--zyllen-muted)]">{EMPTY_STATES.printHistory}</p></div>}
+                                        </thead>
+                                        <tbody>
+                                            {rows.map((h: any) => (
+                                                <tr key={h.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
+                                                    <td className="py-3 text-[var(--zyllen-muted)] text-xs">{new Date(h.printedAt).toLocaleString("pt-BR")}</td>
+                                                    <td className="py-3 font-mono text-[var(--zyllen-highlight)] text-xs">{h.asset?.assetCode}</td>
+                                                    <td className="py-3 text-white">{h.asset?.sku?.name ?? "—"}</td>
+                                                    <td className="py-3 text-white">{h.printedBy?.name}</td>
+                                                    <td className="py-3 text-right">
+                                                        <Button size="sm" variant="ghost" className="gap-1 h-7 text-xs" onClick={() => reprintFromHistory(h)}>
+                                                            <Printer size={13} /> Reimprimir
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="text-center py-12"><History size={36} className="mx-auto mb-3 text-[var(--zyllen-muted)]/50" /><p className="text-[var(--zyllen-muted)]">{historySearch ? "Nenhum resultado para a busca." : EMPTY_STATES.printHistory}</p></div>
+                            );
+                        })()}
                     </CardContent>
                 </Card>
             )}
