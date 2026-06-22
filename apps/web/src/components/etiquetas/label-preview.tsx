@@ -12,7 +12,7 @@ import {
     type LabelElement,
     resolveElementText,
 } from "@web/lib/label-template";
-import { qrPrintedSizeMm } from "@web/lib/label-zpl";
+import { qrPrintedSizeMm } from "@web/lib/qr-zpl";
 
 type Props = {
     template: LabelTemplate;
@@ -146,7 +146,7 @@ function ElementView({
 
     if (el.type === "qrcode") {
         // Tamanho real impresso, na posição exata do elemento (fiel à impressão).
-        const size = qrPrintedSizeMm(el.sizeMm ?? 17, dpi, (data.qrContent || " ").length) * s;
+        const size = qrPrintedSizeMm(data.qrContent || " ", el.sizeMm ?? 17, dpi) * s;
         return (
             <div style={baseStyle} {...handlers}>
                 <QRCode value={data.qrContent || " "} size={size} level="M" />

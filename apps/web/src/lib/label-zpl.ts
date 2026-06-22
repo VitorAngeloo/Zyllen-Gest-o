@@ -10,6 +10,7 @@ import {
     type LabelElement,
     resolveElementText,
 } from "./label-template";
+import { qrToZplGf } from "./qr-zpl";
 
 // Mantido para compatibilidade com chamadas existentes.
 export type { LabelData as LabelZplData };
@@ -33,37 +34,6 @@ const sanitize = (s: string) =>
         .replace(/[\x00-\x1f]/g, " ")
         .trim();
 
-// Estima a ampliação do QR a partir do tamanho desejado (mm). O número de
-// módulos depende do volume de dados (~45 para o nosso JSON), então é uma
-// aproximação; o usuário ajusta o tamanho no editor.
-// Capacidade em bytes por versão do QR (índice = versão−1) com correção M.
-const QR_BYTE_CAP_M = [
-    14, 26, 42, 62, 84, 106, 122, 152, 180, 213, 251, 287, 331, 362, 412, 450,
-    504, 560, 624, 666, 711, 779, 857, 911, 997, 1059, 1125, 1190, 1264, 1370,
-    1452, 1538, 1628, 1722, 1809, 1911, 1989, 2099, 2213, 2331,
-];
-
-// Estima quantos módulos (lado) o QR terá para um certo volume de dados.
-// Módulos da versão v = 17 + 4·v (v1 = 21, v2 = 25, …).
-const qrModulesForData = (byteLen: number): number => {
-    for (let v = 0; v < QR_BYTE_CAP_M.length; v++) {
-        if (byteLen <= QR_BYTE_CAP_M[v]) return 17 + 4 * (v + 1);
-    }
-    return 177; // versão 40
-};
-
-// Ampliação do QR a partir do tamanho desejado (sizeMm) e do volume de dados.
-export const qrMagnification = (sizeMm: number, dpi: number, byteLen: number): number => {
-    const modules = qrModulesForData(byteLen);
-    return Math.max(1, Math.min(10, Math.round(mmToDots(sizeMm, dpi) / modules)));
-};
-
-// Tamanho real (mm) que o QR vai ocupar — usado para o preview ser fiel.
-export const qrPrintedSizeMm = (sizeMm: number, dpi: number, byteLen: number): number => {
-    const modules = qrModulesForData(byteLen);
-    return (modules * qrMagnification(sizeMm, dpi, byteLen) * 25.4) / dpi;
-};
-
 // Gera o comando ZPL de um único elemento, já com o deslocamento aplicado.
 function elementZpl(el: LabelElement, data: LabelData, dpi: number, ox: number, oy: number, logos?: Record<string, string>): string {
     const d = (mm: number) => mmToDots(mm, dpi);
@@ -73,9 +43,9 @@ function elementZpl(el: LabelElement, data: LabelData, dpi: number, ox: number, 
 
     switch (el.type) {
         case "qrcode": {
-            const qr = sanitize(data.qrContent);
-            const mag = qrMagnification(el.sizeMm ?? 17, dpi, qr.length);
-            return `^FO${x},${y}^BQN,2,${mag}^FDMA,${qr}^FS`;
+            // Gerado como bitmap ^GF para posicionar igual aos outros elementos.
+            const gf = qrToZplGf(data.qrContent || " ", el.sizeMm ?? 17, dpi);
+            return `^FO${x},${y}${gf}`;
         }
         case "barcode": {
             const value = sanitize(data.assetCode);
