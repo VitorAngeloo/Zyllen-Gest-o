@@ -1,8 +1,13 @@
 "use client";
 
-import { ESTADOS_BR, getCidadesPorEstado } from "@web/lib/brasil-data";
+import { useEffect, useState } from "react";
+import { ESTADOS_BR } from "@web/lib/brasil-data";
 import { Select, SelectOption } from "@web/components/ui/select";
+import { SearchableSelect } from "@web/components/ui/searchable-select";
 import { Label } from "@web/components/ui/label";
+
+// Municípios completos por UF, direto do IBGE
+const IBGE_API = "https://servicodados.ibge.gov.br/api/v1/localidades/estados";
 
 interface StateCitySelectorProps {
     state: string;
@@ -21,12 +26,21 @@ export function StateCitySelector({
     className = "",
     required = false,
 }: StateCitySelectorProps) {
-    const cidades = state ? getCidadesPorEstado(state) : [];
+    const [cities, setCities] = useState<string[]>([]);
+    const [loading, setLoading] = useState(false);
 
-    const handleStateChange = (uf: string) => {
-        onStateChange(uf);
-        // city reset is handled by the parent in onStateChange
-    };
+    // Busca todos os municípios do estado selecionado
+    useEffect(() => {
+        if (!state) { setCities([]); return; }
+        let active = true;
+        setLoading(true);
+        fetch(`${IBGE_API}/${state}/municipios?orderBy=nome`)
+            .then((r) => (r.ok ? r.json() : Promise.reject(new Error("IBGE"))))
+            .then((data: { nome: string }[]) => { if (active) setCities(data.map((c) => c.nome)); })
+            .catch(() => { if (active) setCities([]); })
+            .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+    }, [state]);
 
     return (
         <div className={`grid grid-cols-2 gap-3 ${className}`}>
@@ -34,7 +48,7 @@ export function StateCitySelector({
                 <Label className="text-[var(--zyllen-muted)]">Estado</Label>
                 <Select
                     value={state}
-                    onValueChange={handleStateChange}
+                    onValueChange={onStateChange}
                     placeholder="Selecione o estado..."
                     className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
                     required={required}
@@ -48,20 +62,17 @@ export function StateCitySelector({
             </div>
             <div className="space-y-2">
                 <Label className="text-[var(--zyllen-muted)]">Cidade</Label>
-                <Select
+                <SearchableSelect
                     value={city}
                     onValueChange={onCityChange}
-                    placeholder={state ? "Selecione a cidade..." : "Selecione o estado primeiro"}
-                    className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
-                    required={required}
+                    options={cities}
                     disabled={!state}
-                >
-                    {cidades.map((c) => (
-                        <SelectOption key={c} value={c}>
-                            {c}
-                        </SelectOption>
-                    ))}
-                </Select>
+                    loading={loading}
+                    placeholder={state ? "Selecione a cidade..." : "Selecione o estado primeiro"}
+                    emptyText={state ? "Nenhuma cidade encontrada" : "Selecione o estado primeiro"}
+                    loadingText="Carregando cidades..."
+                    className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
+                />
             </div>
         </div>
     );

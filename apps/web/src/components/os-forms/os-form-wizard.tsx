@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
+import { SearchableSelect } from "@web/components/ui/searchable-select";
 import { ArrowLeft, ArrowRight, Send, Save, FileText, MapPin, Loader2 } from "lucide-react";
 import { OsFormTypeSelector } from "./os-form-type-selector";
 import { OS_FORM_CONFIG, INTERNAL_FORM_TYPES, CONTRACTOR_FORM_TYPES } from "./os-form-types";
@@ -409,17 +410,17 @@ export function OsFormWizard({
                                             Cidade
                                             {loadingCities && <Loader2 size={12} className="inline ml-2 animate-spin" />}
                                         </Label>
-                                        <select
+                                        <SearchableSelect
                                             value={clientCity}
-                                            onChange={(e) => handleCityChange(e.target.value)}
+                                            onValueChange={handleCityChange}
+                                            options={cities}
                                             disabled={readOnly || !clientState || loadingCities}
-                                            className={selectCls}
-                                        >
-                                            <option value="">{clientState ? "Selecione a cidade..." : "Selecione um estado primeiro"}</option>
-                                            {cities.map((city) => (
-                                                <option key={city} value={city}>{city}</option>
-                                            ))}
-                                        </select>
+                                            loading={loadingCities}
+                                            placeholder={clientState ? "Selecione a cidade..." : "Selecione um estado primeiro"}
+                                            emptyText={clientState ? "Nenhuma cidade encontrada" : "Selecione um estado primeiro"}
+                                            loadingText="Carregando cidades..."
+                                            className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
+                                        />
                                     </div>
                                 </div>
 
