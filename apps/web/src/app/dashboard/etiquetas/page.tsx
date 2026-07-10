@@ -668,22 +668,30 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                             <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-highlight)]/20 h-fit">
                                 <CardHeader className="pb-3"><CardTitle className="text-white text-sm flex items-center gap-2"><Tag size={16} className="text-[var(--zyllen-highlight)]" /> Preview</CardTitle></CardHeader>
                                 <CardContent className="flex flex-col items-center">
-                                    <div style={{ display: "flex", gap: (activeTemplate.gapXMm || 0) * 6, background: "white", padding: 2 }}>
-                                        {queue.slice(0, Math.max(1, activeTemplate.columns || 1)).map((q) => (
-                                            <LabelPreview
-                                                key={q.assetId}
-                                                template={{ ...activeTemplate, columns: 1 }}
-                                                data={{
-                                                    assetCode: q.assetCode,
-                                                    skuName: q.skuName,
-                                                    skuCode: q.skuCode,
-                                                    qrContent: q.qrContent,
-                                                    location: q.location,
-                                                }}
-                                                pxPerMm={6}
-                                            />
-                                        ))}
-                                    </div>
+                                    {(() => {
+                                        const cols = Math.max(1, activeTemplate.columns || 1);
+                                        const px = cols > 1 ? 5 : 6; // multi-coluna encolhe um pouco para caber
+                                        return (
+                                            <div className="w-full overflow-x-auto">
+                                                <div style={{ display: "flex", gap: (activeTemplate.gapXMm || 0) * px, background: "white", padding: 2, width: "fit-content", margin: "0 auto", flexShrink: 0 }}>
+                                                    {queue.slice(0, cols).map((q) => (
+                                                        <LabelPreview
+                                                            key={q.assetId}
+                                                            template={{ ...activeTemplate, columns: 1 }}
+                                                            data={{
+                                                                assetCode: q.assetCode,
+                                                                skuName: q.skuName,
+                                                                skuCode: q.skuCode,
+                                                                qrContent: q.qrContent,
+                                                                location: q.location,
+                                                            }}
+                                                            pxPerMm={px}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                     <p className="text-xs text-[var(--zyllen-muted)] mt-3 text-center">
                                         {(activeTemplate.columns || 1) > 1 ? `1ª linha · ${activeTemplate.columns} colunas` : "Prévia do 1º item"} · fiel à impressão
                                     </p>
