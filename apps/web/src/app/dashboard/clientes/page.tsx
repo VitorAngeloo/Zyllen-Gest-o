@@ -41,7 +41,9 @@ export default function ClientesPage() {
     const [viewCompany, setViewCompany] = useState<any>(null);
 
     // ─── Project state ──────────────────
-    const [newProject, setNewProject] = useState({ name: "", description: "", phone: "", address: "", city: "", state: "" });
+    const EMPTY_PROJECT = { name: "", description: "", phone: "", address: "", city: "", state: "" };
+    const [newProject, setNewProject] = useState({ ...EMPTY_PROJECT });
+    const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
 
     // ─── User state ─────────────────────
     const [newUser, setNewUser] = useState({ ...EMPTY_USER });
@@ -127,10 +129,45 @@ export default function ClientesPage() {
             toast.success("Projeto criado!");
             qc.invalidateQueries({ queryKey: ["company-projects", viewCompany?.id] });
             qc.invalidateQueries({ queryKey: ["companies"] });
-            setNewProject({ name: "", description: "", phone: "", address: "", city: "", state: "" });
+            setNewProject({ ...EMPTY_PROJECT });
         },
         onError: (e: any) => toast.error(e.message),
     });
+
+    const updateProject = useMutation({
+        mutationFn: (data: { id: string; name: string; description?: string; phone?: string; address?: string; city?: string; state?: string }) =>
+            apiClient.put(`/clients/projects/${data.id}`, {
+                name: data.name, description: data.description,
+                phone: data.phone, address: data.address,
+                city: data.city, state: data.state,
+            }, fetchOpts),
+        onSuccess: () => {
+            toast.success("Projeto atualizado!");
+            qc.invalidateQueries({ queryKey: ["company-projects", viewCompany?.id] });
+            qc.invalidateQueries({ queryKey: ["companies"] });
+            setNewProject({ ...EMPTY_PROJECT });
+            setEditingProjectId(null);
+        },
+        onError: (e: any) => toast.error(e.message),
+    });
+
+    const startEditProject = (p: any) => {
+        setEditingProjectId(p.id);
+        setNewProject({
+            name: p.name ?? "", description: p.description ?? "", phone: p.phone ?? "",
+            address: p.address ?? "", city: p.city ?? "", state: p.state ?? "",
+        });
+    };
+
+    const cancelEditProject = () => {
+        setEditingProjectId(null);
+        setNewProject({ ...EMPTY_PROJECT });
+    };
+
+    const closeViewCompany = () => {
+        setViewCompany(null);
+        cancelEditProject();
+    };
 
     const deleteProject = useMutation({
         mutationFn: (id: string) => apiClient.delete(`/clients/projects/${id}`, fetchOpts),
@@ -567,8 +604,8 @@ export default function ClientesPage() {
             {/* ═══════════════════════════════════════ */}
             {/* ═══ DIALOG: VER EMPRESA + PROJETOS ═══ */}
             {/* ═══════════════════════════════════════ */}
-            <Dialog open={!!viewCompany} onOpenChange={(o) => !o && setViewCompany(null)}>
-                <DialogContent onClose={() => setViewCompany(null)} className="border-[var(--zyllen-border)] max-w-xl">
+            <Dialog open={!!viewCompany} onOpenChange={(o) => !o && closeViewCompany()}>
+                <DialogContent onClose={closeViewCompany} className="border-[var(--zyllen-border)] max-w-xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Building2 size={18} className="text-[var(--zyllen-highlight)]" />
@@ -595,8 +632,21 @@ export default function ClientesPage() {
                                     Projetos
                                 </h3>
 
-                                {/* Add project form */}
+                                {/* Add / edit project form */}
                                 <div className="space-y-3 p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]/50">
+                                    {editingProjectId && (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-medium text-[var(--zyllen-highlight)] flex items-center gap-1">
+                                                <Pencil size={12} /> Editando projeto
+                                            </span>
+                                            <button
+                                                onClick={cancelEditProject}
+                                                className="text-xs text-[var(--zyllen-muted)] hover:text-white"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    )}
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className="space-y-1">
                                             <Label className="text-xs text-[var(--zyllen-muted)]">Nome / Estande *</Label>
@@ -645,21 +695,30 @@ export default function ClientesPage() {
                                         variant="highlight"
                                         size="sm"
                                         className="w-full"
-                                        disabled={!newProject.name || createProject.isPending}
+                                        disabled={!newProject.name || createProject.isPending || updateProject.isPending}
                                         onClick={() => {
-                                            if (!newProject.name || !viewCompany?.id) return;
-                                            createProject.mutate({
-                                                companyId: viewCompany.id,
+                                            if (!newProject.name) return;
+                                            const payload = {
                                                 name: newProject.name,
                                                 description: newProject.description || undefined,
                                                 phone: newProject.phone || undefined,
                                                 address: newProject.address || undefined,
                                                 city: newProject.city || undefined,
                                                 state: newProject.state || undefined,
-                                            });
+                                            };
+                                            if (editingProjectId) {
+                                                updateProject.mutate({ id: editingProjectId, ...payload });
+                                            } else {
+                                                if (!viewCompany?.id) return;
+                                                createProject.mutate({ companyId: viewCompany.id, ...payload });
+                                            }
                                         }}
                                     >
-                                        <Plus size={14} /> {createProject.isPending ? "Adicionando..." : "Adicionar Projeto"}
+                                        {editingProjectId ? (
+                                            <><Pencil size={14} /> {updateProject.isPending ? "Salvando..." : "Salvar Alterações"}</>
+                                        ) : (
+                                            <><Plus size={14} /> {createProject.isPending ? "Adicionando..." : "Adicionar Projeto"}</>
+                                        )}
                                     </Button>
                                 </div>
 
@@ -684,6 +743,13 @@ export default function ClientesPage() {
                                                     {p._count?.externalUsers ?? 0} usuários
                                                 </Badge>
                                                 <button
+                                                    onClick={() => startEditProject(p)}
+                                                    className={`p-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)] transition-opacity ${editingProjectId === p.id ? "opacity-100 text-[var(--zyllen-highlight)]" : "opacity-0 group-hover:opacity-100"}`}
+                                                    title="Editar projeto"
+                                                >
+                                                    <Pencil size={14} />
+                                                </button>
+                                                <button
                                                     onClick={() => deleteProject.mutate(p.id)}
                                                     className="p-1 text-[var(--zyllen-muted)] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                                                     title="Excluir projeto"
@@ -702,7 +768,7 @@ export default function ClientesPage() {
                         </div>
                     </DialogBody>
                     <DialogFooter>
-                        <Button variant="ghost" onClick={() => setViewCompany(null)}>Fechar</Button>
+                        <Button variant="ghost" onClick={closeViewCompany}>Fechar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
