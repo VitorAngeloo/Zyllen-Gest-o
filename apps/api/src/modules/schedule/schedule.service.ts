@@ -193,8 +193,8 @@ export class ScheduleService {
 
         for (const installerId of data.installerIds) {
             await this.prisma.$executeRaw`
-                INSERT INTO "ScheduleInstaller" ("scheduleId", "installerId")
-                VALUES (${scheduleId}, ${installerId})
+                INSERT INTO "ScheduleInstaller" (id, "scheduleId", "installerId")
+                VALUES (gen_random_uuid(), ${scheduleId}, ${installerId})
                 ON CONFLICT ("scheduleId", "installerId") DO NOTHING
             `;
         }
@@ -203,8 +203,9 @@ export class ScheduleService {
             const rec = data.recurrence;
 
             await this.prisma.$executeRaw`
-                INSERT INTO "ScheduleRecurrence" ("scheduleId", type, interval, count, "endDate")
+                INSERT INTO "ScheduleRecurrence" (id, "scheduleId", type, interval, count, "endDate")
                 VALUES (
+                    gen_random_uuid(),
                     ${scheduleId},
                     ${rec.type},
                     ${rec.interval},
@@ -243,8 +244,8 @@ export class ScheduleService {
                 const childId = childRows[0].id;
                 for (const installerId of data.installerIds) {
                     await this.prisma.$executeRaw`
-                        INSERT INTO "ScheduleInstaller" ("scheduleId", "installerId")
-                        VALUES (${childId}, ${installerId})
+                        INSERT INTO "ScheduleInstaller" (id, "scheduleId", "installerId")
+                        VALUES (gen_random_uuid(), ${childId}, ${installerId})
                         ON CONFLICT ("scheduleId", "installerId") DO NOTHING
                     `;
                 }
@@ -293,8 +294,8 @@ export class ScheduleService {
             await this.prisma.$executeRaw`DELETE FROM "ScheduleInstaller" WHERE "scheduleId" = ${id}`;
             for (const installerId of data.installerIds) {
                 await this.prisma.$executeRaw`
-                    INSERT INTO "ScheduleInstaller" ("scheduleId", "installerId")
-                    VALUES (${id}, ${installerId})
+                    INSERT INTO "ScheduleInstaller" (id, "scheduleId", "installerId")
+                    VALUES (gen_random_uuid(), ${id}, ${installerId})
                     ON CONFLICT ("scheduleId", "installerId") DO NOTHING
                 `;
             }
