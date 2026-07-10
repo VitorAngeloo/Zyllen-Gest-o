@@ -13,7 +13,7 @@ import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, X, Check
 import QRCode from "react-qr-code";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
-import { buildBatchZplFromTemplate } from "@web/lib/label-zpl";
+import { buildBatchZplRows } from "@web/lib/label-zpl";
 import {
     DEFAULT_TEMPLATE,
     type LabelData,
@@ -25,7 +25,7 @@ import {
 import { LabelPreview } from "@web/components/etiquetas/label-preview";
 import { TemplateEditor } from "@web/components/etiquetas/template-editor";
 import { prepareTemplateLogos } from "@web/lib/logo-zpl";
-import { sendZpl, getZebraPrintUrl, setZebraPrintUrl } from "@web/lib/zebra-print";
+import { sendZpl, getDefaultPrinter, getZebraPrintUrl, setZebraPrintUrl } from "@web/lib/zebra-print";
 
 type Tab = "selection" | "printing" | "templates" | "history";
 
@@ -258,13 +258,37 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
             // Expande por cópias para o fallback HTML
             setHtmlLabels(items.flatMap((it) => Array(Math.max(1, it.copies)).fill(it.data)));
             qc.invalidateQueries({ queryKey: ["label-history"] });
+
+            // Rasteriza os logos do template (^GF) antes de gerar o ZPL.
+            const logos = await prepareTemplateLogos(activeTemplate);
+            // Cada etiqueta é enviada num POST próprio e pequeno (igual ao caso de 1
+            // etiqueta), evitando timeout/limite de payload do Browser Print quando o
+            // lote é grande.
+            const rows = buildBatchZplRows(activeTemplate, items, { ...printOpts, logos });
+
+            // 1) Verifica se o Browser Print está disponível (resolve a impressora 1x).
+            let printer;
             try {
-                // Rasteriza os logos do template (^GF) antes de gerar o ZPL.
-                const logos = await prepareTemplateLogos(activeTemplate);
-                await sendZpl(buildBatchZplFromTemplate(activeTemplate, items, { ...printOpts, logos }));
-                toast.success(`${totalLabels} etiqueta(s) enviada(s) para a impressora`);
+                printer = await getDefaultPrinter();
             } catch (e: any) {
                 toast.error(`Browser Print indisponível (${e?.message ?? "erro"}). Usando navegador.`);
+                setTimeout(() => handleHtmlPrint(), 300);
+                return;
+            }
+
+            // 2) Browser Print disponível → envia etiqueta por etiqueta. Não abre o
+            //    Windows no meio do lote (evitaria reimprimir tudo em duplicidade).
+            let failed = 0;
+            for (const row of rows) {
+                try { await sendZpl(row, printer); }
+                catch { failed++; }
+            }
+            if (failed === 0) {
+                toast.success(`${totalLabels} etiqueta(s) enviada(s) para a impressora`);
+            } else if (failed < rows.length) {
+                toast.message(`${rows.length - failed} etiqueta(s) enviada(s), ${failed} falhou(aram). Tente reenviar as que faltaram.`);
+            } else {
+                toast.error("Falha ao enviar para a impressora. Usando navegador.");
                 setTimeout(() => handleHtmlPrint(), 300);
             }
         },

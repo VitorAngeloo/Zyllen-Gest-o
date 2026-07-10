@@ -110,11 +110,11 @@ export function buildLabelZplFromTemplate(
  * ^XA com a largura total (colunas × largura + vãos) e posicionamos cada item
  * deslocado horizontalmente por (largura + espaçamento da coluna).
  */
-export function buildBatchZplFromTemplate(
+export function buildBatchZplRows(
     template: LabelTemplate,
     items: Array<{ data: LabelData; copies?: number }>,
     opts: PrintOptions = {},
-): string {
+): string[] {
     const dpi = template.dpi || 203;
     const cols = Math.max(1, Math.round(template.columns || 1));
     const colW = template.widthMm;
@@ -145,5 +145,13 @@ export function buildBatchZplFromTemplate(
             .join("\n");
         rows.push(["^XA", "^CI28", `^PW${pw}`, `^LL${ll}`, "^LH0,0", body, "^XZ"].join("\n"));
     }
-    return rows.join("\n");
+    return rows;
+}
+
+export function buildBatchZplFromTemplate(
+    template: LabelTemplate,
+    items: Array<{ data: LabelData; copies?: number }>,
+    opts: PrintOptions = {},
+): string {
+    return buildBatchZplRows(template, items, opts).join("\n");
 }
