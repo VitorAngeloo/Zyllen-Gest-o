@@ -237,6 +237,26 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
         openPrintWindow(labelsHtml, activeTemplate.columns || 1);
     };
 
+    // Mensagem amigável para falhas do Browser Print (404 = túnel expirado).
+    const browserPrintErrorMsg = (raw?: string) =>
+        /404/.test(raw ?? "")
+            ? "Browser Print respondeu 404 — a URL do túnel provavelmente expirou. Gere uma nova (rode 'tmole 9100' na máquina da impressora) e cole no campo acima."
+            : `Browser Print indisponível (${raw ?? "erro"}).`;
+
+    const [testingPrinter, setTestingPrinter] = useState(false);
+    const testPrinterConnection = async () => {
+        setTestingPrinter(true);
+        const id = toast.loading("Testando conexão com o Browser Print...");
+        try {
+            const p = await getDefaultPrinter();
+            toast.success(`Conectado! Impressora padrão: ${p?.name ?? "definida"}`, { id });
+        } catch (e: any) {
+            toast.error(browserPrintErrorMsg(e?.message), { id });
+        } finally {
+            setTestingPrinter(false);
+        }
+    };
+
     // Registra no histórico e imprime via ZPL (Browser Print). O conteúdo do
     // QR vem do backend para garantir consistência com a leitura.
     const printQueueMut = useMutation({
@@ -271,7 +291,7 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
             try {
                 printer = await getDefaultPrinter();
             } catch (e: any) {
-                toast.error(`Browser Print indisponível (${e?.message ?? "erro"}). Usando navegador.`);
+                toast.error(`${browserPrintErrorMsg(e?.message)} Usando navegador.`);
                 setTimeout(() => handleHtmlPrint(), 300);
                 return;
             }
@@ -566,10 +586,19 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                     value={printerUrl}
                                     onChange={(e) => setPrinterUrl(e.target.value)}
                                     onBlur={(e) => savePrinterUrl(e.target.value)}
-                                    placeholder="URL da impressora (vazio = localhost)"
+                                    placeholder="URL do túnel do Browser Print (vazio = localhost)"
                                     className="flex-1 h-8 rounded border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
                                     title="Endereço do Zebra Browser Print. Vazio = máquina local (127.0.0.1)."
                                 />
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-[var(--zyllen-border)] text-white hover:bg-white/5 shrink-0"
+                                    onClick={testPrinterConnection}
+                                    disabled={testingPrinter}
+                                >
+                                    {testingPrinter ? <Loader2 size={13} className="animate-spin" /> : "Testar conexão"}
+                                </Button>
                             </div>
                         </CardContent>
                     </Card>
