@@ -172,7 +172,7 @@ export class ScheduleService {
         const idRows = await this.prisma.$queryRaw<[{ id: string }]>`
             INSERT INTO "Schedule" (
                 title, type, status, "startDate", "endDate",
-                address, notes, "companyId", "projectId", "createdById"
+                address, notes, "companyId", "projectId", "createdById", "updatedAt"
             ) VALUES (
                 ${data.title},
                 ${data.type},
@@ -183,7 +183,8 @@ export class ScheduleService {
                 ${data.notes ?? null},
                 ${data.companyId ?? null},
                 ${data.projectId ?? null},
-                ${createdById}
+                ${createdById},
+                NOW()
             )
             RETURNING id
         `;
@@ -222,7 +223,7 @@ export class ScheduleService {
                 const childRows = await this.prisma.$queryRaw<[{ id: string }]>`
                     INSERT INTO "Schedule" (
                         title, type, status, "startDate", "endDate",
-                        address, notes, "companyId", "projectId", "createdById", "parentScheduleId"
+                        address, notes, "companyId", "projectId", "createdById", "parentScheduleId", "updatedAt"
                     ) VALUES (
                         ${data.title},
                         ${data.type},
@@ -234,7 +235,8 @@ export class ScheduleService {
                         ${data.companyId ?? null},
                         ${data.projectId ?? null},
                         ${createdById},
-                        ${scheduleId}
+                        ${scheduleId},
+                        NOW()
                     )
                     RETURNING id
                 `;

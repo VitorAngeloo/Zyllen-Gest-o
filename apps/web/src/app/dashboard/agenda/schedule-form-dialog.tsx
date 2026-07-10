@@ -352,7 +352,7 @@ export function ScheduleFormDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl" onClose={() => onOpenChange(false)}>
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <CalendarDays className="w-5 h-5 text-[var(--zyllen-highlight)]" />
