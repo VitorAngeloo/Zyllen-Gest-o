@@ -474,6 +474,7 @@ export const createFollowupSchema = z.object({
 });
 
 export const updateFollowupSchema = z.object({
+    projectId: z.string().uuid('ID do projeto inválido').nullable().optional(),
     responsibleName: z.string().max(200).optional(),
     responsibleContact: z.string().max(200).optional(),
     status: z.enum(['IN_PROGRESS', 'PENDING', 'COMPLETED']).optional(),

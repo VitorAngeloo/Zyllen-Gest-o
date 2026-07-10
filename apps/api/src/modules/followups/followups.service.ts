@@ -143,6 +143,7 @@ export class FollowupsService {
 
     // ── Update ──
     async update(id: string, userId: string, data: {
+        projectId?: string | null;
         responsibleName?: string;
         responsibleContact?: string;
         status?: string;
@@ -156,7 +157,16 @@ export class FollowupsService {
             }
         }
 
+        // Validate project belongs to the followup's company (null = desvincular)
+        if (data.projectId) {
+            const project = await this.prisma.project.findUnique({ where: { id: data.projectId } });
+            if (!project || project.companyId !== followup.companyId) {
+                throw new BadRequestException('Projeto inválido para esta empresa');
+            }
+        }
+
         const updateData: any = {};
+        if (data.projectId !== undefined) updateData.projectId = data.projectId;
         if (data.responsibleName !== undefined) updateData.responsibleName = data.responsibleName;
         if (data.responsibleContact !== undefined) updateData.responsibleContact = data.responsibleContact;
         if (data.status !== undefined) updateData.status = data.status;
@@ -175,6 +185,7 @@ export class FollowupsService {
                 action: data.status ? 'STATUS_CHANGED' : 'UPDATED',
                 details: {
                     ...(data.status ? { status: data.status, previousStatus: followup.status } : {}),
+                    ...(data.projectId !== undefined ? { projectId: data.projectId } : {}),
                     ...(data.responsibleName !== undefined ? { responsibleName: data.responsibleName } : {}),
                     ...(data.responsibleContact !== undefined ? { responsibleContact: data.responsibleContact } : {}),
                 },

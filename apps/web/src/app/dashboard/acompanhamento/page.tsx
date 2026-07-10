@@ -461,6 +461,7 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, onBack }: {
     const [editingData, setEditingData] = useState(false);
     const [respName, setRespName] = useState(followup.responsibleName ?? "");
     const [respContact, setRespContact] = useState(followup.responsibleContact ?? "");
+    const [editProjectId, setEditProjectId] = useState(followup.project?.id ?? "");
     const [showHistory, setShowHistory] = useState(false);
 
     // Sync state when followup changes
@@ -469,7 +470,15 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, onBack }: {
         prevId.current = followup.id;
         setRespName(followup.responsibleName ?? "");
         setRespContact(followup.responsibleContact ?? "");
+        setEditProjectId(followup.project?.id ?? "");
     }
+
+    // Projetos da empresa deste acompanhamento (para vincular/alterar)
+    const { data: detailProjects } = useQuery({
+        queryKey: ["company-projects", followup.company?.id],
+        queryFn: () => apiClient.get<{ data: { id: string; name: string }[] }>(`/clients/companies/${followup.company?.id}/projects`, fetchOpts),
+        enabled: !!followup.company?.id,
+    });
 
     const st = STATUS_CONFIG[followup.status] ?? STATUS_CONFIG.IN_PROGRESS;
 
@@ -479,6 +488,7 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, onBack }: {
         onSuccess: () => {
             toast.success("Atualizado!");
             qc.invalidateQueries({ queryKey: ["followup", followup.id] });
+            qc.invalidateQueries({ queryKey: ["followups"] });
             setEditingData(false);
         },
         onError: (e: any) => toast.error(e.message),
@@ -730,6 +740,21 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, onBack }: {
                             {/* Editáveis */}
                             {editingData ? (
                                 <>
+                                    {detailProjects?.data && detailProjects.data.length > 0 && (
+                                        <div>
+                                            <label className="text-xs text-[var(--zyllen-muted)] uppercase tracking-wider">Projeto</label>
+                                            <select
+                                                value={editProjectId}
+                                                onChange={(e) => setEditProjectId(e.target.value)}
+                                                className="w-full h-9 px-3 mt-1 rounded-md bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--zyllen-highlight)]/30"
+                                            >
+                                                <option value="">Sem projeto específico</option>
+                                                {detailProjects.data.map((p) => (
+                                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                     <div>
                                         <label className="text-xs text-[var(--zyllen-muted)] uppercase tracking-wider">Responsável do Cliente</label>
                                         <input
@@ -747,7 +772,7 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, onBack }: {
                                         />
                                     </div>
                                     <div className="flex gap-2 pt-1">
-                                        <Button size="sm" onClick={() => updateFollowup.mutate({ responsibleName: respName, responsibleContact: respContact })} className="bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg-dark)] text-xs">
+                                        <Button size="sm" onClick={() => updateFollowup.mutate({ projectId: editProjectId || null, responsibleName: respName, responsibleContact: respContact })} className="bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg-dark)] text-xs">
                                             Salvar
                                         </Button>
                                         <Button size="sm" variant="ghost" onClick={() => setEditingData(false)} className="text-[var(--zyllen-muted)] text-xs">
