@@ -10,8 +10,18 @@
 // Como a página roda em HTTPS (skylineti.com) e a API é local, o Chrome permite
 // chamadas para 127.0.0.1 (loopback é tratado como contexto seguro).
 
+// O Browser Print serve a API HTTP na 9100 e HTTPS na 9101. Preferimos SEMPRE o
+// HTTP em 127.0.0.1/localhost: o Chrome trata loopback como contexto seguro
+// (então uma página HTTPS pode chamar http://127.0.0.1 sem bloqueio de
+// mixed-content) e assim evitamos o cert self-signed da 9101 (sem SAN), que o
+// Chrome rejeita e causa "Failed to fetch". Isso dispensa túnel.
 const BP_HTTP = "http://127.0.0.1:9100";
+const BP_HTTP_LH = "http://localhost:9100";
 const BP_HTTPS = "https://127.0.0.1:9101";
+const BP_HTTPS_LH = "https://localhost:9101";
+
+// Ordem de tentativa dos endpoints locais (HTTP primeiro; HTTPS por último).
+const LOOPBACK_HOSTS = [BP_HTTP, BP_HTTP_LH, BP_HTTPS, BP_HTTPS_LH];
 
 const STORAGE_KEY = "zebraPrintUrl";
 
@@ -41,14 +51,33 @@ function getConfiguredBase(): string | null {
     return null;
 }
 
-// Lista de endpoints a tentar. Se houver uma URL configurada (ex.: túnel do
-// tunnelmole), usa só ela. Caso contrário, tenta os endpoints locais — em
-// páginas HTTPS o Browser Print só aceita o endpoint HTTPS (9101).
+// Lista de endpoints a tentar, em ordem. SEMPRE tenta o loopback local primeiro
+// (definitivo, sem túnel e sem cert). Uma URL configurada (ex.: túnel) entra só
+// como reforço ao final — útil quando o navegador NÃO está na máquina da
+// impressora. Assim, se a máquina que imprime é a mesma que acessa o site
+// (caso normal), funciona direto pela 9100 sem depender de túnel nenhum.
 function bpHosts(): string[] {
     const configured = getConfiguredBase();
-    if (configured) return [configured];
-    const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
-    return isHttps ? [BP_HTTPS, BP_HTTP] : [BP_HTTP, BP_HTTPS];
+    return configured ? [...LOOPBACK_HOSTS, configured] : [...LOOPBACK_HOSTS];
+}
+
+/**
+ * Diagnóstico: retorna o primeiro endpoint do Browser Print que responde, ou
+ * null se nenhum responder. Usado pelo botão "Testar conexão" para mostrar
+ * exatamente qual endereço está funcionando.
+ */
+export async function probeBrowserPrint(): Promise<string | null> {
+    for (const host of bpHosts()) {
+        const t = withTimeout(3000);
+        try {
+            const res = await fetch(host + "/available", { method: "GET", signal: t.signal });
+            t.clear();
+            if (res.ok) return host;
+        } catch {
+            t.clear();
+        }
+    }
+    return null;
 }
 
 export type ZebraDevice = {

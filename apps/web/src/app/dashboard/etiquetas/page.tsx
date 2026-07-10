@@ -25,7 +25,7 @@ import {
 import { LabelPreview } from "@web/components/etiquetas/label-preview";
 import { TemplateEditor } from "@web/components/etiquetas/template-editor";
 import { prepareTemplateLogos } from "@web/lib/logo-zpl";
-import { sendZpl, getDefaultPrinter, getZebraPrintUrl, setZebraPrintUrl } from "@web/lib/zebra-print";
+import { sendZpl, getDefaultPrinter, probeBrowserPrint, getZebraPrintUrl, setZebraPrintUrl } from "@web/lib/zebra-print";
 
 type Tab = "selection" | "printing" | "templates" | "history";
 
@@ -246,10 +246,15 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
     const [testingPrinter, setTestingPrinter] = useState(false);
     const testPrinterConnection = async () => {
         setTestingPrinter(true);
-        const id = toast.loading("Testando conexão com o Browser Print...");
+        const id = toast.loading("Procurando o Browser Print...");
         try {
+            const host = await probeBrowserPrint();
+            if (!host) {
+                toast.error("Não encontrei o Browser Print. Confira se o app está aberto NA MESMA máquina onde você abriu o site, e deixe o campo de URL vazio.", { id });
+                return;
+            }
             const p = await getDefaultPrinter();
-            toast.success(`Conectado! Impressora padrão: ${p?.name ?? "definida"}`, { id });
+            toast.success(`Conectado via ${host} — impressora: ${p?.name ?? "padrão"}`, { id });
         } catch (e: any) {
             toast.error(browserPrintErrorMsg(e?.message), { id });
         } finally {
