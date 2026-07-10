@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
 import { useAuthedFetch } from "@web/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
@@ -9,7 +9,7 @@ import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@web/components/ui/dialog";
 import { toast } from "sonner";
-import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, X, CheckSquare, Send, Minus, ListChecks, Copy, Star } from "lucide-react";
+import { Printer, Tag, History, FileText, Plus, Pencil, Trash2, Search, X, CheckSquare, Send, Minus, ListChecks, Copy, Star, Loader2 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
@@ -64,8 +64,12 @@ export default function EtiquetasPage() {
     const [tab, setTab] = useState<Tab>("selection");
 
     // ─── Seleção ────────────────────────
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    // Seleção guarda o objeto do patrimônio (não só o id) para funcionar entre páginas.
+    const [selected, setSelected] = useState<Map<string, any>>(new Map());
     const [selSearch, setSelSearch] = useState("");
+    const [debouncedSelSearch, setDebouncedSelSearch] = useState("");
+    const [selPage, setSelPage] = useState(1);
+    const SEL_PER_PAGE = 100;
     const [scanCode, setScanCode] = useState("");
 
     // ─── Fila de impressão ──────────────
@@ -90,11 +94,26 @@ export default function EtiquetasPage() {
     const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
 
     // ─── Queries ────────────────────────
-    const { data: allAssets, isLoading: loadingAssets } = useQuery({
-        queryKey: ["assets-selection"],
-        queryFn: () => apiClient.get<{ data: any[]; total: number }>("/assets?limit=100", fetchOpts),
+    // Debounce da busca (busca no SERVIDOR — encontra qualquer item, não só os carregados)
+    useEffect(() => {
+        const t = setTimeout(() => {
+            setDebouncedSelSearch(selSearch.trim());
+            setSelPage(1);
+        }, 350);
+        return () => clearTimeout(t);
+    }, [selSearch]);
+
+    const { data: allAssets, isLoading: loadingAssets, isFetching: fetchingAssets } = useQuery({
+        queryKey: ["assets-selection", debouncedSelSearch, selPage],
+        queryFn: () => apiClient.get<{ data: any[]; total: number }>(
+            `/assets?page=${selPage}&limit=${SEL_PER_PAGE}${debouncedSelSearch ? `&search=${encodeURIComponent(debouncedSelSearch)}` : ""}`,
+            fetchOpts,
+        ),
         enabled: tab === "selection",
+        placeholderData: keepPreviousData,
     });
+    const assetsTotal = allAssets?.total ?? 0;
+    const assetsTotalPages = Math.max(1, Math.ceil(assetsTotal / SEL_PER_PAGE));
 
     const { data: history, isLoading: loadingHistory } = useQuery({
         queryKey: ["label-history"],
@@ -132,10 +151,10 @@ export default function EtiquetasPage() {
     };
 
     const sendSelectionToPrint = () => {
-        const selected = (allAssets?.data ?? []).filter((a: any) => selectedIds.has(a.id));
-        if (!selected.length) return;
-        addAssetsToQueue(selected);
-        setSelectedIds(new Set());
+        const selectedArr = [...selected.values()];
+        if (!selectedArr.length) return;
+        addAssetsToQueue(selectedArr);
+        setSelected(new Map());
         setTab("printing");
     };
 
@@ -307,13 +326,8 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
         { key: "history", label: "Histórico", icon: History },
     ];
 
-    // Lista filtrada da seleção
-    const filteredAssets = (() => {
-        const data = allAssets?.data ?? [];
-        if (!selSearch.trim()) return data;
-        const q = normalize(selSearch);
-        return data.filter((a: any) => normalize(a.assetCode).includes(q) || normalize(a.sku?.name ?? "").includes(q));
-    })();
+    // A lista já vem filtrada e paginada do servidor.
+    const filteredAssets = allAssets?.data ?? [];
 
     return (
         <div className="space-y-6">
@@ -372,20 +386,21 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                     <div className="flex flex-wrap items-center gap-3">
                         <div className="relative flex-1 min-w-[200px]">
                             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                            {fetchingAssets && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[var(--zyllen-muted)]" />}
                             <Input
                                 value={selSearch}
                                 onChange={(e) => setSelSearch(e.target.value)}
-                                placeholder="Filtrar por código ou nome..."
-                                className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-8 h-9 text-sm font-mono"
+                                placeholder="Buscar por código ou nome (todos os itens)..."
+                                className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-8 pr-8 h-9 text-sm font-mono"
                             />
                         </div>
-                        {selectedIds.size > 0 && (
+                        {selected.size > 0 && (
                             <Button variant="highlight" className="gap-2" onClick={sendSelectionToPrint}>
-                                <Send size={15} /> Enviar para impressão ({selectedIds.size})
+                                <Send size={15} /> Enviar para impressão ({selected.size})
                             </Button>
                         )}
-                        {selectedIds.size > 0 && (
-                            <button onClick={() => setSelectedIds(new Set())} className="text-xs text-[var(--zyllen-muted)] hover:text-white flex items-center gap-1">
+                        {selected.size > 0 && (
+                            <button onClick={() => setSelected(new Map())} className="text-xs text-[var(--zyllen-muted)] hover:text-white flex items-center gap-1">
                                 <X size={13} /> Limpar seleção
                             </button>
                         )}
@@ -404,13 +419,13 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                 <button
                                     className="text-xs text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)] flex items-center gap-1 transition-colors"
                                     onClick={() => {
-                                        const allVisibleSelected = filteredAssets.every((a: any) => selectedIds.has(a.id));
-                                        const next = new Set(selectedIds);
-                                        filteredAssets.forEach((a: any) => allVisibleSelected ? next.delete(a.id) : next.add(a.id));
-                                        setSelectedIds(next);
+                                        const allVisibleSelected = filteredAssets.every((a: any) => selected.has(a.id));
+                                        const next = new Map(selected);
+                                        filteredAssets.forEach((a: any) => allVisibleSelected ? next.delete(a.id) : next.set(a.id, a));
+                                        setSelected(next);
                                     }}
                                 >
-                                    <CheckSquare size={13} /> Selecionar todos visíveis
+                                    <CheckSquare size={13} /> Selecionar todos desta página
                                 </button>
                             )}
                         </CardHeader>
@@ -431,15 +446,15 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                         </thead>
                                         <tbody>
                                             {filteredAssets.map((a: any) => {
-                                                const checked = selectedIds.has(a.id);
+                                                const checked = selected.has(a.id);
                                                 return (
                                                     <tr
                                                         key={a.id}
                                                         className={`border-b border-[var(--zyllen-border)]/40 cursor-pointer transition-colors ${checked ? "bg-[var(--zyllen-highlight)]/5" : "hover:bg-white/[0.02]"}`}
                                                         onClick={() => {
-                                                            const next = new Set(selectedIds);
-                                                            checked ? next.delete(a.id) : next.add(a.id);
-                                                            setSelectedIds(next);
+                                                            const next = new Map(selected);
+                                                            checked ? next.delete(a.id) : next.set(a.id, a);
+                                                            setSelected(next);
                                                         }}
                                                     >
                                                         <td className="py-2.5 pl-1">
@@ -463,8 +478,38 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                 </div>
                             ) : (
                                 <p className="text-center py-8 text-[var(--zyllen-muted)] text-sm">
-                                    {selSearch ? `Nenhum item encontrado para "${selSearch}"` : "Nenhum item cadastrado"}
+                                    {debouncedSelSearch ? `Nenhum item encontrado para "${debouncedSelSearch}"` : "Nenhum item cadastrado"}
                                 </p>
+                            )}
+
+                            {/* Paginação */}
+                            {assetsTotalPages > 1 && (
+                                <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-[var(--zyllen-border)]/50 flex-wrap">
+                                    <span className="text-xs text-[var(--zyllen-muted)]">
+                                        Página {selPage} de {assetsTotalPages}
+                                        {selected.size > 0 && <span className="ml-2 text-[var(--zyllen-highlight)]">· {selected.size} selecionado(s)</span>}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="border-[var(--zyllen-border)] text-white hover:bg-white/5 disabled:opacity-40"
+                                            onClick={() => setSelPage((p) => Math.max(1, p - 1))}
+                                            disabled={selPage <= 1 || fetchingAssets}
+                                        >
+                                            Anterior
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="border-[var(--zyllen-border)] text-white hover:bg-white/5 disabled:opacity-40"
+                                            onClick={() => setSelPage((p) => Math.min(assetsTotalPages, p + 1))}
+                                            disabled={selPage >= assetsTotalPages || fetchingAssets}
+                                        >
+                                            Próxima
+                                        </Button>
+                                    </div>
+                                </div>
                             )}
                         </CardContent>
                     </Card>
