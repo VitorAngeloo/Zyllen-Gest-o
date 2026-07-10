@@ -85,6 +85,10 @@ export function TemplateEditor({ template, onChange }: Props) {
                         <Num label="Altura (mm)" value={template.heightMm} min={5} onChange={(v) => patch({ heightMm: v })} />
                         <Num label="Colunas" value={template.columns} min={1} onChange={(v) => patch({ columns: v })} />
                     </div>
+                    <p className="text-[10px] text-[var(--zyllen-muted)] leading-snug">
+                        <b>Colunas = 1</b> na maioria dos casos: a impressora separa as etiquetas sozinha (mídia com espaço entre elas).
+                        Use <b>2</b> só se a impressora imprime as duas de uma vez como um bloco único. Largura/Altura são de <b>uma</b> etiqueta.
+                    </p>
                     <div className="grid grid-cols-3 gap-2">
                         <Num label="Margem topo" value={template.marginTopMm} step={0.5} min={0} onChange={(v) => patch({ marginTopMm: v })} />
                         <Num label="Margem esq." value={template.marginLeftMm} step={0.5} min={0} onChange={(v) => patch({ marginLeftMm: v })} />

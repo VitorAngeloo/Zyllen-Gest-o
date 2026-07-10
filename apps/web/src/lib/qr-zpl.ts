@@ -12,6 +12,15 @@ const mmToDots = (mm: number, dpi: number) => Math.round((mm * dpi) / 25.4);
 type Matrix = { size: number; data: Uint8Array };
 const matrixCache = new Map<string, Matrix>();
 
+/**
+ * Matriz de módulos do QR (mesma usada na impressão ^GF). O preview desenha a
+ * partir daqui para ficar IDÊNTICO ao impresso. `data[my*size+mx]` verdadeiro =
+ * módulo escuro.
+ */
+export function getQrMatrix(data: string): { size: number; data: Uint8Array } {
+    return getMatrix(data);
+}
+
 // Gera (e memoiza) a matriz de módulos do QR para um conteúdo.
 function getMatrix(data: string): Matrix {
     let m = matrixCache.get(data);

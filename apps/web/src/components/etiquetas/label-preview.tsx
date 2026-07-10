@@ -5,14 +5,30 @@
 // Em modo `editable`, cada elemento pode ser ARRASTADO (mover) e
 // REDIMENSIONADO (alça no canto), atualizando o template ao vivo.
 
-import QRCode from "react-qr-code";
 import {
     type LabelTemplate,
     type LabelData,
     type LabelElement,
     resolveElementText,
 } from "@web/lib/label-template";
-import { qrPrintedSizeMm } from "@web/lib/qr-zpl";
+import { qrPrintedSizeMm, getQrMatrix } from "@web/lib/qr-zpl";
+
+// Desenha o QR a partir da MESMA matriz da impressão (^GF) — fiel ao impresso.
+function QrMatrix({ value, sizePx }: { value: string; sizePx: number }) {
+    const { size, data } = getQrMatrix(value || " ");
+    const rects: React.ReactNode[] = [];
+    for (let my = 0; my < size; my++) {
+        for (let mx = 0; mx < size; mx++) {
+            if (data[my * size + mx]) rects.push(<rect key={`${mx}-${my}`} x={mx} y={my} width={1} height={1} />);
+        }
+    }
+    return (
+        <svg width={sizePx} height={sizePx} viewBox={`0 0 ${size} ${size}`} shapeRendering="crispEdges" style={{ display: "block" }}>
+            <rect x={0} y={0} width={size} height={size} fill="#fff" />
+            <g fill="#000">{rects}</g>
+        </svg>
+    );
+}
 
 type Props = {
     template: LabelTemplate;
@@ -149,7 +165,7 @@ function ElementView({
         const size = qrPrintedSizeMm(data.qrContent || " ", el.sizeMm ?? 17, dpi) * s;
         return (
             <div style={baseStyle} {...handlers}>
-                <QRCode value={data.qrContent || " "} size={size} level="M" />
+                <QrMatrix value={data.qrContent || " "} sizePx={size} />
                 {resizeHandle}
             </div>
         );
