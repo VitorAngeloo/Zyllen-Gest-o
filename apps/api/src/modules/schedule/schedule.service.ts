@@ -171,9 +171,10 @@ export class ScheduleService {
     ) {
         const idRows = await this.prisma.$queryRaw<[{ id: string }]>`
             INSERT INTO "Schedule" (
-                title, type, status, "startDate", "endDate",
+                id, title, type, status, "startDate", "endDate",
                 address, notes, "companyId", "projectId", "createdById", "updatedAt"
             ) VALUES (
+                gen_random_uuid(),
                 ${data.title},
                 ${data.type},
                 'SCHEDULED',
@@ -223,9 +224,10 @@ export class ScheduleService {
             for (const inst of instances) {
                 const childRows = await this.prisma.$queryRaw<[{ id: string }]>`
                     INSERT INTO "Schedule" (
-                        title, type, status, "startDate", "endDate",
+                        id, title, type, status, "startDate", "endDate",
                         address, notes, "companyId", "projectId", "createdById", "parentScheduleId", "updatedAt"
                     ) VALUES (
+                        gen_random_uuid(),
                         ${data.title},
                         ${data.type},
                         'SCHEDULED',
