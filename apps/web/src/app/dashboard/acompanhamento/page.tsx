@@ -49,6 +49,7 @@ interface Followup {
     createdAt: string;
     updatedAt: string;
     company: Company;
+    project?: { id: string; name: string } | null;
     createdBy: { id: string; name: string; email: string };
     blocks: FollowupBlock[];
     _count?: { blocks: number };
@@ -220,6 +221,9 @@ export default function AcompanhamentoPage() {
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="font-mono text-sm text-[var(--zyllen-highlight)]">{f.code}</span>
                                                     <Badge variant={st.variant as any}>{st.label}</Badge>
+                                                    {f.project?.name && (
+                                                        <Badge variant="outline" className="text-blue-400 border-blue-400/30">{f.project.name}</Badge>
+                                                    )}
                                                 </div>
                                                 <p className="text-white font-medium truncate mt-0.5">{f.company?.name}</p>
                                                 <p className="text-xs text-[var(--zyllen-muted)] mt-0.5">
@@ -276,6 +280,7 @@ function NewFollowupForm({ onBack, fetchOpts, qc, onCreated }: {
 }) {
     const [companySearch, setCompanySearch] = useState("");
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+    const [selectedProjectId, setSelectedProjectId] = useState("");
     const [responsibleName, setResponsibleName] = useState("");
     const [responsibleContact, setResponsibleContact] = useState("");
     const [submitting, setSubmitting] = useState(false);
@@ -287,12 +292,20 @@ function NewFollowupForm({ onBack, fetchOpts, qc, onCreated }: {
         enabled: companySearch.length >= 1 && !selectedCompany,
     });
 
+    // Projects of the selected company
+    const { data: projects } = useQuery({
+        queryKey: ["company-projects", selectedCompany?.id],
+        queryFn: () => apiClient.get<{ data: { id: string; name: string }[] }>(`/clients/companies/${selectedCompany?.id}/projects`, fetchOpts),
+        enabled: !!selectedCompany?.id,
+    });
+
     const handleSubmit = async () => {
         if (!selectedCompany) { toast.error("Selecione uma empresa"); return; }
         setSubmitting(true);
         try {
             const res = await apiClient.post<{ data: Followup }>("/followups", {
                 companyId: selectedCompany.id,
+                projectId: selectedProjectId || undefined,
                 responsibleName: responsibleName || undefined,
                 responsibleContact: responsibleContact || undefined,
             }, fetchOpts);
@@ -336,10 +349,27 @@ function NewFollowupForm({ onBack, fetchOpts, qc, onCreated }: {
                                     )}
                                     {selectedCompany.phone && <p className="text-xs text-[var(--zyllen-muted)]">Tel: {selectedCompany.phone}</p>}
                                 </div>
-                                <Button variant="ghost" size="sm" onClick={() => { setSelectedCompany(null); setCompanySearch(""); }}>
+                                <Button variant="ghost" size="sm" onClick={() => { setSelectedCompany(null); setSelectedProjectId(""); setCompanySearch(""); }}>
                                     <X size={16} className="text-[var(--zyllen-muted)]" />
                                 </Button>
                             </div>
+
+                            {/* Projeto — opcional, só quando a empresa tem projetos */}
+                            {projects?.data && projects.data.length > 0 && (
+                                <div>
+                                    <label className="text-sm text-[var(--zyllen-muted)] mb-1 block">Projeto (opcional)</label>
+                                    <select
+                                        value={selectedProjectId}
+                                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                                        className="w-full h-10 px-3 rounded-md bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--zyllen-highlight)]/30"
+                                    >
+                                        <option value="">Sem projeto específico</option>
+                                        {projects.data.map((p) => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-2">
@@ -358,7 +388,7 @@ function NewFollowupForm({ onBack, fetchOpts, qc, onCreated }: {
                                     {companies.data.map((c) => (
                                         <button
                                             key={c.id}
-                                            onClick={() => { setSelectedCompany(c); setCompanySearch(""); }}
+                                            onClick={() => { setSelectedCompany(c); setSelectedProjectId(""); setCompanySearch(""); }}
                                             className="w-full text-left px-3 py-2.5 hover:bg-[var(--zyllen-highlight)]/10 transition-colors border-b border-[var(--zyllen-border)] last:border-0"
                                         >
                                             <p className="text-white text-sm font-medium">{c.name}</p>
@@ -660,6 +690,12 @@ function FollowupDetail({ followup, loading, fetchOpts, qc, onBack }: {
                                 <label className="text-xs text-[var(--zyllen-muted)] uppercase tracking-wider">Empresa</label>
                                 <p className="text-white font-medium">{followup.company?.name}</p>
                             </div>
+                            {followup.project?.name && (
+                                <div>
+                                    <label className="text-xs text-[var(--zyllen-muted)] uppercase tracking-wider">Projeto</label>
+                                    <p className="text-white font-medium">{followup.project.name}</p>
+                                </div>
+                            )}
                             {followup.company?.cnpj && (
                                 <div>
                                     <label className="text-xs text-[var(--zyllen-muted)] uppercase tracking-wider">CNPJ</label>

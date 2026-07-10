@@ -39,6 +39,7 @@ export class MaintenanceService {
     async openOS(data: {
         assetId?: string;
         companyId?: string;
+        projectId?: string | null;
         openedById?: string;
         openedByContractorId?: string;
         notes?: string;
@@ -86,6 +87,7 @@ export class MaintenanceService {
                     formType,
                     assetId: data.assetId ?? null,
                     companyId: data.companyId ?? null,
+                    projectId: data.projectId ?? null,
                     openedById: data.openedById ?? null,
                     openedByContractorId: data.openedByContractorId ?? null,
                     notes: asset
@@ -106,6 +108,8 @@ export class MaintenanceService {
                 },
                 include: {
                     asset: { include: { sku: { select: { skuCode: true, name: true } } } },
+                    company: { select: { id: true, name: true } },
+                    project: { select: { id: true, name: true } },
                     openedBy: { select: { name: true } },
                     openedByContractor: { select: { name: true } },
                 },
@@ -151,6 +155,8 @@ export class MaintenanceService {
                 where,
                 include: {
                     asset: { include: { sku: { select: { skuCode: true, name: true } } } },
+                    company: { select: { id: true, name: true } },
+                    project: { select: { id: true, name: true } },
                     openedBy: { select: { name: true } },
                     openedByContractor: { select: { name: true } },
                     closedBy: { select: { name: true } },
@@ -173,6 +179,8 @@ export class MaintenanceService {
             where: { id },
             include: {
                 asset: { include: { sku: true, currentLocation: true } },
+                company: { select: { id: true, name: true } },
+                project: { select: { id: true, name: true } },
                 openedBy: { select: { name: true } },
                 openedByContractor: { select: { name: true } },
                 closedBy: { select: { name: true } },

@@ -156,9 +156,11 @@ model Project {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  externalUsers ExternalUser[]
-  schedules     Schedule[]
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  externalUsers     ExternalUser[]
+  schedules         Schedule[]
+  followups         Followup[]
+  maintenanceOrders MaintenanceOS[]
 }
 
 // ─── Catalog & Assets ─────────────────────────
@@ -377,6 +379,7 @@ model MaintenanceOS {
   formType              String    @default("TERCEIRIZADO")  // TERCEIRIZADO | INSTALACAO_SALA | INSTALACAO_TELA | DESINSTALACAO | SUPORTE_REMOTO | MANUTENCAO_TELA_SALA
   assetId               String?   // Optional — some form types don't require an asset
   companyId             String?   // FK to Company — for client portal access
+  projectId             String?   // FK to Project — optional, narrows OS to a specific project
   status                String    @default("OPEN")
   openedById            String?   // Internal user who opened
   openedByContractorId  String?   // Contractor who opened
@@ -399,6 +402,7 @@ model MaintenanceOS {
 
   asset              Asset?          @relation(fields: [assetId], references: [id])
   company            Company?        @relation(fields: [companyId], references: [id])
+  project            Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
   openedBy           InternalUser?   @relation("OpenedBy", fields: [openedById], references: [id])
   openedByContractor ContractorUser? @relation("OpenedByContractor", fields: [openedByContractorId], references: [id])
   closedBy           InternalUser?   @relation("ClosedBy", fields: [closedById], references: [id])
@@ -408,6 +412,7 @@ model MaintenanceOS {
   @@index([openedById])
   @@index([openedByContractorId])
   @@index([companyId])
+  @@index([projectId])
   @@index([status])
   @@index([createdAt])
 }
@@ -553,6 +558,7 @@ model Followup {
   id                String   @id @default(uuid())
   code              String   @unique
   companyId         String
+  projectId         String?  // FK to Project — optional, narrows the followup to a specific project
   createdById       String
   responsibleName   String?  // Nome do responsável do cliente
   responsibleContact String? // Contato do responsável
@@ -561,9 +567,12 @@ model Followup {
   updatedAt         DateTime @updatedAt
 
   company   Company      @relation(fields: [companyId], references: [id])
+  project   Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdBy InternalUser @relation("FollowupCreatedBy", fields: [createdById], references: [id])
   blocks    FollowupBlock[]
   history   FollowupHistory[]
+
+  @@index([projectId])
 }
 
 model FollowupBlock {

@@ -16,6 +16,7 @@ function generateFollowupCode(): string {
 
 const FOLLOWUP_INCLUDE = {
     company: { select: { id: true, name: true, cnpj: true, address: true, city: true, state: true, phone: true } },
+    project: { select: { id: true, name: true } },
     createdBy: { select: { id: true, name: true, email: true } },
     blocks: {
         orderBy: { order: 'asc' as const },
@@ -37,6 +38,7 @@ export class FollowupsService {
     // ── Create ──
     async create(data: {
         companyId: string;
+        projectId?: string | null;
         createdById: string;
         responsibleName?: string;
         responsibleContact?: string;
@@ -44,6 +46,14 @@ export class FollowupsService {
         // Validate company exists
         const company = await this.prisma.company.findUnique({ where: { id: data.companyId } });
         if (!company) throw new NotFoundException('Empresa não encontrada');
+
+        // Validate project belongs to the company, if provided
+        if (data.projectId) {
+            const project = await this.prisma.project.findUnique({ where: { id: data.projectId } });
+            if (!project || project.companyId !== data.companyId) {
+                throw new BadRequestException('Projeto inválido para esta empresa');
+            }
+        }
 
         // Generate unique code
         let code = generateFollowupCode();
@@ -62,6 +72,7 @@ export class FollowupsService {
             data: {
                 code,
                 companyId: data.companyId,
+                projectId: data.projectId ?? null,
                 createdById: data.createdById,
                 responsibleName: data.responsibleName ?? null,
                 responsibleContact: data.responsibleContact ?? null,
@@ -107,6 +118,7 @@ export class FollowupsService {
                 where,
                 include: {
                     company: { select: { id: true, name: true, cnpj: true } },
+                    project: { select: { id: true, name: true } },
                     createdBy: { select: { id: true, name: true } },
                     _count: { select: { blocks: true } },
                 },

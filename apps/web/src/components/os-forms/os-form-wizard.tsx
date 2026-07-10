@@ -53,6 +53,7 @@ export interface OsFormSubmitData {
     formType: OsFormType;
     assetId?: string;
     companyId?: string;
+    projectId?: string;
     notes?: string;
     clientName?: string;
     clientCity?: string;
@@ -123,6 +124,10 @@ export function OsFormWizard({
     const [selectedCompanyId, setSelectedCompanyId] = useState(initialData?.companyId || "");
     const [companySearch, setCompanySearch] = useState("");
 
+    // Project select — depends on the selected company
+    const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+    const [selectedProjectId, setSelectedProjectId] = useState(initialData?.projectId || "");
+
     // Form-specific data
     const [formData, setFormData] = useState<Record<string, unknown>>(initialData?.formData || {});
 
@@ -155,6 +160,14 @@ export function OsFormWizard({
             .then((res) => setCompanies(res.data || []))
             .catch(() => {});
     }, []);
+
+    // Load projects whenever a company is selected
+    useEffect(() => {
+        if (!selectedCompanyId) { setProjects([]); return; }
+        apiClient.get<{ data: { id: string; name: string }[] }>(`/clients/companies/${selectedCompanyId}/projects-public`)
+            .then((res) => setProjects(res.data || []))
+            .catch(() => setProjects([]));
+    }, [selectedCompanyId]);
 
     // Cascade: cities loaded from IBGE API based on selected state
     const [cities, setCities] = useState<string[]>([]);
@@ -272,6 +285,7 @@ export function OsFormWizard({
     const buildSubmitData = (): OsFormSubmitData => ({
         formType: selectedType!,
         companyId: selectedCompanyId || undefined,
+        projectId: selectedProjectId || undefined,
         clientName: clientName || undefined,
         clientCity: clientCity || undefined,
         clientState: clientState || undefined,
@@ -419,7 +433,7 @@ export function OsFormWizard({
                                             {!readOnly && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => { setClientName(""); setSelectedCompanyId(""); setCompanySearch(""); setShowCompanyDropdown(true); }}
+                                                    onClick={() => { setClientName(""); setSelectedCompanyId(""); setSelectedProjectId(""); setCompanySearch(""); setShowCompanyDropdown(true); }}
                                                     className="text-[var(--zyllen-muted)] hover:text-white transition-colors shrink-0 text-xs"
                                                     title="Trocar empresa"
                                                 >
@@ -457,6 +471,7 @@ export function OsFormWizard({
                                                         onMouseDown={() => {
                                                             setClientName(company.name);
                                                             setSelectedCompanyId(company.id);
+                                                            setSelectedProjectId("");
                                                             setCompanySearch("");
                                                             setShowCompanyDropdown(false);
                                                         }}
@@ -472,6 +487,24 @@ export function OsFormWizard({
                                         );
                                     })()}
                                 </div>
+
+                                {/* Projeto — optional, only when the company has projects */}
+                                {selectedCompanyId && projects.length > 0 && (
+                                    <div className="space-y-2">
+                                        <Label className="text-[var(--zyllen-muted)]">Projeto</Label>
+                                        <select
+                                            className={selectCls}
+                                            value={selectedProjectId}
+                                            onChange={(e) => setSelectedProjectId(e.target.value)}
+                                            disabled={readOnly}
+                                        >
+                                            <option value="">Todos / não vincular projeto</option>
+                                            {projects.map((p) => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                             </>
                         )}
 

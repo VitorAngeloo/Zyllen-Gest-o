@@ -390,6 +390,7 @@ export const createOsBaseSchema = z.object({
 export const createMaintenanceSchema = z.object({
     assetId: z.string().uuid('Asset ID inválido').optional(),
     companyId: z.string().uuid('Company ID inválido').optional(),
+    projectId: z.string().uuid('Project ID inválido').optional().nullable(),
     formType: z.enum(OS_FORM_TYPES).optional().default('TERCEIRIZADO'),
     notes: z.string().optional(),
     clientName: z.string().optional(),
@@ -467,6 +468,7 @@ export const paginationSchema = z.object({
 // ── Followups (Acompanhamento) ──
 export const createFollowupSchema = z.object({
     companyId: z.string().uuid('ID da empresa inválido'),
+    projectId: z.string().uuid('ID do projeto inválido').optional().nullable(),
     responsibleName: z.string().max(200).optional(),
     responsibleContact: z.string().max(200).optional(),
 });

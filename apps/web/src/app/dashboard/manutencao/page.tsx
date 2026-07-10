@@ -200,6 +200,8 @@ export default function ManutencaoPage() {
                         id: selectedOS.id,
                         formType: selectedOS.formType as OsFormType,
                         notes: selectedOS.notes || "",
+                        companyId: selectedOS.companyId || "",
+                        projectId: selectedOS.projectId || "",
                         clientName: selectedOS.clientName || "",
                         clientCity: selectedOS.clientCity || "",
                         clientState: selectedOS.clientState || "",
@@ -466,6 +468,9 @@ export default function ManutencaoPage() {
                                             >
                                                 <td className="py-3 text-xs">
                                                     <p className="text-[var(--zyllen-highlight)] truncate max-w-[220px]" title={os.clientName || "—"}>{os.clientName || "—"}</p>
+                                                    {os.project?.name && (
+                                                        <p className="text-blue-400 truncate max-w-[220px]" title={os.project.name}>{os.project.name}</p>
+                                                    )}
                                                     <p className="font-mono text-[var(--zyllen-muted)]">{os.osNumber || "—"}</p>
                                                 </td>
                                                 <td className="py-3 text-white text-xs">{typeLabel}</td>
