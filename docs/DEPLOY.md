@@ -70,10 +70,13 @@ cd apps\api
 pnpm build
 
 # 5. Aplique mudanças de banco de dados (se houver)
-#    ATENÇÃO: use SEMPRE db push, NUNCA migrate dev
-pnpm prisma db push --accept-data-loss
+#    Aplica as migrations versionadas ainda pendentes. NÃO reseta,
+#    NÃO aceita perda de dados. Se não houver pendência, é no-op.
+pnpm prisma migrate deploy
 
 # 6. Atualize os tipos Prisma (após mudança de schema)
+#    A API precisa estar PARADA aqui, senão o generate falha com
+#    "EPERM ... query_engine-windows.dll" (arquivo travado pelo processo).
 pnpm prisma generate
 
 # 7. Inicie a API novamente
@@ -128,6 +131,26 @@ Start-Process -FilePath "node" `
   -NoNewWindow
 ```
 
+### API não sobe / erro `EADDRINUSE` na porta 3001
+
+Quase sempre é um **stack de desenvolvimento (`pnpm dev`) rodando na máquina de
+produção** — o `nest start --watch` disputa a mesma porta 3001 da API de produção
+(`node dist/main.js`). Neste servidor deve rodar **apenas** a build de produção.
+
+Encerre os processos de dev e mantenha só o `dist/main.js`:
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+  Where-Object { $_.CommandLine -match 'pnpm.cjs" dev|nest.js' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+Depois confirme que só um processo detém a porta:
+
+```powershell
+netstat -ano | findstr ":3001"
+```
+
 ### Vercel deu erro no deploy
 
 Execute o build local primeiro para ver o erro:
@@ -151,6 +174,44 @@ Get-Content api-run.log -Wait
 
 ## Importante — regras do banco de dados
 
-> **Nunca execute `prisma migrate dev`.**
-> Toda mudança de schema usa `prisma db push --accept-data-loss`.
-> Isso garante que nenhum dado existente seja perdido ou resetado.
+O banco é um **único Supabase compartilhado** (dev e produção usam o mesmo).
+Por isso, toda mudança de schema é **versionada como migration** e aplicada com
+`prisma migrate deploy`, que só aplica migrations pendentes — nunca reseta a base
+nem apaga dados.
+
+### Fluxo de uma mudança de schema
+
+> Não usamos `prisma migrate dev` neste projeto (exige shadow database e pode
+> falhar/travar contra o Supabase compartilhado). Geramos o SQL com `migrate diff`
+> e aplicamos com `migrate deploy`.
+
+```powershell
+cd "c:\Users\SERVIDOR ZYLLEN\Documents\GitHub\Zyllen-Gest-o\apps\api"
+
+# 1. Edite prisma/schema.prisma com a mudança desejada.
+
+# 2. Crie a pasta da migration (use um timestamp AAAAMMDDHHMMSS + nome curto):
+mkdir prisma\migrations\20260709120000_descricao_curta
+
+# 3. Gere o SQL comparando o banco atual com o schema novo (sem shadow DB):
+pnpm prisma migrate diff `
+  --from-url $env:DATABASE_URL `
+  --to-schema-datamodel prisma\schema.prisma `
+  --script > prisma\migrations\20260709120000_descricao_curta\migration.sql
+
+# 4. Revise o migration.sql gerado.
+#    Garanta que é aditivo (novas colunas/tabelas). Evite DROP de coluna com dados.
+
+# 5. Aplique em produção (só aplica pendentes, não reseta, não perde dados):
+pnpm prisma migrate deploy
+
+# 6. Commite a pasta da migration junto com o código.
+```
+
+> **Regras:**
+> - **Nunca** rode `prisma migrate reset` (apaga todos os dados).
+> - **Nunca** rode `prisma db push --accept-data-loss` contra este banco — ele
+>   sincroniza sem histórico e o flag aceita perda de dados. Use migrations.
+> - **Evite** `prisma migrate dev` — exige shadow database.
+> - Prefira mudanças **aditivas** (coluna nova opcional). Remoção/renome de coluna
+>   com dados exige um plano manual (migração de dados antes do DROP).
