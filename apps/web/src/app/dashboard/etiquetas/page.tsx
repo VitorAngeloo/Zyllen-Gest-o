@@ -132,6 +132,20 @@ export default function EtiquetasPage() {
         .map((t: any) => { const p = parseTemplate(t.layout); return p ? { ...p, id: t.id, name: t.name } : null; })
         .filter(Boolean) as LabelTemplate[];
 
+    // Não usar mais o "Padrão 50×30" embutido como opção: ao carregar, se a
+    // seleção for o default (ou inválida) e houver templates salvos, seleciona o
+    // template padrão salvo (ou o primeiro). O DEFAULT_TEMPLATE fica só como
+    // fallback interno quando não há nenhum template salvo.
+    useEffect(() => {
+        if (!templates?.data) return;
+        const ids = savedTemplates.map((t) => t.id);
+        if (ids.length > 0 && (selectedTemplateId === "default" || !ids.includes(selectedTemplateId))) {
+            const stored = typeof window !== "undefined" ? localStorage.getItem("defaultTemplateId") : null;
+            setSelectedTemplateId(stored && ids.includes(stored) ? stored : (ids[0] ?? "default"));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [templates?.data]);
+
     // Template ativo usado na impressão e no preview.
     const activeTemplate: LabelTemplate = selectedTemplateId === "default"
         ? DEFAULT_TEMPLATE
@@ -579,7 +593,7 @@ window.onload = function() { setTimeout(function() { window.print(); }, 250); };
                                     value={selectedTemplateId}
                                     onChange={(e) => setSelectedTemplateId(e.target.value)}
                                 >
-                                    <option value="default">{DEFAULT_TEMPLATE.name}</option>
+                                    {savedTemplates.length === 0 && <option value="default">{DEFAULT_TEMPLATE.name}</option>}
                                     {savedTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                                 </select>
                                 <span className="text-[10px] text-[var(--zyllen-muted)]">{activeTemplate.widthMm}×{activeTemplate.heightMm}mm</span>
