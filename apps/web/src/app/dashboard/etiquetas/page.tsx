@@ -42,15 +42,9 @@ type QueueItem = {
 };
 
 // Reproduz o conteúdo do QR igual ao backend (apenas para o preview na tela).
-// Usa um preenchimento do tamanho de um cuid quando o skuId não vem na lista,
-// para o QR do preview ter o mesmo tamanho do impresso.
-const buildQrContent = (a: any) => JSON.stringify({
-    contractVersion: "v1",
-    assetId: a.id,
-    assetCode: a.assetCode,
-    skuId: a.skuId ?? a.sku?.id ?? "0000000000000000000000000",
-    skuCode: a.sku?.skuCode ?? "",
-});
+// O QR contém somente o código de patrimônio, para o leitor devolver um código
+// limpo e pesquisável na bipagem rápida.
+const buildQrContent = (a: any) => a.assetCode ?? "";
 
 const assetToQueueItem = (a: any): QueueItem => ({
     assetId: a.id,
@@ -170,7 +164,7 @@ export default function EtiquetasPage() {
             assetCode: h.asset?.assetCode ?? "",
             skuName: h.asset?.sku?.name ?? "",
             skuCode: h.asset?.sku?.skuCode ?? "",
-            qrContent: JSON.stringify({ contractVersion: "v1", assetId, assetCode: h.asset?.assetCode ?? "", skuId: "", skuCode: h.asset?.sku?.skuCode ?? "" }),
+            qrContent: h.asset?.assetCode ?? "",
             location: "Sem local",
             copies: 1,
         };

@@ -90,15 +90,11 @@ export class LabelsService {
             });
         });
 
-        // Return label data for each asset so the frontend can render the print sheet
+        // Return label data for each asset so the frontend can render the print sheet.
+        // O QR contém apenas o código de patrimônio, para que o leitor devolva um
+        // código limpo e pesquisável (bipagem rápida por patrimônio).
         const labelData = assets.map((asset) => {
-            const qrContent = JSON.stringify({
-                contractVersion: 'v1',
-                assetId: asset.id,
-                assetCode: asset.assetCode,
-                skuId: asset.skuId,
-                skuCode: asset.sku.skuCode,
-            });
+            const qrContent = asset.assetCode;
             return {
                 assetId: asset.id,
                 assetCode: asset.assetCode,
@@ -141,13 +137,8 @@ export class LabelsService {
 
         const description = asset.sku.description ?? asset.sku.name;
         const barcodeValue = asset.assetCode;
-        const qrContent = JSON.stringify({
-            contractVersion: 'v1',
-            assetId: asset.id,
-            assetCode: asset.assetCode,
-            skuId: asset.skuId,
-            skuCode: asset.sku.skuCode,
-        });
+        // QR contém apenas o código de patrimônio (leitor devolve código limpo).
+        const qrContent = asset.assetCode;
 
         const payload: LabelDataContractV1 = {
             contractVersion: 'v1',

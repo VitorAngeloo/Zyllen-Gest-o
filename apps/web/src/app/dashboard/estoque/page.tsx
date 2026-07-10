@@ -132,8 +132,10 @@ export default function EstoquePage() {
     // Bipagem Rápida
     const [bipeCode, setBipeCode] = useState("");
     const [bipeSku, setBipeSku] = useState<any>(null);
+    const [bipeAsset, setBipeAsset] = useState<any>(null); // patrimônio específico resolvido pela etiqueta
+    const [bipeScanning, setBipeScanning] = useState(false);
     const [bipeQty, setBipeQty] = useState(1);
-    const [bipeMode, setBipeMode] = useState<"entry" | "exit">("entry");
+    const [bipeMode, setBipeMode] = useState<"entry" | "exit" | "transfer">("entry");
     const [bipeLocationId, setBipeLocationId] = useState("");
     const [bipePin, setBipePin] = useState("");
     const [bipeSuccess, setBipeSuccess] = useState(false);
@@ -249,7 +251,7 @@ export default function EstoquePage() {
         mutationFn: async (data: any) => {
             const entradaId = findTypeId("Entrada");
             const transferenciaId = findTypeId("Transferência") || entradaId;
-            const postEntry = async (payload: { skuId: string; toLocationId: string; qty: number; movementTypeId: string; pin: string; reason?: string }, files?: File[]) => {
+            const postEntry = async (payload: { skuId: string; toLocationId: string; qty: number; movementTypeId: string; pin: string; reason?: string; assetId?: string }, files?: File[]) => {
                 if (files?.length) {
                     const formData = new FormData();
                     formData.append("skuId", payload.skuId);
@@ -258,6 +260,7 @@ export default function EstoquePage() {
                     formData.append("movementTypeId", payload.movementTypeId);
                     formData.append("pin", payload.pin);
                     if (payload.reason) formData.append("reason", payload.reason);
+                    if (payload.assetId) formData.append("assetId", payload.assetId);
                     for (const file of files) formData.append("files", file);
                     return apiClient.upload("/inventory/entry", formData, fetchOpts);
                 }
@@ -266,10 +269,10 @@ export default function EstoquePage() {
 
             if (data.transferToId) {
                 const saidaId = findTypeId("Saída") || entradaId;
-                await apiClient.post("/inventory/exit", { skuId: data.skuId, fromLocationId: data.locationId, qty: data.quantity, movementTypeId: saidaId, pin: data.pin, reason: data.reason || "Transferência entre locais" }, fetchOpts);
-                return postEntry({ skuId: data.skuId, toLocationId: data.transferToId, qty: data.quantity, movementTypeId: transferenciaId || entradaId, pin: data.pin, reason: data.reason || "Transferência entre locais" }, data.files);
+                await apiClient.post("/inventory/exit", { skuId: data.skuId, fromLocationId: data.locationId, qty: data.quantity, movementTypeId: saidaId, pin: data.pin, reason: data.reason || "Transferência entre locais", assetId: data.assetId }, fetchOpts);
+                return postEntry({ skuId: data.skuId, toLocationId: data.transferToId, qty: data.quantity, movementTypeId: transferenciaId || entradaId, pin: data.pin, reason: data.reason || "Transferência entre locais", assetId: data.assetId }, data.files);
             } else {
-                return postEntry({ skuId: data.skuId, toLocationId: data.locationId, qty: data.quantity, movementTypeId: entradaId, pin: data.pin, reason: data.reason || undefined }, data.files);
+                return postEntry({ skuId: data.skuId, toLocationId: data.locationId, qty: data.quantity, movementTypeId: entradaId, pin: data.pin, reason: data.reason || undefined, assetId: data.assetId }, data.files);
             }
         },
         onSuccess: (result: any) => {
@@ -319,26 +322,86 @@ export default function EstoquePage() {
 
     const normalizeStr = (s: string) => s?.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") ?? "";
 
-    const handleBipeScan = () => {
+    const resetBipeSelection = () => {
+        setBipeSku(null);
+        setBipeAsset(null);
+        setBipeLocationId("");
+        setBipePin("");
+        setBipeQty(1);
+    };
+
+    const handleBipeScan = async () => {
         const code = bipeCode.trim();
-        if (!code) return;
-        const norm = normalizeStr(code);
-        const found = skus?.data?.find((s: any) =>
-            normalizeStr(s.barcode ?? "") === norm ||
-            normalizeStr(s.skuCode) === norm
-        );
-        if (found) {
-            setBipeSku(found);
-            setBipeQty(1);
-            setBipeCode("");
-            setTimeout(() => bipeQtyRef.current?.focus(), 50);
-        } else {
-            toast.error(`Item não encontrado: "${code}"`);
-            setBipeCode("");
+        if (!code || bipeScanning) return;
+        setBipeScanning(true);
+        try {
+            // 1) Primeiro tenta resolver como CÓDIGO DE PATRIMÔNIO (etiqueta bipada).
+            //    O lookup puxa o item, o local atual e o status daquele patrimônio.
+            try {
+                const res = await apiClient.get<{ data: any }>(`/assets/lookup/${encodeURIComponent(code.toUpperCase())}`, fetchOpts);
+                const asset = res?.data;
+                if (asset) {
+                    setBipeAsset(asset);
+                    setBipeSku(null);
+                    // Patrimônio com local → sugere Saída; sem local → sugere Entrada (retorno).
+                    setBipeMode(asset.currentLocationId ? "exit" : "entry");
+                    setBipeLocationId("");
+                    setBipeQty(1);
+                    setBipeCode("");
+                    return;
+                }
+            } catch {
+                // Não é um patrimônio — cai para a busca por SKU.
+            }
+            // 2) Fallback: código de SKU ou código de barras (entrada de itens novos, sem etiqueta ainda).
+            const norm = normalizeStr(code);
+            const found = skus?.data?.find((s: any) =>
+                normalizeStr(s.barcode ?? "") === norm ||
+                normalizeStr(s.skuCode) === norm
+            );
+            if (found) {
+                setBipeAsset(null);
+                setBipeSku(found);
+                setBipeMode("entry");
+                setBipeQty(1);
+                setBipeCode("");
+                setTimeout(() => bipeQtyRef.current?.focus(), 50);
+            } else {
+                toast.error(`Código não encontrado: "${code}"`);
+                setBipeCode("");
+            }
+        } finally {
+            setBipeScanning(false);
         }
     };
 
     const handleBipeSubmit = async () => {
+        // ── Patrimônio específico (etiqueta) ──
+        if (bipeAsset) {
+            if (!bipePin) { toast.error("Informe o PIN"); return; }
+            try {
+                if (bipeMode === "exit") {
+                    if (!bipeAsset.currentLocationId) { toast.error("Patrimônio sem local atual — faça uma entrada primeiro."); return; }
+                    await exitMut.mutateAsync({ skuId: bipeAsset.skuId, locationId: bipeAsset.currentLocationId, pin: bipePin, motivo: "Saída rápida", assetId: bipeAsset.id });
+                } else if (bipeMode === "entry") {
+                    if (!bipeLocationId) { toast.error("Selecione o local de entrada"); return; }
+                    await entryMut.mutateAsync({ skuId: bipeAsset.skuId, locationId: bipeLocationId, quantity: 1, pin: bipePin, assetId: bipeAsset.id });
+                } else { // transfer
+                    if (!bipeAsset.currentLocationId) { toast.error("Patrimônio sem local atual — faça uma entrada primeiro."); return; }
+                    if (!bipeLocationId) { toast.error("Selecione o local de destino"); return; }
+                    if (bipeLocationId === bipeAsset.currentLocationId) { toast.error("Escolha um destino diferente do local atual"); return; }
+                    await entryMut.mutateAsync({ skuId: bipeAsset.skuId, locationId: bipeAsset.currentLocationId, transferToId: bipeLocationId, quantity: 1, pin: bipePin, assetId: bipeAsset.id });
+                }
+                setBipeSuccess(true);
+                resetBipeSelection();
+                setTimeout(() => { setBipeSuccess(false); bipeInputRef.current?.focus(); }, 1800);
+            } catch {
+                // erros tratados nas mutations
+            }
+            return;
+        }
+
+        // ── SKU (entrada de itens novos por quantidade) ──
         if (!bipeSku || !bipeLocationId || !bipePin) {
             toast.error("Preencha local e PIN antes de confirmar");
             return;
@@ -350,7 +413,7 @@ export default function EstoquePage() {
                 await exitMut.mutateAsync({ skuId: bipeSku.id, locationId: bipeLocationId, quantity: bipeQty, pin: bipePin, motivo: "Saída rápida" });
             }
             setBipeSuccess(true);
-            setBipeSku(null);
+            resetBipeSelection();
             setTimeout(() => {
                 setBipeSuccess(false);
                 bipeInputRef.current?.focus();
@@ -584,12 +647,13 @@ export default function EstoquePage() {
                             <CardTitle className="text-white flex items-center gap-2 text-base">
                                 <Zap size={18} className="text-[var(--zyllen-highlight)]" /> Bipagem Rápida
                             </CardTitle>
-                            <p className="text-xs text-[var(--zyllen-muted)]">Bipe o código de barras ou código SKU do item e pressione Enter</p>
+                            <p className="text-xs text-[var(--zyllen-muted)]">Bipe a etiqueta (código de patrimônio) ou o código do item e pressione Enter</p>
                         </CardHeader>
                         <CardContent>
                             <div className="flex gap-2">
                                 <div className="relative flex-1">
                                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                    {bipeScanning && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[var(--zyllen-muted)]" />}
                                     <input
                                         ref={bipeInputRef}
                                         autoFocus
@@ -597,12 +661,12 @@ export default function EstoquePage() {
                                         value={bipeCode}
                                         onChange={(e) => setBipeCode(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && handleBipeScan()}
-                                        placeholder="Bipe ou digite o código do item..."
-                                        className="w-full h-10 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9 pr-3 text-sm font-mono placeholder:text-[var(--zyllen-muted)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                                        placeholder="Bipe a etiqueta ou digite o código..."
+                                        className="w-full h-10 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9 pr-9 text-sm font-mono placeholder:text-[var(--zyllen-muted)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
                                     />
                                 </div>
-                                <Button variant="highlight" onClick={handleBipeScan} className="shrink-0">
-                                    Buscar
+                                <Button variant="highlight" onClick={handleBipeScan} disabled={bipeScanning} className="shrink-0">
+                                    {bipeScanning ? <Loader2 size={15} className="animate-spin" /> : "Buscar"}
                                 </Button>
                             </div>
                         </CardContent>
@@ -616,8 +680,112 @@ export default function EstoquePage() {
                         </div>
                     )}
 
-                    {/* Item found — action card */}
-                    {bipeSku && !bipeSuccess && (
+                    {/* Patrimônio encontrado (etiqueta bipada) — ação sobre o item específico */}
+                    {bipeAsset && !bipeSuccess && (
+                        <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-highlight)]/20">
+                            <CardContent className="pt-5 space-y-4">
+                                {/* Patrimônio info */}
+                                <div className="rounded-lg bg-[var(--zyllen-highlight)]/5 border border-[var(--zyllen-highlight)]/10 px-4 py-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-mono text-[var(--zyllen-highlight)] font-bold">{bipeAsset.assetCode}</p>
+                                            <p className="text-white font-semibold truncate mt-0.5">{bipeAsset.sku?.name}</p>
+                                            <p className="text-xs text-[var(--zyllen-muted)] mt-0.5 flex items-center gap-1">
+                                                <MapPin size={11} /> {bipeAsset.currentLocation?.name ?? "Sem local atual"}
+                                            </p>
+                                        </div>
+                                        <Badge variant={bipeAsset.status === "ATIVO" ? "success" : bipeAsset.status === "EM_USO" ? "default" : "destructive"}>
+                                            {bipeAsset.status === "ATIVO" ? "Ativo" : bipeAsset.status === "EM_USO" ? "Em Uso" : bipeAsset.status === "EM_MANUTENCAO" ? "Manutenção" : bipeAsset.status ?? "—"}
+                                        </Badge>
+                                    </div>
+                                </div>
+
+                                {/* Ação: Entrada / Saída / Transferência */}
+                                <div className="grid grid-cols-3 rounded-lg overflow-hidden border border-[var(--zyllen-border)]">
+                                    <button
+                                        onClick={() => setBipeMode("entry")}
+                                        className={`flex items-center justify-center gap-1.5 py-2 text-sm font-medium transition-colors ${bipeMode === "entry" ? "bg-emerald-500/20 text-emerald-400" : "text-[var(--zyllen-muted)] hover:text-white"}`}
+                                    >
+                                        <ArrowDownCircle size={15} /> Entrada
+                                    </button>
+                                    <button
+                                        onClick={() => setBipeMode("exit")}
+                                        className={`flex items-center justify-center gap-1.5 py-2 text-sm font-medium border-x border-[var(--zyllen-border)] transition-colors ${bipeMode === "exit" ? "bg-rose-500/20 text-rose-400" : "text-[var(--zyllen-muted)] hover:text-white"}`}
+                                    >
+                                        <ArrowUpCircle size={15} /> Saída
+                                    </button>
+                                    <button
+                                        onClick={() => setBipeMode("transfer")}
+                                        className={`flex items-center justify-center gap-1.5 py-2 text-sm font-medium transition-colors ${bipeMode === "transfer" ? "bg-blue-500/20 text-blue-400" : "text-[var(--zyllen-muted)] hover:text-white"}`}
+                                    >
+                                        <RefreshCw size={15} /> Transf.
+                                    </button>
+                                </div>
+
+                                {/* Local — entrada (destino) ou transferência (destino). Saída usa o local atual. */}
+                                {bipeMode !== "exit" && (
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[var(--zyllen-muted)] text-xs">
+                                            {bipeMode === "entry" ? "Local de entrada" : "Transferir para"}
+                                        </Label>
+                                        <select
+                                            value={bipeLocationId}
+                                            onChange={(e) => setBipeLocationId(e.target.value)}
+                                            className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm"
+                                        >
+                                            <option value="">Selecione o local...</option>
+                                            {locations?.data?.filter((l: any) => bipeMode !== "transfer" || l.id !== bipeAsset.currentLocationId).map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                                {bipeMode === "exit" && (
+                                    <p className="text-xs text-[var(--zyllen-muted)]">
+                                        Saída a partir de <span className="text-white">{bipeAsset.currentLocation?.name ?? "—"}</span>
+                                    </p>
+                                )}
+
+                                {/* PIN */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-[var(--zyllen-muted)] text-xs">PIN</Label>
+                                    <Input
+                                        type="password"
+                                        maxLength={4}
+                                        placeholder="••••"
+                                        value={bipePin}
+                                        onChange={(e) => setBipePin(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && handleBipeSubmit()}
+                                        className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center tracking-widest"
+                                    />
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex gap-2 pt-1">
+                                    <Button
+                                        variant="highlight"
+                                        className="flex-1"
+                                        onClick={handleBipeSubmit}
+                                        disabled={entryMut.isPending || exitMut.isPending}
+                                    >
+                                        {entryMut.isPending || exitMut.isPending ? (
+                                            <><Loader2 size={15} className="animate-spin" /> Registrando...</>
+                                        ) : (
+                                            <><CheckCircle2 size={15} /> Confirmar {bipeMode === "entry" ? "Entrada" : bipeMode === "exit" ? "Saída" : "Transferência"}</>
+                                        )}
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        className="border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white"
+                                        onClick={() => { resetBipeSelection(); setBipeCode(""); bipeInputRef.current?.focus(); }}
+                                    >
+                                        <X size={15} />
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Item (SKU) encontrado — entrada de itens novos por quantidade */}
+                    {bipeSku && !bipeAsset && !bipeSuccess && (
                         <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-highlight)]/20">
                             <CardContent className="pt-5 space-y-4">
                                 {/* Item info */}
