@@ -284,6 +284,13 @@ async function main() {
     }
     console.log('  ✅ Movement types created:', movementTypes.map((m) => m.name).join(', '));
 
+    // ── 6b. Create Default Exit Reasons ─────────
+    const exitReasons = ['Uso', 'Manutenção', 'Perda', 'Cliente'];
+    for (const name of exitReasons) {
+        await prisma.exitReason.upsert({ where: { name }, update: {}, create: { name } });
+    }
+    console.log('  ✅ Exit reasons created:', exitReasons.join(', '));
+
     // ── 7. Create Default Category ──────────────
     const defaultCategory = await prisma.category.upsert({
         where: { name: 'Geral' },

@@ -218,6 +218,10 @@ export default function EstoquePage() {
         queryKey: ["movementTypes"],
         queryFn: () => apiClient.get<{ data: any[] }>("/inventory/movement-types", fetchOpts),
     });
+    const { data: exitReasons } = useQuery({
+        queryKey: ["exitReasons"],
+        queryFn: () => apiClient.get<{ data: any[] }>("/inventory/exit-reasons?onlyActive=true", fetchOpts),
+    });
 
     const { data: stats, isLoading: loadingStats, refetch: refetchStats } = useQuery({
         queryKey: ["inventory-stats"],
@@ -1166,10 +1170,7 @@ export default function EstoquePage() {
                                     className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm"
                                 >
                                     <option value="">Selecione...</option>
-                                    <option value="Uso">Uso</option>
-                                    <option value="Manutenção">Manutenção</option>
-                                    <option value="Perda">Perda</option>
-                                    <option value="Cliente">Cliente</option>
+                                    {exitReasons?.data?.map((r: any) => <option key={r.id} value={r.name}>{r.name}</option>)}
                                 </select>
                             </div>
                             <div className="space-y-2">

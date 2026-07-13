@@ -285,6 +285,16 @@ model MovementType {
   stockMovements StockMovement[]
 }
 
+// Motivos de saída configuráveis (por que um item saiu do estoque).
+// Separado de MovementType (que é a mecânica: Entrada/Saída/Transferência/Baixa).
+model ExitReason {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // ─── Approvals ────────────────────────────────
 
 model ApprovalRequest {

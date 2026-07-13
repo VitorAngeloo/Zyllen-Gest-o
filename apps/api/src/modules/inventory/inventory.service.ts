@@ -3,6 +3,7 @@ import {
     NotFoundException,
     BadRequestException,
     UnauthorizedException,
+    ConflictException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -531,5 +532,40 @@ export class InventoryService {
         const count = await this.prisma.stockMovement.count({ where: { typeId: id } });
         if (count > 0) throw new BadRequestException('Tipo com movimentações vinculadas');
         return this.prisma.movementType.delete({ where: { id } });
+    }
+
+    // ── Exit Reasons CRUD (motivos de saída configuráveis) ──
+    async findAllExitReasons(params?: { onlyActive?: boolean }) {
+        return this.prisma.exitReason.findMany({
+            where: params?.onlyActive ? { active: true } : {},
+            orderBy: { name: 'asc' },
+        });
+    }
+
+    async createExitReason(data: { name?: string }) {
+        const name = (data.name ?? '').trim();
+        if (!name) throw new BadRequestException('Nome é obrigatório');
+        const existing = await this.prisma.exitReason.findUnique({ where: { name } });
+        if (existing) throw new ConflictException('Já existe um motivo de saída com esse nome');
+        return this.prisma.exitReason.create({ data: { name } });
+    }
+
+    async updateExitReason(id: string, data: { name?: string; active?: boolean }) {
+        const existing = await this.prisma.exitReason.findUnique({ where: { id } });
+        if (!existing) throw new NotFoundException('Motivo não encontrado');
+        if (data.name) {
+            const dup = await this.prisma.exitReason.findFirst({ where: { name: data.name.trim(), NOT: { id } } });
+            if (dup) throw new ConflictException('Já existe um motivo de saída com esse nome');
+        }
+        return this.prisma.exitReason.update({
+            where: { id },
+            data: { ...(data.name ? { name: data.name.trim() } : {}), ...(data.active !== undefined ? { active: data.active } : {}) },
+        });
+    }
+
+    async deleteExitReason(id: string) {
+        const existing = await this.prisma.exitReason.findUnique({ where: { id } });
+        if (!existing) throw new NotFoundException('Motivo não encontrado');
+        return this.prisma.exitReason.delete({ where: { id } });
     }
 }

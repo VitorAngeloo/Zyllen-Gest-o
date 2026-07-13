@@ -34,6 +34,7 @@ import {
     reversalReasonSchema,
 } from '@zyllen/shared';
 import { UpdateMovementTypeDto } from './dto/update-movement-type.dto';
+import { ExitReasonDto } from './dto/exit-reason.dto';
 
 const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'media', 'inventory-entry');
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -223,5 +224,34 @@ export class InventoryController {
     async deleteMovementType(@Param('id') id: string) {
         await this.inventoryService.deleteMovementType(id);
         return { message: 'Tipo excluído' };
+    }
+
+    // ── Exit Reasons CRUD (motivos de saída) ──
+    @Get('exit-reasons')
+    @RequirePermission('inventory.view')
+    async findExitReasons(@Query('onlyActive') onlyActive?: string) {
+        const data = await this.inventoryService.findAllExitReasons({ onlyActive: onlyActive === 'true' });
+        return { data };
+    }
+
+    @Post('exit-reasons')
+    @RequirePermission('settings.manage')
+    async createExitReason(@Body() body: ExitReasonDto) {
+        const data = await this.inventoryService.createExitReason({ name: body.name });
+        return { data, message: 'Motivo criado' };
+    }
+
+    @Put('exit-reasons/:id')
+    @RequirePermission('settings.manage')
+    async updateExitReason(@Param('id') id: string, @Body() body: ExitReasonDto) {
+        const data = await this.inventoryService.updateExitReason(id, body);
+        return { data, message: 'Motivo atualizado' };
+    }
+
+    @Delete('exit-reasons/:id')
+    @RequirePermission('settings.manage')
+    async deleteExitReason(@Param('id') id: string) {
+        await this.inventoryService.deleteExitReason(id);
+        return { message: 'Motivo excluído' };
     }
 }

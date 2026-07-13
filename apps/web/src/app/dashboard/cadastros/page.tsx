@@ -11,11 +11,11 @@ import { Badge } from "@web/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@web/components/ui/dialog";
 import { Select, SelectOption } from "@web/components/ui/select";
 import { toast } from "sonner";
-import { Database, Layers, MapPin, Truck, Tag, Plus, Pencil, Trash2, X, Camera, Upload, Search, ChevronDown } from "lucide-react";
+import { Database, Layers, MapPin, Truck, Tag, Plus, Pencil, Trash2, X, Camera, Upload, Search, ChevronDown, ArrowUpCircle } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 
-type Tab = "categories" | "skus" | "locations" | "suppliers" | "movementTypes";
+type Tab = "categories" | "skus" | "locations" | "suppliers" | "movementTypes" | "exitReasons";
 const ALLOWED_MEDIA_MIME = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"]);
 
 function SearchableCombobox({ options, value, onChange, placeholder = "Selecione..." }: {
@@ -100,6 +100,11 @@ export default function CadastrosPage() {
         queryFn: () => apiClient.get<{ data: any[] }>("/inventory/movement-types", fetchOpts),
         enabled: tab === "movementTypes",
     });
+    const { data: exitReasons, isLoading: loadingExitReasons } = useQuery({
+        queryKey: ["exitReasons"],
+        queryFn: () => apiClient.get<{ data: any[] }>("/inventory/exit-reasons", fetchOpts),
+        enabled: tab === "exitReasons",
+    });
 
     // ─── Create forms ──────────────────
     const [newCat, setNewCat] = useState("");
@@ -110,6 +115,9 @@ export default function CadastrosPage() {
     const skuMediaFilesInputRef = useRef<HTMLInputElement>(null);
     const skuMediaCameraInputRef = useRef<HTMLInputElement>(null);
     const [newMt, setNewMt] = useState({ name: "", requiresApproval: false, isFinalWriteOff: false, setsAssetStatus: "", defaultToLocationId: "" });
+    const [newExitReason, setNewExitReason] = useState("");
+    const [editExitReason, setEditExitReason] = useState<any>(null);
+    const [filterExitReason, setFilterExitReason] = useState("");
 
     const canUploadMedia = user?.type === "internal" && ["Técnico", "Gestor", "Administrador"].includes((user as any).role?.name ?? "");
 
@@ -272,6 +280,23 @@ export default function CadastrosPage() {
         onError: (e: any) => toast.error(e.message),
     });
 
+    // ─── Mutations: Exit Reasons (motivos de saída) ─────
+    const createExitReason = useMutation({
+        mutationFn: (name: string) => apiClient.post("/inventory/exit-reasons", { name }, fetchOpts),
+        onSuccess: () => { toast.success("Motivo criado!"); qc.invalidateQueries({ queryKey: ["exitReasons"] }); setNewExitReason(""); },
+        onError: (e: any) => toast.error(e.message),
+    });
+    const updateExitReason = useMutation({
+        mutationFn: (data: any) => apiClient.put(`/inventory/exit-reasons/${data.id}`, { name: data.name, active: data.active }, fetchOpts),
+        onSuccess: () => { toast.success("Motivo atualizado!"); qc.invalidateQueries({ queryKey: ["exitReasons"] }); setEditExitReason(null); },
+        onError: (e: any) => toast.error(e.message),
+    });
+    const deleteExitReason = useMutation({
+        mutationFn: (id: string) => apiClient.delete(`/inventory/exit-reasons/${id}`, fetchOpts),
+        onSuccess: () => { toast.success("Motivo excluído!"); qc.invalidateQueries({ queryKey: ["exitReasons"] }); setDeleteConfirm(null); },
+        onError: (e: any) => toast.error(e.message),
+    });
+
     const handleDelete = () => {
         if (!deleteConfirm) return;
         const { type, id } = deleteConfirm;
@@ -280,6 +305,7 @@ export default function CadastrosPage() {
         else if (type === "location") deleteLoc.mutate(id);
         else if (type === "supplier") deleteSup.mutate(id);
         else if (type === "movementType") deleteMt.mutate(id);
+        else if (type === "exitReason") deleteExitReason.mutate(id);
     };
 
     const tabs = [
@@ -288,6 +314,7 @@ export default function CadastrosPage() {
         { key: "locations", label: "Locais", icon: MapPin },
         { key: "suppliers", label: "Fornecedores", icon: Truck },
         { key: "movementTypes", label: "Tipos de Mov.", icon: Database },
+        { key: "exitReasons", label: "Motivos de Saída", icon: ArrowUpCircle },
     ];
 
     return (
@@ -679,6 +706,56 @@ export default function CadastrosPage() {
                 </div>
             )}
 
+            {/* ═══ EXIT REASONS (motivos de saída) ═══ */}
+            {tab === "exitReasons" && (
+                <div className="space-y-4">
+                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-md">
+                        <CardHeader><CardTitle className="text-white">Novo Motivo de Saída</CardTitle></CardHeader>
+                        <CardContent>
+                            <form onSubmit={(e) => { e.preventDefault(); const v = newExitReason.trim(); if (v) createExitReason.mutate(v); }} className="flex gap-2">
+                                <Input value={newExitReason} onChange={(e) => setNewExitReason(e.target.value)} placeholder="Ex: Empréstimo, Descarte, Venda..." required className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                <Button type="submit" variant="highlight" disabled={createExitReason.isPending} className="shrink-0">
+                                    <Plus size={16} /> {createExitReason.isPending ? "..." : "Criar"}
+                                </Button>
+                            </form>
+                            <p className="text-xs text-[var(--zyllen-muted)] mt-2">Estes motivos aparecem no dropdown &quot;Motivo da Saída&quot; ao dar saída de um patrimônio.</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                        <CardHeader>
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                                <CardTitle className="text-white">Motivos de Saída</CardTitle>
+                                <div className="relative w-52">
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                    <Input value={filterExitReason} onChange={(e) => setFilterExitReason(e.target.value)} placeholder="Filtrar motivos..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9 h-8 text-sm" />
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {loadingExitReasons ? (
+                                <p className="text-[var(--zyllen-muted)] text-center py-4">Carregando...</p>
+                            ) : exitReasons?.data?.length ? (
+                                <div className="space-y-2">
+                                    {exitReasons.data.filter((r: any) => !filterExitReason || r.name?.toLowerCase().includes(filterExitReason.toLowerCase())).map((r: any) => (
+                                        <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]/50 group">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-white text-sm">{r.name}</span>
+                                                {!r.active && <Badge variant="default">Inativo</Badge>}
+                                            </div>
+                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => setEditExitReason({ id: r.id, name: r.name, active: r.active })} className="p-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"><Pencil size={14} /></button>
+                                                <button onClick={() => setDeleteConfirm({ type: "exitReason", id: r.id, name: r.name })} className="p-1 text-[var(--zyllen-muted)] hover:text-red-400"><Trash2 size={14} /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : <p className="text-[var(--zyllen-muted)] text-center py-4">Nenhum motivo cadastrado.</p>}
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
             {/* ═══ EDIT DIALOGS ═══ */}
             {/* Edit Category */}
             <Dialog open={!!editCat} onOpenChange={(o) => !o && setEditCat(null)}>
@@ -799,6 +876,26 @@ export default function CadastrosPage() {
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setEditMt(null)}>Cancelar</Button>
                         <Button variant="highlight" onClick={() => updateMt.mutate(editMt)} disabled={updateMt.isPending}>Salvar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Exit Reason */}
+            <Dialog open={!!editExitReason} onOpenChange={(o) => !o && setEditExitReason(null)}>
+                <DialogContent onClose={() => setEditExitReason(null)} className="border-[var(--zyllen-border)]">
+                    <DialogHeader><DialogTitle>Editar Motivo de Saída</DialogTitle></DialogHeader>
+                    <DialogBody>
+                        <div className="space-y-4">
+                            <Input value={editExitReason?.name || ""} onChange={(e) => setEditExitReason({ ...editExitReason, name: e.target.value })} placeholder="Nome" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                            <label className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] cursor-pointer">
+                                <input type="checkbox" checked={editExitReason?.active ?? true} onChange={(e) => setEditExitReason({ ...editExitReason, active: e.target.checked })} className="accent-[var(--zyllen-highlight)]" />
+                                Ativo (aparece no dropdown de saída)
+                            </label>
+                        </div>
+                    </DialogBody>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setEditExitReason(null)}>Cancelar</Button>
+                        <Button variant="highlight" onClick={() => updateExitReason.mutate(editExitReason)} disabled={updateExitReason.isPending}>Salvar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
