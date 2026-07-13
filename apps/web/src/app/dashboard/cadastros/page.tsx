@@ -244,12 +244,25 @@ export default function CadastrosPage() {
 
     // ─── Mutations: Movement Types ─────
     const createMt = useMutation({
-        mutationFn: (data: any) => apiClient.post("/inventory/movement-types", data, fetchOpts),
+        // Omite os campos opcionais quando vazios: enviar "" em defaultToLocationId
+        // falha na validação uuid do backend ("Erro de validação").
+        mutationFn: (data: any) => apiClient.post("/inventory/movement-types", {
+            name: data.name,
+            requiresApproval: data.requiresApproval,
+            isFinalWriteOff: data.isFinalWriteOff,
+            ...(data.setsAssetStatus ? { setsAssetStatus: data.setsAssetStatus } : {}),
+            ...(data.defaultToLocationId ? { defaultToLocationId: data.defaultToLocationId } : {}),
+        }, fetchOpts),
         onSuccess: () => { toast.success("Tipo criado!"); qc.invalidateQueries({ queryKey: ["movementTypes"] }); setNewMt({ name: "", requiresApproval: false, isFinalWriteOff: false, setsAssetStatus: "", defaultToLocationId: "" }); },
         onError: (e: any) => toast.error(e.message),
     });
     const updateMt = useMutation({
-        mutationFn: (data: any) => apiClient.put(`/inventory/movement-types/${data.id}`, { name: data.name, requiresApproval: data.requiresApproval, isFinalWriteOff: data.isFinalWriteOff, setsAssetStatus: data.setsAssetStatus || null, defaultToLocationId: data.defaultToLocationId || null }, fetchOpts),
+        mutationFn: (data: any) => apiClient.put(`/inventory/movement-types/${data.id}`, {
+            name: data.name,
+            requiresApproval: data.requiresApproval,
+            isFinalWriteOff: data.isFinalWriteOff,
+            ...(data.setsAssetStatus ? { setsAssetStatus: data.setsAssetStatus } : {}),
+        }, fetchOpts),
         onSuccess: () => { toast.success("Tipo atualizado!"); qc.invalidateQueries({ queryKey: ["movementTypes"] }); setEditMt(null); },
         onError: (e: any) => toast.error(e.message),
     });
