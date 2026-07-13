@@ -105,7 +105,7 @@ export default function EstoquePage() {
     const [debouncedMovementsSearch, setDebouncedMovementsSearch] = useState("");
     const [movementsPage, setMovementsPage] = useState(1);
     const [detailMovement, setDetailMovement] = useState<any>(null);
-    const [entryForm, setEntryForm] = useState({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
+    const [entryForm, setEntryForm] = useState({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "", assetCode: "" });
     const [createdAssetCodes, setCreatedAssetCodes] = useState<string[]>([]);
     const [entryMediaFiles, setEntryMediaFiles] = useState<File[]>([]);
     const entryMediaFilesInputRef = useRef<HTMLInputElement>(null);
@@ -289,7 +289,7 @@ export default function EstoquePage() {
             }
             qc.invalidateQueries({ queryKey: ["balances"] });
             qc.invalidateQueries({ queryKey: ["movements"] });
-            setEntryForm({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "" });
+            setEntryForm({ skuId: "", locationId: "", transferToId: "", quantity: 1, pin: "", reason: "", assetCode: "" });
             setEntryMediaFiles([]);
         },
         onError: (e: any) => toast.error(e.message),
@@ -323,6 +323,44 @@ export default function EstoquePage() {
     });
 
     const selectedEntrySku = skus?.data?.find((s: any) => s.id === entryForm.skuId);
+    const [entryLookingUp, setEntryLookingUp] = useState(false);
+    const isEntryReturn = !!entryForm.assetCode.trim();
+
+    // Entrada: se um código de patrimônio for informado, é RETORNO de um item
+    // existente (volta ao estoque com o mesmo código). Se o código não existir,
+    // a operação é barrada. Sem código = item novo (código gerado automaticamente).
+    const handleEntrySubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const code = entryForm.assetCode?.trim().toUpperCase();
+        if (code) {
+            if (!entryForm.locationId) { toast.error("Selecione o local"); return; }
+            if (!entryForm.pin) { toast.error("Informe o PIN"); return; }
+            setEntryLookingUp(true);
+            let asset: any = null;
+            try {
+                const res = await apiClient.get<{ data: any }>(`/assets/lookup/${encodeURIComponent(code)}`, fetchOpts);
+                asset = res?.data;
+            } catch {
+                setEntryLookingUp(false);
+                toast.error(`Patrimônio "${code}" não existe. Verifique o código.`);
+                return;
+            }
+            setEntryLookingUp(false);
+            if (!asset) { toast.error(`Patrimônio "${code}" não existe. Verifique o código.`); return; }
+            entryMut.mutate({
+                skuId: asset.skuId,
+                locationId: entryForm.locationId,
+                quantity: 1,
+                pin: entryForm.pin,
+                reason: entryForm.reason || `Retorno do patrimônio ${asset.assetCode}`,
+                assetId: asset.id,
+                files: entryMediaFiles,
+            });
+        } else {
+            if (!entryForm.skuId) { toast.error("Selecione o item"); return; }
+            entryMut.mutate({ ...entryForm, files: entryMediaFiles });
+        }
+    };
 
     const normalizeStr = (s: string) => s?.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") ?? "";
 
@@ -915,23 +953,50 @@ export default function EstoquePage() {
                     </CardHeader>
                     <CardContent>
                         <form
-                            onSubmit={(e) => { e.preventDefault(); entryMut.mutate({ ...entryForm, files: entryMediaFiles }); }}
+                            onSubmit={handleEntrySubmit}
                             className="space-y-4"
                         >
+                            {/* Código de patrimônio: preenchido = retorno de item existente */}
                             <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Item</Label>
-                                <SkuSearchCombobox skus={skus?.data ?? []} value={entryForm.skuId} onChange={(id) => { setEntryForm({ ...entryForm, skuId: id }); setCreatedAssetCodes([]); }} />
+                                <Label className="text-[var(--zyllen-muted)]">
+                                    Código de Patrimônio <span className="text-xs font-normal">(em branco = item novo)</span>
+                                </Label>
+                                <Input
+                                    value={entryForm.assetCode}
+                                    onChange={(e) => setEntryForm({ ...entryForm, assetCode: e.target.value.toUpperCase() })}
+                                    placeholder="Ex: CFP-00012 — para devolver um item já cadastrado"
+                                    className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white font-mono"
+                                />
                             </div>
-                            {entryForm.skuId && selectedEntrySku && (
-                                <div className="flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2.5">
-                                    <Hash size={14} className="text-blue-400 mt-0.5 shrink-0" />
+
+                            {isEntryReturn ? (
+                                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                                    <Hash size={14} className="text-amber-400 mt-0.5 shrink-0" />
                                     <div>
-                                        <p className="text-blue-300 text-sm font-medium">Patrimônio rastreável individualmente</p>
-                                        <p className="text-blue-300/70 text-xs mt-0.5">
-                                            {entryForm.quantity} {entryForm.quantity === 1 ? "código de patrimônio será criado" : "códigos de patrimônio serão criados"} automaticamente (formato SKY-XXXXX).
+                                        <p className="text-amber-300 text-sm font-medium">Retorno de patrimônio existente</p>
+                                        <p className="text-amber-300/70 text-xs mt-0.5">
+                                            O item volta ao estoque com o mesmo código, mantendo todo o histórico. Se o código não existir, a operação é barrada.
                                         </p>
                                     </div>
                                 </div>
+                            ) : (
+                                <>
+                                    <div className="space-y-2">
+                                        <Label className="text-[var(--zyllen-muted)]">Item</Label>
+                                        <SkuSearchCombobox skus={skus?.data ?? []} value={entryForm.skuId} onChange={(id) => { setEntryForm({ ...entryForm, skuId: id }); setCreatedAssetCodes([]); }} />
+                                    </div>
+                                    {entryForm.skuId && selectedEntrySku && (
+                                        <div className="flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2.5">
+                                            <Hash size={14} className="text-blue-400 mt-0.5 shrink-0" />
+                                            <div>
+                                                <p className="text-blue-300 text-sm font-medium">Patrimônio rastreável individualmente</p>
+                                                <p className="text-blue-300/70 text-xs mt-0.5">
+                                                    {entryForm.quantity} {entryForm.quantity === 1 ? "código de patrimônio será criado" : "códigos de patrimônio serão criados"} automaticamente (formato SKY-XXXXX).
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
                             )}
                             {createdAssetCodes.length > 0 && (
                                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 space-y-1">
@@ -951,22 +1016,26 @@ export default function EstoquePage() {
                                 </select>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-[var(--zyllen-muted)]">Quantidade (patrimônios)</Label>
-                                    <Input type="number" min={1} value={entryForm.quantity} onChange={(e) => setEntryForm({ ...entryForm, quantity: +e.target.value })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
-                                </div>
-                                <div className="space-y-2">
+                                {!isEntryReturn && (
+                                    <div className="space-y-2">
+                                        <Label className="text-[var(--zyllen-muted)]">Quantidade (patrimônios)</Label>
+                                        <Input type="number" min={1} value={entryForm.quantity} onChange={(e) => setEntryForm({ ...entryForm, quantity: +e.target.value })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                    </div>
+                                )}
+                                <div className={`space-y-2 ${isEntryReturn ? "col-span-2" : ""}`}>
                                     <Label className="text-[var(--zyllen-muted)]">PIN</Label>
                                     <Input type="password" maxLength={4} placeholder="••••" value={entryForm.pin} onChange={(e) => setEntryForm({ ...entryForm, pin: e.target.value })} required className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center tracking-widest" />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-[var(--zyllen-muted)]">Transferir para</Label>
-                                <select value={entryForm.transferToId} onChange={(e) => setEntryForm({ ...entryForm, transferToId: e.target.value })} className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
-                                    <option value="">Nenhum (entrada simples)</option>
-                                    {locations?.data?.filter((l: any) => l.id !== entryForm.locationId).map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                                </select>
-                            </div>
+                            {!isEntryReturn && (
+                                <div className="space-y-2">
+                                    <Label className="text-[var(--zyllen-muted)]">Transferir para</Label>
+                                    <select value={entryForm.transferToId} onChange={(e) => setEntryForm({ ...entryForm, transferToId: e.target.value })} className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
+                                        <option value="">Nenhum (entrada simples)</option>
+                                        {locations?.data?.filter((l: any) => l.id !== entryForm.locationId).map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Motivo</Label>
                                 <Input value={entryForm.reason} onChange={(e) => setEntryForm({ ...entryForm, reason: e.target.value })} placeholder="Compra, reposição..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
@@ -1037,8 +1106,8 @@ export default function EstoquePage() {
                                     )}
                                 </div>
                             )}
-                            <Button type="submit" variant="highlight" className="w-full" disabled={entryMut.isPending}>
-                                {entryMut.isPending ? (entryMediaFiles.length ? "Enviando mídia..." : "Registrando...") : entryForm.transferToId ? "Transferir" : "Registrar Entrada"}
+                            <Button type="submit" variant="highlight" className="w-full" disabled={entryMut.isPending || entryLookingUp}>
+                                {entryLookingUp ? "Verificando código..." : entryMut.isPending ? (entryMediaFiles.length ? "Enviando mídia..." : "Registrando...") : isEntryReturn ? "Devolver ao estoque" : entryForm.transferToId ? "Transferir" : "Registrar Entrada"}
                             </Button>
                         </form>
                     </CardContent>
