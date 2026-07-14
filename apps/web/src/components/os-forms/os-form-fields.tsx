@@ -29,6 +29,29 @@ const inputCls = "bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-
 const selectCls = "w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm";
 const textareaCls = "w-full rounded-md bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] text-white placeholder:text-[var(--zyllen-muted)]/50 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--zyllen-highlight)]/30 focus:border-[var(--zyllen-highlight)] resize-none";
 
+// Em modo leitura mostra div sem altura fixa; em edição mostra textarea normal
+function TA({ value, placeholder, onChange, readOnly, rows = 4 }: {
+    value: string; placeholder: string; onChange: (v: string) => void;
+    readOnly?: boolean; rows?: number;
+}) {
+    if (readOnly) {
+        return (
+            <div className={`${textareaCls} min-h-[5rem] whitespace-pre-wrap`}>
+                {value || <span className="opacity-40">{placeholder}</span>}
+            </div>
+        );
+    }
+    return (
+        <textarea
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            rows={rows}
+            className={textareaCls}
+        />
+    );
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
     return (
         <h3 className="text-sm font-semibold text-[var(--zyllen-highlight)] uppercase tracking-wider border-b border-[var(--zyllen-border)] pb-2 mb-4">
@@ -125,7 +148,7 @@ export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, a
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Qual a configuração do computador?</Label>
-                    <textarea placeholder="Processador, RAM, GPU, etc..." value={formData.computerConfig || ""} onChange={(e) => u("computerConfig", e.target.value)} readOnly={readOnly} rows={3} className={textareaCls} />
+                    <TA value={formData.computerConfig || ""} placeholder="Processador, RAM, GPU, etc..." onChange={(v) => u("computerConfig", v)} readOnly={readOnly} rows={3} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -159,7 +182,7 @@ export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, a
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
-                    <textarea placeholder="Detalhes sobre a instalação do projeto..." value={formData.logbook || ""} onChange={(e) => u("logbook", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
+                    <TA value={formData.logbook || ""} placeholder="Detalhes sobre a instalação do projeto..." onChange={(v) => u("logbook", v)} readOnly={readOnly} rows={5} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -253,7 +276,7 @@ export function InstalacaoTelaFormFields({ formData, onChange, readOnly, osId, a
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
-                    <textarea placeholder="Detalhes sobre a instalação do projeto..." value={formData.logbook || ""} onChange={(e) => u("logbook", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
+                    <TA value={formData.logbook || ""} placeholder="Detalhes sobre a instalação do projeto..." onChange={(v) => u("logbook", v)} readOnly={readOnly} rows={5} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -302,7 +325,7 @@ export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, at
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Quais equipamentos foram desinstalados?</Label>
-                    <textarea placeholder="Liste todos os equipamentos desinstalados com detalhes..." value={formData.uninstalledEquipment || ""} onChange={(e) => u("uninstalledEquipment", e.target.value)} readOnly={readOnly} rows={4} className={textareaCls} />
+                    <TA value={formData.uninstalledEquipment || ""} placeholder="Liste todos os equipamentos desinstalados com detalhes..." onChange={(v) => u("uninstalledEquipment", v)} readOnly={readOnly} rows={4} />
                 </div>
             </div>
 
@@ -314,7 +337,7 @@ export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, at
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
-                    <textarea placeholder="Detalhes sobre a desinstalação..." value={formData.logbook || ""} onChange={(e) => u("logbook", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
+                    <TA value={formData.logbook || ""} placeholder="Detalhes sobre a desinstalação..." onChange={(v) => u("logbook", v)} readOnly={readOnly} rows={5} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -367,7 +390,7 @@ export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly, osI
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">O software precisa de alguma correção?</Label>
-                    <textarea placeholder="Descreva correções de software necessárias..." value={formData.softwareCorrection || ""} onChange={(e) => u("softwareCorrection", e.target.value)} readOnly={readOnly} rows={4} className={textareaCls} />
+                    <TA value={formData.softwareCorrection || ""} placeholder="Descreva correções de software necessárias..." onChange={(v) => u("softwareCorrection", v)} readOnly={readOnly} rows={4} />
                 </div>
             </div>
 
@@ -379,7 +402,7 @@ export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly, osI
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
-                    <textarea placeholder="Detalhes sobre a manutenção..." value={formData.logbook || ""} onChange={(e) => u("logbook", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
+                    <TA value={formData.logbook || ""} placeholder="Detalhes sobre a manutenção..." onChange={(v) => u("logbook", v)} readOnly={readOnly} rows={5} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -422,7 +445,7 @@ export function SuporteRemotoFormFields({ formData, onChange, readOnly, osId, at
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Descrição do problema</Label>
-                    <textarea placeholder="Descreva o problema em detalhes..." value={formData.issueDescription || ""} onChange={(e) => u("issueDescription", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
+                    <TA value={formData.issueDescription || ""} placeholder="Descreva o problema em detalhes..." onChange={(v) => u("issueDescription", v)} readOnly={readOnly} rows={5} />
                 </div>
             </div>
 
@@ -434,7 +457,7 @@ export function SuporteRemotoFormFields({ formData, onChange, readOnly, osId, at
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Diário de bordo</Label>
-                    <textarea placeholder="Detalhes sobre o atendimento remoto..." value={formData.logbook || ""} onChange={(e) => u("logbook", e.target.value)} readOnly={readOnly} rows={5} className={textareaCls} />
+                    <TA value={formData.logbook || ""} placeholder="Detalhes sobre o atendimento remoto..." onChange={(v) => u("logbook", v)} readOnly={readOnly} rows={5} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -490,17 +513,17 @@ export function TerceirizadoFormFields({ formData, onChange, readOnly, osId, att
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Escopo do serviço</Label>
-                    <textarea placeholder="Descreva o escopo completo do serviço..." value={formData.serviceScope || ""} onChange={(e) => u("serviceScope", e.target.value)} readOnly={readOnly} rows={4} className={textareaCls} />
+                    <TA value={formData.serviceScope || ""} placeholder="Descreva o escopo completo do serviço..." onChange={(v) => u("serviceScope", v)} readOnly={readOnly} rows={4} />
                 </div>
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Descrição do atendimento</Label>
-                    <textarea placeholder="Descreva o atendimento realizado..." value={formData.serviceDescription || ""} onChange={(e) => u("serviceDescription", e.target.value)} readOnly={readOnly} rows={4} className={textareaCls} />
+                    <TA value={formData.serviceDescription || ""} placeholder="Descreva o atendimento realizado..." onChange={(v) => u("serviceDescription", v)} readOnly={readOnly} rows={4} />
                 </div>
 
                 <div className="space-y-2">
                     <Label className="text-[var(--zyllen-muted)]">Equipamento/backup utilizado</Label>
-                    <textarea placeholder="Caso tenha utilizado algum equipamento ou backup, descreva..." value={formData.equipmentUsed || ""} onChange={(e) => u("equipmentUsed", e.target.value)} readOnly={readOnly} rows={3} className={textareaCls} />
+                    <TA value={formData.equipmentUsed || ""} placeholder="Caso tenha utilizado algum equipamento ou backup, descreva..." onChange={(v) => u("equipmentUsed", v)} readOnly={readOnly} rows={3} />
                 </div>
             </div>
 
