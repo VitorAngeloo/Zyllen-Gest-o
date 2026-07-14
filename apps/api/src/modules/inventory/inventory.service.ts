@@ -150,6 +150,12 @@ export class InventoryService {
 
             if (data.assetId) {
                 await this.applyAssetMovementRules(tx, { assetId: data.assetId, moveType, toLocationId: resolvedToLocationId });
+                // Retorno de um patrimônio existente: volta ao estoque (com local),
+                // reativa e limpa o motivo da saída anterior.
+                await tx.asset.update({
+                    where: { id: data.assetId },
+                    data: { currentLocationId: resolvedToLocationId, status: 'ATIVO', lastExitReason: null },
+                });
             }
 
             // Always auto-create individual patrimony codes (no more CONSUMABLE mode)
@@ -257,6 +263,15 @@ export class InventoryService {
             });
 
             await this.applyAssetMovementRules(tx, { assetId: data.assetId, moveType, fromLocationId: data.fromLocationId });
+
+            // Saída de um patrimônio específico: sai do saldo (sem local) e guarda
+            // o motivo, para o status mostrar "em uso/cliente/..." em vez de "Ativo".
+            if (data.assetId) {
+                await tx.asset.update({
+                    where: { id: data.assetId },
+                    data: { currentLocationId: null, lastExitReason: data.reason?.trim() || 'Saída' },
+                });
+            }
 
             await tx.auditLog.create({
                 data: {

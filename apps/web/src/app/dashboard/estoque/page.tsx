@@ -18,6 +18,19 @@ import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 const ALLOWED_MEDIA_MIME = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"]);
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+// Estado real do patrimônio para exibição: "Em estoque" quando está no estoque,
+// o motivo da última saída quando saiu, ou "Baixado"/"Em Manutenção".
+function assetStateBadge(a: any): { label: string; variant: "success" | "destructive" | "warning" | "default" } {
+    if (a.status === "BAIXADO") return { label: "Baixado", variant: "destructive" };
+    if (a.status === "EM_MANUTENCAO") return { label: "Em Manutenção", variant: "warning" };
+    const inStock = !!a.currentLocationId || !!a.currentLocation;
+    if (!inStock) {
+        const motivo = String(a.lastExitReason || "").split(" — ")[0].trim();
+        return { label: motivo || "Fora do estoque", variant: "default" };
+    }
+    return { label: "Em estoque", variant: "success" };
+}
+
 function SkuSearchCombobox({ skus, value, onChange }: { skus: any[]; value: string; onChange: (id: string) => void }) {
     const [query, setQuery] = useState("");
     const [open, setOpen] = useState(false);
@@ -1593,9 +1606,7 @@ export default function EstoquePage() {
                                             <tr key={a.id} className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02]">
                                                 <td className="py-2.5 font-mono text-[var(--zyllen-highlight)] text-xs">{a.assetCode}</td>
                                                 <td className="py-2.5">
-                                                    <Badge variant={a.status === "ATIVO" ? "success" : a.status === "EM_USO" ? "default" : "destructive"}>
-                                                        {a.status === "ATIVO" ? "Ativo" : a.status === "EM_USO" ? "Em Uso" : a.status === "EM_MANUTENCAO" ? "Manutenção" : a.status ?? "—"}
-                                                    </Badge>
+                                                    {(() => { const st = assetStateBadge(a); return <Badge variant={st.variant}>{st.label}</Badge>; })()}
                                                 </td>
                                                 <td className="py-2.5 text-[var(--zyllen-muted)] text-xs hidden sm:table-cell">{a.currentLocation?.name ?? "—"}</td>
                                             </tr>

@@ -201,6 +201,7 @@ model Asset {
   skuId             String
   status            String @default("ATIVO")
   currentLocationId String?
+  lastExitReason    String?  // motivo da última saída (nulo quando está em estoque)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
