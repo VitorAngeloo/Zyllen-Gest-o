@@ -462,26 +462,41 @@ export class InventoryService {
             _count: { id: true },
         });
 
-        if (grouped.length === 0) return [];
-
-        const skuIds = [...new Set(grouped.map((g) => g.skuId))];
+        const skuIdsInStock = new Set(grouped.map((g) => g.skuId));
         const locationIds = [...new Set(grouped.map((g) => g.currentLocationId).filter(Boolean) as string[])];
 
+        // Sem filtro: traz TODOS os itens cadastrados (os sem estoque entram com
+        // quantidade 0), para o usuário ver o catálogo completo em Saldos.
+        const includeZero = !params?.locationId && !params?.skuId;
+
         const [skus, locations] = await Promise.all([
-            this.prisma.skuItem.findMany({ where: { id: { in: skuIds } }, select: { id: true, skuCode: true, name: true, brand: true, category: { select: { name: true } } } }),
+            this.prisma.skuItem.findMany({
+                where: includeZero ? {} : { id: { in: [...skuIdsInStock] } },
+                select: { id: true, skuCode: true, name: true, brand: true, category: { select: { name: true } } },
+            }),
             this.prisma.location.findMany({ where: { id: { in: locationIds } }, select: { id: true, name: true } }),
         ]);
 
         const skuMap = new Map(skus.map((s) => [s.id, s]));
         const locMap = new Map(locations.map((l) => [l.id, l]));
 
-        return grouped.map((g) => ({
+        const rows: any[] = grouped.map((g) => ({
             skuId: g.skuId,
             locationId: g.currentLocationId,
             quantity: (g._count as any).id ?? 0,
             sku: skuMap.get(g.skuId),
             location: locMap.get(g.currentLocationId!),
-        })).sort((a, b) => b.quantity - a.quantity);
+        }));
+
+        if (includeZero) {
+            for (const s of skus) {
+                if (!skuIdsInStock.has(s.id)) {
+                    rows.push({ skuId: s.id, locationId: null, quantity: 0, sku: s, location: null });
+                }
+            }
+        }
+
+        return rows.sort((a, b) => b.quantity - a.quantity);
     }
 
     // ── Pending approvals ──

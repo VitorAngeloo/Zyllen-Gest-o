@@ -667,7 +667,7 @@ export default function EstoquePage() {
                                                             )}
                                                         </td>
                                                         <td className="py-3 text-[var(--zyllen-muted)] text-xs hidden sm:table-cell">{b.sku?.brand ?? "—"}</td>
-                                                        <td className="py-3 text-[var(--zyllen-muted)]">{b.location?.name}</td>
+                                                        <td className="py-3 text-[var(--zyllen-muted)]">{b.location?.name ?? "—"}</td>
                                                         <td className="py-3 text-right">
                                                             <div className="flex items-center justify-end gap-2">
                                                                 <Badge variant={b.quantity > 0 ? "success" : "destructive"}>{b.quantity}</Badge>
