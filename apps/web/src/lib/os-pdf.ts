@@ -76,7 +76,7 @@ export function printOsPdf(data: OsPdfData): void {
                         <td>
                             ${row.isSignature && typeof row.rawValue === "string"
                                 ? `<div class="signature-box"><img src="${escapeAttr(row.rawValue)}" alt="${escapeAttr(row.label)}" /></div>`
-                                : `<span class="${row.isEmpty ? "empty" : ""}">${escapeHtml(row.displayValue)}</span>`}
+                                : `<span class="${row.isEmpty ? "empty" : ""}" ${!row.isEmpty ? 'style="white-space: pre-wrap;"' : ""}>${escapeHtml(row.displayValue)}</span>`}
                         </td>
                     </tr>
                 `).join("")}
