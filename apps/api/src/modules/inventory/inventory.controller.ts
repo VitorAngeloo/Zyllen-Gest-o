@@ -35,6 +35,7 @@ import {
 } from '@zyllen/shared';
 import { UpdateMovementTypeDto } from './dto/update-movement-type.dto';
 import { ExitReasonDto } from './dto/exit-reason.dto';
+import { ExitBatchDto } from './dto/exit-batch.dto';
 
 const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'media', 'inventory-entry');
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -116,6 +117,14 @@ export class InventoryController {
     ) {
         const data = await this.inventoryService.createExit({ ...body, userId: req.user.id });
         return { data };
+    }
+
+    // ── Batch Exit (saída em lote) ──
+    @Post('exit-batch')
+    @RequirePermission('inventory.bipar_saida')
+    async createBatchExit(@Request() req: any, @Body() body: ExitBatchDto) {
+        const data = await this.inventoryService.createBatchExit({ ...body, userId: req.user.id });
+        return { data, message: `Saída registrada em ${data.processed} patrimônio(s)` };
     }
 
     // ── Approve Exit ──

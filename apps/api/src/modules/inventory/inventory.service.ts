@@ -287,6 +287,74 @@ export class InventoryService {
         });
     }
 
+    // ── Batch exit (saída em lote) ──
+    // Tudo-ou-nada: valida todos os patrimônios ANTES e aplica numa única
+    // transação. Para cada item: movimentação de Saída, sai do saldo com o
+    // motivo, aplica o status escolhido e cria um evento na timeline.
+    async createBatchExit(data: {
+        assetIds: string[];
+        reason: string;
+        newStatus: string;
+        eventDescription: string;
+        pin: string;
+        userId: string;
+    }) {
+        await this.validatePin(data.userId, data.pin);
+
+        const moveType = await this.prisma.movementType.findFirst({ where: { name: 'Saída' } });
+        if (!moveType) throw new NotFoundException('Tipo de movimentação "Saída" não encontrado');
+
+        const uniqueIds = [...new Set(data.assetIds)];
+        const assets = await this.prisma.asset.findMany({
+            where: { id: { in: uniqueIds } },
+            include: { sku: { select: { skuCode: true } } },
+        });
+
+        const foundIds = new Set(assets.map((a) => a.id));
+        if (uniqueIds.some((id) => !foundIds.has(id))) {
+            throw new BadRequestException('Um ou mais patrimônios da lista não existem mais. Recarregue e tente novamente.');
+        }
+        const notInStock = assets.filter((a) => !a.currentLocationId || a.status === 'BAIXADO');
+        if (notInStock.length > 0) {
+            throw new BadRequestException(`Fora do estoque (nada foi aplicado): ${notInStock.map((a) => a.assetCode).join(', ')}`);
+        }
+
+        await this.prisma.$transaction(async (tx) => {
+            for (const asset of assets) {
+                await tx.stockMovement.create({
+                    data: {
+                        typeId: moveType.id,
+                        skuId: asset.skuId,
+                        fromLocationId: asset.currentLocationId,
+                        qty: 1,
+                        reason: data.reason,
+                        createdByInternalUserId: data.userId,
+                        pinValidatedAt: new Date(),
+                        assetId: asset.id,
+                    },
+                });
+                await tx.asset.update({
+                    where: { id: asset.id },
+                    data: { currentLocationId: null, lastExitReason: data.reason, status: data.newStatus },
+                });
+                await (tx as any).assetEvent.create({
+                    data: { assetId: asset.id, description: data.eventDescription, createdByInternalUserId: data.userId },
+                });
+                await tx.auditLog.create({
+                    data: {
+                        action: 'STOCK_EXIT_BATCH',
+                        entityType: 'Asset',
+                        entityId: asset.id,
+                        userId: data.userId,
+                        details: { assetCode: asset.assetCode, sku: asset.sku.skuCode, reason: data.reason, status: data.newStatus },
+                    },
+                });
+            }
+        });
+
+        return { processed: assets.length };
+    }
+
     // ── Approve exit ──
     async approveExit(approvalRequestId: string, approverId: string, pin: string) {
         await this.validatePin(approverId, pin);

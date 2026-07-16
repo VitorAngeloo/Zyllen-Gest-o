@@ -9,7 +9,7 @@ import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
-import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, MapPin, RefreshCw, FileDown, Zap, CheckCircle2, ChevronRight } from "lucide-react";
+import { Package, ArrowDownCircle, ArrowUpCircle, History, Search, Hash, Loader2, TrendingDown, ClipboardList, X, Camera, Upload, BarChart2, MapPin, RefreshCw, FileDown, Zap, CheckCircle2, ChevronRight, Trash2 } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@web/components/ui/dialog";
 import Link from "next/link";
@@ -110,7 +110,7 @@ export default function EstoquePage() {
     const { user } = useAuth();
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
-    const [tab, setTab] = useState<"balances" | "bipe" | "entry" | "exit" | "movements" | "reports">("balances");
+    const [tab, setTab] = useState<"balances" | "bipe" | "entry" | "exit" | "batchExit" | "movements" | "reports">("balances");
     const [balancesSearch, setBalancesSearch] = useState("");
     // Histórico — busca + paginação (server-side)
     const MOVEMENTS_PER_PAGE = 50;
@@ -133,6 +133,18 @@ export default function EstoquePage() {
     const [exitNewReason, setExitNewReason] = useState("");
     const exitCodeRef = useRef<HTMLDivElement>(null);
     const exitCodeInputRef = useRef<HTMLInputElement>(null);
+
+    // ── Saída em Lote ──
+    const [batchQueue, setBatchQueue] = useState<Map<string, any>>(new Map());
+    const [batchScan, setBatchScan] = useState("");
+    const [batchScanning, setBatchScanning] = useState(false);
+    const [batchResults, setBatchResults] = useState<any[]>([]);
+    const [batchMotivo, setBatchMotivo] = useState("");
+    const [batchDetail, setBatchDetail] = useState("");
+    const [batchStatus, setBatchStatus] = useState("");
+    const [batchEvent, setBatchEvent] = useState("");
+    const [batchPin, setBatchPin] = useState("");
+    const batchScanRef = useRef<HTMLInputElement>(null);
 
     // Detail panel — click on a balance row to see all assets
     const [detailSku, setDetailSku] = useState<{ id: string; name: string; skuCode: string; codePrefix?: string } | null>(null);
@@ -375,6 +387,82 @@ export default function EstoquePage() {
         }
     };
 
+    // ── Saída em Lote: adicionar item (bipagem, código ou nome) ──
+    const batchAddAsset = (asset: any): boolean => {
+        if (!asset.currentLocationId || asset.status === "BAIXADO") {
+            toast.error(`${asset.assetCode} já está fora do estoque.`);
+            return false;
+        }
+        if (batchQueue.has(asset.id)) {
+            toast.message(`${asset.assetCode} já está na lista.`);
+            return false;
+        }
+        setBatchQueue((prev) => { const next = new Map(prev); next.set(asset.id, asset); return next; });
+        return true;
+    };
+
+    const handleBatchScan = async () => {
+        const term = batchScan.trim();
+        if (!term || batchScanning) return;
+        setBatchScanning(true);
+        try {
+            // 1) Código exato de patrimônio (bipagem)
+            try {
+                const res = await apiClient.get<{ data: any }>(`/assets/lookup/${encodeURIComponent(term.toUpperCase())}`, fetchOpts);
+                if (res?.data) {
+                    batchAddAsset(res.data);
+                    setBatchScan("");
+                    setBatchResults([]);
+                    setTimeout(() => batchScanRef.current?.focus(), 30);
+                    return;
+                }
+            } catch {
+                // não é código exato — busca por nome abaixo
+            }
+            // 2) Busca por nome/código parcial
+            const res = await apiClient.get<{ data: any[] }>(`/assets?search=${encodeURIComponent(term)}&limit=30`, fetchOpts);
+            const options = (res?.data ?? []).filter((a: any) => a.currentLocationId && a.status !== "BAIXADO" && !batchQueue.has(a.id));
+            if (options.length === 0) {
+                toast.error(`Nenhum patrimônio em estoque encontrado para "${term}".`);
+                setBatchResults([]);
+            } else {
+                setBatchResults(options);
+            }
+        } finally {
+            setBatchScanning(false);
+        }
+    };
+
+    const batchExitMut = useMutation({
+        mutationFn: (payload: any) => apiClient.post("/inventory/exit-batch", payload, fetchOpts),
+        onSuccess: (res: any) => {
+            toast.success(res?.message ?? "Saída em lote registrada!");
+            setBatchQueue(new Map());
+            setBatchScan(""); setBatchResults([]);
+            setBatchMotivo(""); setBatchDetail(""); setBatchStatus(""); setBatchEvent(""); setBatchPin("");
+            qc.invalidateQueries({ queryKey: ["balances"] });
+            qc.invalidateQueries({ queryKey: ["movements"] });
+            setTimeout(() => batchScanRef.current?.focus(), 50);
+        },
+        onError: (e: any) => toast.error(e.message),
+    });
+
+    const handleBatchSubmit = () => {
+        if (batchQueue.size === 0) { toast.error("Adicione ao menos um patrimônio à lista"); return; }
+        if (!batchMotivo) { toast.error("Selecione o motivo da saída"); return; }
+        if (!batchStatus) { toast.error("Selecione o status"); return; }
+        if (!batchEvent.trim()) { toast.error("Descreva o evento da timeline"); return; }
+        if (!batchPin) { toast.error("Informe o PIN"); return; }
+        const reason = [batchMotivo, batchDetail.trim()].filter(Boolean).join(" — ");
+        batchExitMut.mutate({
+            assetIds: [...batchQueue.keys()],
+            reason,
+            newStatus: batchStatus,
+            eventDescription: batchEvent.trim(),
+            pin: batchPin,
+        });
+    };
+
     const normalizeStr = (s: string) => s?.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") ?? "";
 
     const resetBipeSelection = () => {
@@ -546,6 +634,7 @@ export default function EstoquePage() {
         { key: "bipe", label: "Bipagem Rápida", icon: Zap },
         { key: "entry", label: "Entrada", icon: ArrowDownCircle },
         { key: "exit", label: "Saída", icon: ArrowUpCircle },
+        { key: "batchExit", label: "Saída em Lote", icon: TrendingDown },
         { key: "movements", label: "Histórico", icon: History },
         { key: "reports", label: "Relatórios", icon: BarChart2 },
     ];
@@ -1289,6 +1378,157 @@ export default function EstoquePage() {
                         </form>
                     </CardContent>
                 </Card>
+            )}
+
+            {/* ═══ SAÍDA EM LOTE ═══ */}
+            {tab === "batchExit" && (
+                <div className="grid lg:grid-cols-3 gap-4 items-start">
+                    <div className="lg:col-span-2 space-y-4">
+                        {/* Bipagem / busca */}
+                        <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-white flex items-center gap-2 text-base">
+                                    <TrendingDown size={18} className="text-rose-400" /> Saída em Lote
+                                </CardTitle>
+                                <p className="text-xs text-[var(--zyllen-muted)]">Bipe a etiqueta, digite o código ou o nome do item e pressione Enter para adicionar à lista</p>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                                        {batchScanning && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[var(--zyllen-muted)]" />}
+                                        <input
+                                            ref={batchScanRef}
+                                            autoFocus
+                                            type="text"
+                                            value={batchScan}
+                                            onChange={(e) => setBatchScan(e.target.value)}
+                                            onKeyDown={(e) => e.key === "Enter" && handleBatchScan()}
+                                            placeholder="Bipe a etiqueta ou digite código/nome..."
+                                            className="w-full h-10 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white pl-9 pr-9 text-sm font-mono placeholder:text-[var(--zyllen-muted)]/60 placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50"
+                                        />
+                                    </div>
+                                    <Button variant="highlight" onClick={handleBatchScan} disabled={batchScanning} className="shrink-0">
+                                        {batchScanning ? <Loader2 size={15} className="animate-spin" /> : "Adicionar"}
+                                    </Button>
+                                </div>
+
+                                {/* Resultados da busca por nome */}
+                                {batchResults.length > 0 && (
+                                    <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)]">
+                                        {batchResults.map((a: any) => (
+                                            <button
+                                                key={a.id}
+                                                type="button"
+                                                onClick={() => { if (batchAddAsset(a)) setBatchResults((prev) => prev.filter((r) => r.id !== a.id)); }}
+                                                className="w-full text-left px-3 py-2.5 hover:bg-[var(--zyllen-highlight)]/10 transition-colors flex items-center gap-3 text-sm border-b border-[var(--zyllen-border)]/30 last:border-0"
+                                            >
+                                                <span className="font-mono text-[var(--zyllen-highlight)] text-xs w-24 shrink-0">{a.assetCode}</span>
+                                                <span className="text-white text-xs truncate flex-1">{a.sku?.name}</span>
+                                                <span className="text-[var(--zyllen-muted)] text-xs shrink-0 flex items-center gap-1">
+                                                    <MapPin size={10} /> {a.currentLocation?.name ?? "—"}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Lista de itens adicionados */}
+                        <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                                <CardTitle className="text-white text-sm">Itens para saída ({batchQueue.size})</CardTitle>
+                                {batchQueue.size > 0 && (
+                                    <button onClick={() => setBatchQueue(new Map())} className="text-xs text-[var(--zyllen-muted)] hover:text-red-400 flex items-center gap-1">
+                                        <Trash2 size={13} /> Limpar lista
+                                    </button>
+                                )}
+                            </CardHeader>
+                            <CardContent>
+                                {batchQueue.size === 0 ? (
+                                    <p className="text-[var(--zyllen-muted)] text-sm text-center py-6">Nenhum item na lista. Bipe ou busque acima para adicionar.</p>
+                                ) : (
+                                    <div className="space-y-2 max-h-[420px] overflow-y-auto">
+                                        {[...batchQueue.values()].map((a: any) => (
+                                            <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]/50">
+                                                <span className="font-mono text-[var(--zyllen-highlight)] text-xs w-24 shrink-0">{a.assetCode}</span>
+                                                <span className="text-white text-sm truncate flex-1">{a.sku?.name}</span>
+                                                <span className="text-[var(--zyllen-muted)] text-xs shrink-0 hidden sm:flex items-center gap-1">
+                                                    <MapPin size={10} /> {a.currentLocation?.name ?? "—"}
+                                                </span>
+                                                <button
+                                                    onClick={() => setBatchQueue((prev) => { const n = new Map(prev); n.delete(a.id); return n; })}
+                                                    className="text-[var(--zyllen-muted)] hover:text-red-400 shrink-0"
+                                                >
+                                                    <X size={15} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Campos finais — aplicam a todos de uma vez */}
+                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-highlight)]/20 lg:sticky lg:top-4">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-white text-sm">Aplicar a todos ({batchQueue.size})</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)]">Motivo da Saída *</Label>
+                                <select
+                                    value={batchMotivo}
+                                    onChange={(e) => setBatchMotivo(e.target.value)}
+                                    className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm"
+                                >
+                                    <option value="">Selecione...</option>
+                                    {exitReasons?.data?.map((r: any) => <option key={r.id} value={r.name}>{r.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)]">Detalhe (opcional)</Label>
+                                <Input value={batchDetail} onChange={(e) => setBatchDetail(e.target.value)} placeholder="Complemento do motivo..." autoComplete="off" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)]">Status *</Label>
+                                <select
+                                    value={batchStatus}
+                                    onChange={(e) => setBatchStatus(e.target.value)}
+                                    className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm"
+                                >
+                                    <option value="">Selecione...</option>
+                                    <option value="EM_USO">Em Uso</option>
+                                    <option value="EM_MANUTENCAO">Em Manutenção</option>
+                                    <option value="BAIXADO">Baixado</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)]">Evento na timeline *</Label>
+                                <Input value={batchEvent} onChange={(e) => setBatchEvent(e.target.value)} placeholder="Ex: Enviado para a obra X" autoComplete="off" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                <p className="text-[10px] text-[var(--zyllen-muted)]">Digitado uma vez, entra na timeline de CADA item da lista.</p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)]">PIN *</Label>
+                                <Input type="password" maxLength={4} placeholder="••••" value={batchPin} onChange={(e) => setBatchPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleBatchSubmit()} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center tracking-widest" />
+                            </div>
+                            <Button
+                                variant="highlight"
+                                className="w-full"
+                                onClick={handleBatchSubmit}
+                                disabled={batchExitMut.isPending || batchQueue.size === 0}
+                            >
+                                {batchExitMut.isPending ? (
+                                    <><Loader2 size={15} className="animate-spin" /> Registrando...</>
+                                ) : (
+                                    <><CheckCircle2 size={15} /> Dar saída em {batchQueue.size} {batchQueue.size === 1 ? "item" : "itens"}</>
+                                )}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
             )}
 
             {tab === "movements" && (
