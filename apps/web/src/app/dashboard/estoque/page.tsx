@@ -1471,8 +1471,9 @@ export default function EstoquePage() {
                         </Card>
                     </div>
 
-                    {/* Campos finais — aplicam a todos de uma vez */}
-                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-highlight)]/20 lg:sticky lg:top-4">
+                    {/* Campos finais — aplicam a todos de uma vez. Sticky com rolagem
+                        interna para nunca cortar campos em telas baixas/zoom alto. */}
+                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-highlight)]/20 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
                         <CardHeader className="pb-3">
                             <CardTitle className="text-white text-sm">Aplicar a todos ({batchQueue.size})</CardTitle>
                         </CardHeader>
