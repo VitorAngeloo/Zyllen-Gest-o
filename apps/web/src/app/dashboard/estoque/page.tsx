@@ -1401,6 +1401,7 @@ export default function EstoquePage() {
                                             ref={batchScanRef}
                                             autoFocus
                                             type="text"
+                                            autoComplete="new-password"
                                             value={batchScan}
                                             onChange={(e) => setBatchScan(e.target.value)}
                                             onKeyDown={(e) => e.key === "Enter" && handleBatchScan()}
@@ -1491,7 +1492,7 @@ export default function EstoquePage() {
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Detalhe (opcional)</Label>
-                                <Input value={batchDetail} onChange={(e) => setBatchDetail(e.target.value)} placeholder="Complemento do motivo..." autoComplete="off" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                <Input value={batchDetail} onChange={(e) => setBatchDetail(e.target.value)} placeholder="Complemento do motivo..." autoComplete="new-password" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Status *</Label>
@@ -1508,7 +1509,7 @@ export default function EstoquePage() {
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Evento na timeline *</Label>
-                                <Input value={batchEvent} onChange={(e) => setBatchEvent(e.target.value)} placeholder="Ex: Enviado para a obra X" autoComplete="off" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                <Input value={batchEvent} onChange={(e) => setBatchEvent(e.target.value)} placeholder="Ex: Enviado para a obra X" autoComplete="new-password" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                                 <p className="text-[10px] text-[var(--zyllen-muted)]">Digitado uma vez, entra na timeline de CADA item da lista.</p>
                             </div>
                             <div className="space-y-2">
