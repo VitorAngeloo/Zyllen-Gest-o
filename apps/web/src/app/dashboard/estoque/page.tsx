@@ -145,6 +145,44 @@ export default function EstoquePage() {
     const [batchEvent, setBatchEvent] = useState("");
     const [batchPin, setBatchPin] = useState("");
     const batchScanRef = useRef<HTMLInputElement>(null);
+    // Rascunho persistido: se a página recarregar, a lista e os campos voltam
+    // (PIN nunca é salvo). Restaura no mount; só grava depois de restaurar.
+    const [batchRestored, setBatchRestored] = useState(false);
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem("batchExitDraft");
+            if (raw) {
+                const d = JSON.parse(raw);
+                if (Array.isArray(d.items) && d.items.length) setBatchQueue(new Map(d.items.map((a: any) => [a.id, a])));
+                if (d.motivo) setBatchMotivo(d.motivo);
+                if (d.detail) setBatchDetail(d.detail);
+                if (d.status) setBatchStatus(d.status);
+                if (d.event) setBatchEvent(d.event);
+            }
+        } catch { /* rascunho corrompido — ignora */ }
+        setBatchRestored(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    useEffect(() => {
+        if (!batchRestored) return;
+        try {
+            localStorage.setItem("batchExitDraft", JSON.stringify({
+                items: [...batchQueue.values()].map((a: any) => ({
+                    id: a.id,
+                    assetCode: a.assetCode,
+                    skuId: a.skuId,
+                    currentLocationId: a.currentLocationId,
+                    status: a.status,
+                    sku: { name: a.sku?.name },
+                    currentLocation: { name: a.currentLocation?.name },
+                })),
+                motivo: batchMotivo,
+                detail: batchDetail,
+                status: batchStatus,
+                event: batchEvent,
+            }));
+        } catch { /* sem espaço/privado — ignora */ }
+    }, [batchRestored, batchQueue, batchMotivo, batchDetail, batchStatus, batchEvent]);
 
     // Detail panel — click on a balance row to see all assets
     const [detailSku, setDetailSku] = useState<{ id: string; name: string; skuCode: string; codePrefix?: string } | null>(null);

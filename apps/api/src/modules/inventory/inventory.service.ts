@@ -319,38 +319,39 @@ export class InventoryService {
             throw new BadRequestException(`Fora do estoque (nada foi aplicado): ${notInStock.map((a) => a.assetCode).join(', ')}`);
         }
 
+        // Operações em MASSA (4 queries no total, independente da quantidade de
+        // itens) — evita estourar o pool/timeout com lotes grandes.
+        const now = new Date();
         await this.prisma.$transaction(async (tx) => {
-            for (const asset of assets) {
-                await tx.stockMovement.create({
-                    data: {
-                        typeId: moveType.id,
-                        skuId: asset.skuId,
-                        fromLocationId: asset.currentLocationId,
-                        qty: 1,
-                        reason: data.reason,
-                        createdByInternalUserId: data.userId,
-                        pinValidatedAt: new Date(),
-                        assetId: asset.id,
-                    },
-                });
-                await tx.asset.update({
-                    where: { id: asset.id },
-                    data: { currentLocationId: null, lastExitReason: data.reason, status: data.newStatus },
-                });
-                await (tx as any).assetEvent.create({
-                    data: { assetId: asset.id, description: data.eventDescription, createdByInternalUserId: data.userId },
-                });
-                await tx.auditLog.create({
-                    data: {
-                        action: 'STOCK_EXIT_BATCH',
-                        entityType: 'Asset',
-                        entityId: asset.id,
-                        userId: data.userId,
-                        details: { assetCode: asset.assetCode, sku: asset.sku.skuCode, reason: data.reason, status: data.newStatus },
-                    },
-                });
-            }
-        });
+            await tx.stockMovement.createMany({
+                data: assets.map((a) => ({
+                    typeId: moveType.id,
+                    skuId: a.skuId,
+                    fromLocationId: a.currentLocationId,
+                    qty: 1,
+                    reason: data.reason,
+                    createdByInternalUserId: data.userId,
+                    pinValidatedAt: now,
+                    assetId: a.id,
+                })),
+            });
+            await tx.asset.updateMany({
+                where: { id: { in: assets.map((a) => a.id) } },
+                data: { currentLocationId: null, lastExitReason: data.reason, status: data.newStatus },
+            });
+            await (tx as any).assetEvent.createMany({
+                data: assets.map((a) => ({ assetId: a.id, description: data.eventDescription, createdByInternalUserId: data.userId })),
+            });
+            await tx.auditLog.createMany({
+                data: assets.map((a) => ({
+                    action: 'STOCK_EXIT_BATCH',
+                    entityType: 'Asset',
+                    entityId: a.id,
+                    userId: data.userId,
+                    details: { assetCode: a.assetCode, sku: a.sku.skuCode, reason: data.reason, status: data.newStatus },
+                })),
+            });
+        }, { timeout: 60000, maxWait: 15000 });
 
         return { processed: assets.length };
     }
