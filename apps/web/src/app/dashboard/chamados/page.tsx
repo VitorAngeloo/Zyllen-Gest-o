@@ -13,6 +13,7 @@ import {
     Headset, Plus, MessageSquare, Clock, Send, ChevronDown, ChevronUp,
     Lock, User, Building2, Phone, Briefcase, FolderOpen, ImageIcon,
     VideoIcon, FileText, Shield, ArrowRightLeft, X, Paperclip,
+    ChevronLeft, ChevronRight, Filter,
 } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
@@ -26,6 +27,17 @@ const STATUS_LABELS: Record<string, string> = {
     OPEN: "Aberto", IN_PROGRESS: "Em Andamento", WAITING_CLIENT: "Aguardando Cliente",
     RESOLVED: "Resolvido", CLOSED: "Encerrado",
 };
+
+const STATUS_FILTERS: { value: string; label: string }[] = [
+    { value: "", label: "Todos" },
+    { value: "OPEN", label: "Abertos" },
+    { value: "IN_PROGRESS", label: "Em Andamento" },
+    { value: "WAITING_CLIENT", label: "Aguardando Cliente" },
+    { value: "RESOLVED", label: "Resolvidos" },
+    { value: "CLOSED", label: "Encerrados" },
+];
+
+const PAGE_SIZE = 20;
 
 function formatElapsedSeconds(sec: number): string {
     const h = Math.floor(sec / 3600);
@@ -77,6 +89,8 @@ export default function ChamadosPage() {
     const [showCreate, setShowCreate] = useState(false);
     const [form, setForm] = useState({ title: "", description: "", priority: "MEDIUM", companyId: "", externalUserId: "" });
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const [statusFilter, setStatusFilter] = useState("");
+    const [page, setPage] = useState(1);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -89,9 +103,14 @@ export default function ChamadosPage() {
     const isAdminOrGestor = user && "role" in user && (user.role?.name === "Administrador" || user.role?.name === "Gestor");
 
     const { data: tickets, isLoading: loadingTickets } = useQuery({
-        queryKey: ["tickets"],
-        queryFn: () => apiClient.get<{ data: any[] }>("/tickets", fetchOpts),
+        queryKey: ["tickets", statusFilter, page],
+        queryFn: () => apiClient.get<{ data: any[]; total: number }>(
+            `/tickets?page=${page}&limit=${PAGE_SIZE}${statusFilter ? `&status=${statusFilter}` : ""}`,
+            fetchOpts,
+        ),
     });
+    const totalTickets = tickets?.total ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalTickets / PAGE_SIZE));
 
     const { data: ticketDetail, isLoading: loadingDetail } = useQuery({
         queryKey: ["ticket", expandedId],
@@ -262,6 +281,29 @@ export default function ChamadosPage() {
                 </Button>
             </div>
 
+            {/* Status filter */}
+            <div className="flex items-center gap-2 flex-wrap">
+                <Filter size={14} className="text-[var(--zyllen-muted)] shrink-0" />
+                {STATUS_FILTERS.map((f) => (
+                    <button
+                        key={f.value}
+                        onClick={() => { setStatusFilter(f.value); setPage(1); setExpandedId(null); }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                            statusFilter === f.value
+                                ? "bg-[var(--zyllen-highlight)]/15 border-[var(--zyllen-highlight)]/50 text-[var(--zyllen-highlight)]"
+                                : "bg-transparent border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white hover:border-[var(--zyllen-highlight)]/30"
+                        }`}
+                    >
+                        {f.label}
+                    </button>
+                ))}
+                {!loadingTickets && (
+                    <span className="text-xs text-[var(--zyllen-muted)] ml-auto">
+                        {totalTickets} chamado{totalTickets === 1 ? "" : "s"}
+                    </span>
+                )}
+            </div>
+
             {/* Create form */}
             {showCreate && (
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-highlight)]/20 max-w-2xl">
@@ -400,7 +442,11 @@ export default function ChamadosPage() {
                 ) : !tickets?.data?.length ? (
                     <div className="text-center py-12">
                         <Headset size={48} className="mx-auto mb-3 text-[var(--zyllen-muted)]/30" />
-                        <p className="text-[var(--zyllen-muted)]">{EMPTY_STATES.ticketsList}</p>
+                        <p className="text-[var(--zyllen-muted)]">
+                            {statusFilter
+                                ? `Nenhum chamado ${STATUS_FILTERS.find((f) => f.value === statusFilter)?.label.toLowerCase() ?? "com esse status"}.`
+                                : EMPTY_STATES.ticketsList}
+                        </p>
                     </div>
                 ) : tickets.data.map((t: any) => {
                     const isExpanded = expandedId === t.id;
@@ -629,6 +675,31 @@ export default function ChamadosPage() {
                     );
                 })}
             </div>
+
+            {/* Pagination */}
+            {!loadingTickets && totalPages > 1 && (
+                <div className="flex items-center justify-center gap-3 pt-2">
+                    <Button
+                        size="sm" variant="outline"
+                        className="text-white border-[var(--zyllen-border)]"
+                        disabled={page <= 1}
+                        onClick={() => { setPage((p) => p - 1); setExpandedId(null); }}
+                    >
+                        <ChevronLeft size={14} /> Anterior
+                    </Button>
+                    <span className="text-sm text-[var(--zyllen-muted)]">
+                        Página <span className="text-white">{page}</span> de <span className="text-white">{totalPages}</span>
+                    </span>
+                    <Button
+                        size="sm" variant="outline"
+                        className="text-white border-[var(--zyllen-border)]"
+                        disabled={page >= totalPages}
+                        onClick={() => { setPage((p) => p + 1); setExpandedId(null); }}
+                    >
+                        Próxima <ChevronRight size={14} />
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }
