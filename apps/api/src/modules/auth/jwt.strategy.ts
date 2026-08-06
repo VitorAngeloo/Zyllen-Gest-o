@@ -5,6 +5,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from './auth.service';
+import { withRetry } from '../../prisma/prisma-retry';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -24,10 +25,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     async validate(payload: JwtPayload & { companyId?: string; name?: string }) {
         if (payload.type === 'internal') {
-            const user = await this.prisma.internalUser.findUnique({
+            const user = await withRetry(() => this.prisma.internalUser.findUnique({
                 where: { id: payload.sub },
                 include: { role: true },
-            });
+            }));
 
             if (!user || !user.isActive) {
                 throw new UnauthorizedException('Usuário não encontrado ou inativo');
@@ -44,10 +45,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         }
 
         if (payload.type === 'external') {
-            const user = await this.prisma.externalUser.findUnique({
+            const user = await withRetry(() => this.prisma.externalUser.findUnique({
                 where: { id: payload.sub },
                 include: { company: { select: { id: true, name: true } } },
-            });
+            }));
 
             if (!user || !user.isActive) {
                 throw new UnauthorizedException('Usuário externo não encontrado ou inativo');
@@ -64,9 +65,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         }
 
         if (payload.type === 'contractor') {
-            const user = await this.prisma.contractorUser.findUnique({
+            const user = await withRetry(() => this.prisma.contractorUser.findUnique({
                 where: { id: payload.sub },
-            });
+            }));
 
             if (!user || !user.isActive) {
                 throw new UnauthorizedException('Terceirizado não encontrado ou inativo');

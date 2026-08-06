@@ -36,7 +36,13 @@ class ApiClient {
             config.body = JSON.stringify(body);
         }
 
-        const response = await fetch(`${this.baseUrl}${endpoint}`, config);
+        let response: Response;
+        try {
+            response = await fetch(`${this.baseUrl}${endpoint}`, config);
+        } catch {
+            // Browser network errors: Safari "Load failed", Chrome "Failed to fetch", Firefox "NetworkError"
+            throw new ApiError(0, 'Erro de conexão com o servidor. Verifique sua internet e tente novamente.');
+        }
 
         // Auto-refresh on 401 (skip for auth/login endpoints)
         if (
@@ -191,7 +197,12 @@ class ApiClient {
         };
         // Do NOT set Content-Type — browser will set multipart boundary automatically
 
-        const response = await fetch(`${this.baseUrl}${endpoint}`, config);
+        let response: Response;
+        try {
+            response = await fetch(`${this.baseUrl}${endpoint}`, config);
+        } catch {
+            throw new ApiError(0, 'Erro de conexão com o servidor. Verifique sua internet e tente novamente.');
+        }
 
         if (response.status === 401 && !_retry) {
             const newToken = await this.tryRefresh();

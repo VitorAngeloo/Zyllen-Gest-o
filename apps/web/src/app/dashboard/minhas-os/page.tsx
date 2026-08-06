@@ -96,6 +96,7 @@ export default function MinhasOsPage() {
             qc.invalidateQueries({ queryKey: ["maintenance-all"] });
         } catch (e: any) {
             toast.error(e.message || "Erro ao salvar");
+            throw e;
         } finally {
             setSubmitting(false);
         }
@@ -172,6 +173,7 @@ export default function MinhasOsPage() {
             setSelectedOS(null);
         } catch (e: any) {
             toast.error(e.message || "Erro ao atualizar");
+            throw e;
         } finally {
             setSubmitting(false);
         }

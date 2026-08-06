@@ -67,18 +67,27 @@ export default function ManutencaoPage() {
 
     const handleSubmitOS = async (data: OsFormSubmitData) => {
         setSubmitting(true);
+        let createdId: string | undefined;
         try {
             const { localFiles, ...payload } = data;
             const created = await apiClient.post<{ id?: string; data?: { id?: string; data?: { id?: string } } }>("/maintenance", payload, fetchOpts);
+            createdId = created?.data?.id ?? created?.id ?? created?.data?.data?.id;
 
-            const createdId = created?.data?.id ?? created?.id ?? created?.data?.data?.id;
             await uploadMaintenanceAttachments("/maintenance", createdId, localFiles, fetchOpts);
 
             toast.success(TOASTS.osOpened);
             qc.invalidateQueries({ queryKey: ["maintenance"] });
             setTab("list");
         } catch (e: any) {
-            toast.error(e.message || "Erro ao abrir OS");
+            if (createdId) {
+                // OS was created but file upload failed — navigate to list so user sees the OS
+                toast.warning("OS criada! Ocorreu um erro ao enviar os arquivos. Abra a OS na lista para adicionar as fotos.");
+                qc.invalidateQueries({ queryKey: ["maintenance"] });
+                setTab("list");
+            } else {
+                toast.error(e.message || "Erro ao abrir OS");
+                throw e;
+            }
         } finally {
             setSubmitting(false);
         }
@@ -99,6 +108,7 @@ export default function ManutencaoPage() {
             setSelectedOS(null);
         } catch (e: any) {
             toast.error(e.message || "Erro ao atualizar");
+            throw e;
         } finally {
             setSubmitting(false);
         }
@@ -117,6 +127,7 @@ export default function ManutencaoPage() {
             qc.invalidateQueries({ queryKey: ["maintenance"] });
         } catch (e: any) {
             toast.error(e.message || "Erro ao salvar");
+            throw e;
         } finally {
             setSubmitting(false);
         }

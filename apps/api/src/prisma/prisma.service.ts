@@ -5,12 +5,29 @@ import { withRetry, sleep } from './prisma-retry';
 const MAX_CONNECT_ATTEMPTS = 5;
 const CONNECT_BASE_DELAY_MS = 1_000;
 
+function buildDatasourceUrl(url: string | undefined): string | undefined {
+    if (!url) return url;
+    // Cap connection pool to 5 — Supabase closes idle connections and
+    // the default of 29 causes pool exhaustion over long uptimes.
+    const sep = url.includes('?') ? '&' : '?';
+    if (url.includes('connection_limit')) return url;
+    return `${url}${sep}connection_limit=5&pool_timeout=30`;
+}
+
 @Injectable()
 export class PrismaService
     extends PrismaClient
     implements OnModuleInit, OnModuleDestroy {
 
     private readonly logger = new Logger(PrismaService.name);
+
+    constructor() {
+        super({
+            datasources: {
+                db: { url: buildDatasourceUrl(process.env.DATABASE_URL) },
+            },
+        });
+    }
 
     async onModuleInit() {
         // Retry initial connection — Supabase cold-start / network race at boot

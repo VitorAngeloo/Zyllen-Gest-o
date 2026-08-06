@@ -94,18 +94,27 @@ function ContractorMaintenanceInner() {
 
     const handleSubmitOS = async (data: OsFormSubmitData) => {
         setSubmitting(true);
+        let createdId: string | undefined;
         try {
             const { localFiles, ...payload } = data;
             const created = await apiClient.post<{ id?: string; data?: { id?: string; data?: { id?: string } } }>("/contractor/maintenance", payload, authFetch);
+            createdId = created?.data?.id ?? created?.id ?? created?.data?.data?.id;
 
-            const createdId = created?.data?.id ?? created?.id ?? created?.data?.data?.id;
             await uploadMaintenanceAttachments("/contractor/maintenance", createdId, localFiles, authFetch);
 
             toast.success("OS aberta com sucesso!");
             setView("list");
             fetchOrders();
         } catch (err: any) {
-            toast.error(err.message || "Erro ao abrir OS");
+            if (createdId) {
+                // OS was created but file upload failed — navigate to list so user sees the OS
+                toast.warning("OS criada! Ocorreu um erro ao enviar os arquivos. Abra a OS na lista para adicionar as fotos.");
+                setView("list");
+                fetchOrders();
+            } else {
+                toast.error(err.message || "Erro ao abrir OS");
+                throw err;
+            }
         } finally {
             setSubmitting(false);
         }
@@ -163,6 +172,7 @@ function ContractorMaintenanceInner() {
             setSelectedOS(null);
         } catch (err: any) {
             toast.error(err.message || "Erro ao atualizar OS");
+            throw err;
         } finally {
             setSubmitting(false);
         }

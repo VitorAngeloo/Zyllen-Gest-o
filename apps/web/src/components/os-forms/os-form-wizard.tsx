@@ -302,19 +302,27 @@ export function OsFormWizard({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedType || readOnly) return;
-        await onSubmit(buildSubmitData());
-        if (localFiles.length > 0) {
-            setLocalFiles([]);
-            if (osId) await fetchAttachments();
+        try {
+            await onSubmit(buildSubmitData());
+            if (localFiles.length > 0) {
+                setLocalFiles([]);
+                if (osId) await fetchAttachments();
+            }
+        } catch {
+            // Error toast is shown by the parent; keep localFiles so user can retry
         }
     };
 
     const handleSaveDraft = async () => {
         if (!selectedType || !onSaveDraft || readOnly) return;
-        await onSaveDraft(buildSubmitData());
-        if (localFiles.length > 0) {
-            setLocalFiles([]);
-            if (osId) await fetchAttachments();
+        try {
+            await onSaveDraft(buildSubmitData());
+            if (localFiles.length > 0) {
+                setLocalFiles([]);
+                if (osId) await fetchAttachments();
+            }
+        } catch {
+            // Error toast is shown by the parent; keep localFiles so user can retry
         }
     };
 
