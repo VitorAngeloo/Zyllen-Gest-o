@@ -2,12 +2,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
-import { useAuthedFetch, useAuth } from "@web/lib/auth-context";
+import { useAuthedFetch } from "@web/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Badge } from "@web/components/ui/badge";
 import { toast } from "sonner";
-import { Wrench, Plus, Eye, ArrowLeft, Edit, CheckSquare, Printer, Lock, UserCheck } from "lucide-react";
+import { Wrench, Plus, Eye, ArrowLeft, Edit, CheckSquare, Printer, Lock } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { EMPTY_STATES, TOASTS, PAGE_DESCRIPTIONS } from "@web/lib/brand-voice";
 import { OsFormWizard, OS_FORM_CONFIG } from "@web/components/os-forms";
@@ -29,17 +29,11 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "warning" | "defau
 
 export default function ManutencaoPage() {
     const fetchOpts = useAuthedFetch();
-    const { user, userType } = useAuth();
-    const isAdmin = userType === 'internal' && (user as any)?.role?.name === 'Administrador';
     const qc = useQueryClient();
     const [tab, setTab] = useState<Tab>("list");
     const [selectedOS, setSelectedOS] = useState<any>(null);
     const [submitting, setSubmitting] = useState(false);
     const [detailAttachments, setDetailAttachments] = useState<MediaAttachment[]>([]);
-    const [assignees, setAssignees] = useState<{ id: string; name: string; role: { name: string } }[]>([]);
-    const [showTransferPanel, setShowTransferPanel] = useState(false);
-    const [transferringTo, setTransferringTo] = useState<string>("");
-    const [assignLoading, setAssignLoading] = useState(false);
 
     // Fetch attachments when viewing detail
     const fetchDetailAttachments = async (osId: string) => {
@@ -142,36 +136,6 @@ export default function ManutencaoPage() {
     const handleFinalize = () => {
         if (!selectedOS) return;
         updateStatus.mutate({ id: selectedOS.id, status: "CLOSED", notes: "Finalizado" });
-    };
-
-    const loadAssignees = async () => {
-        if (assignees.length > 0) return;
-        try {
-            const res = await apiClient.get<{ data: any[] }>("/maintenance/eligible-assignees", fetchOpts);
-            const list = Array.isArray(res?.data) ? res.data : (res as any)?.data?.data ?? [];
-            setAssignees(list);
-        } catch { /* ignore */ }
-    };
-
-    const handleAssign = async (assignedToId: string | null) => {
-        if (!selectedOS) return;
-        setAssignLoading(true);
-        try {
-            await apiClient.put(`/maintenance/${selectedOS.id}/assign`, { assignedToId }, fetchOpts);
-            toast.success(assignedToId ? "OS transferida com sucesso" : "Responsável removido");
-            qc.invalidateQueries({ queryKey: ["maintenance"] });
-            setSelectedOS((prev: any) => ({
-                ...prev,
-                assignedTo: assignedToId ? (assignees.find(a => a.id === assignedToId) ?? null) : null,
-                assignedToId: assignedToId ?? null,
-            }));
-            setShowTransferPanel(false);
-            setTransferringTo("");
-        } catch (e: any) {
-            toast.error(e.message || "Erro ao transferir OS");
-        } finally {
-            setAssignLoading(false);
-        }
     };
 
     const handlePrintPdf = async () => {
@@ -279,7 +243,7 @@ export default function ManutencaoPage() {
             <div className="space-y-6">
                 <button
                     className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] hover:text-white transition-colors"
-                    onClick={() => { setTab("list"); setSelectedOS(null); setDetailAttachments([]); setShowTransferPanel(false); setTransferringTo(""); }}
+                    onClick={() => { setTab("list"); setSelectedOS(null); setDetailAttachments([]); }}
                 >
                     <ArrowLeft size={16} /> Voltar
                 </button>
@@ -367,75 +331,6 @@ export default function ManutencaoPage() {
                                 <div>
                                     <span className="text-[var(--zyllen-muted)]">Parceiro:</span>
                                     <p className="text-white">{selectedOS.openedByContractor.name}</p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* ── Transferência de responsável ── */}
-                        <div className="pt-1 border-t border-[var(--zyllen-border)]">
-                            <div className="flex items-center justify-between text-sm">
-                                <div>
-                                    <span className="text-[var(--zyllen-muted)]">Responsável: </span>
-                                    <span className="text-white font-medium">
-                                        {selectedOS.assignedTo?.name ?? "Não atribuído"}
-                                    </span>
-                                </div>
-                                {isAdmin && selectedOS.status !== "CLOSED" && !showTransferPanel && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white text-xs h-7"
-                                        onClick={() => {
-                                            loadAssignees();
-                                            setTransferringTo(selectedOS.assignedTo?.id ?? "");
-                                            setShowTransferPanel(true);
-                                        }}
-                                    >
-                                        <UserCheck size={12} className="mr-1" /> Transferir
-                                    </Button>
-                                )}
-                            </div>
-                            {showTransferPanel && (
-                                <div className="mt-2 flex flex-col gap-2">
-                                    <select
-                                        value={transferringTo}
-                                        onChange={e => setTransferringTo(e.target.value)}
-                                        className="w-full rounded-md border border-[var(--zyllen-border)] bg-[var(--zyllen-bg)] text-white text-sm px-3 py-2 focus:outline-none"
-                                    >
-                                        <option value="">— Sem responsável —</option>
-                                        {assignees.map(a => (
-                                            <option key={a.id} value={a.id}>{a.name} ({a.role.name})</option>
-                                        ))}
-                                    </select>
-                                    <div className="flex gap-2 flex-wrap">
-                                        <Button
-                                            size="sm"
-                                            variant="highlight"
-                                            disabled={assignLoading}
-                                            onClick={() => handleAssign(transferringTo || null)}
-                                        >
-                                            {assignLoading ? "Salvando..." : "Confirmar"}
-                                        </Button>
-                                        {user && 'id' in user && (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white"
-                                                disabled={assignLoading}
-                                                onClick={() => handleAssign((user as any).id)}
-                                            >
-                                                Assumir
-                                            </Button>
-                                        )}
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white ml-auto"
-                                            onClick={() => { setShowTransferPanel(false); setTransferringTo(""); }}
-                                        >
-                                            Cancelar
-                                        </Button>
-                                    </div>
                                 </div>
                             )}
                         </div>
@@ -580,7 +475,7 @@ export default function ManutencaoPage() {
                                             <tr
                                                 key={os.id}
                                                 className="border-b border-[var(--zyllen-border)]/50 hover:bg-white/[0.02] cursor-pointer"
-                                                onClick={() => { setSelectedOS(os); setTab("detail"); fetchDetailAttachments(os.id); setShowTransferPanel(false); setTransferringTo(""); }}
+                                                onClick={() => { setSelectedOS(os); setTab("detail"); fetchDetailAttachments(os.id); }}
                                             >
                                                 <td className="py-3 text-xs">
                                                     <p className="text-[var(--zyllen-highlight)] truncate max-w-[220px]" title={os.clientName || "—"}>{os.clientName || "—"}</p>
@@ -594,7 +489,7 @@ export default function ManutencaoPage() {
                                                 <td className="py-3"><Badge variant={(STATUS_CONFIG[os.status] || STATUS_CONFIG.OPEN).variant}>{(STATUS_CONFIG[os.status] || STATUS_CONFIG.OPEN).label}</Badge></td>
                                                 <td className="py-3 text-[var(--zyllen-muted)] text-xs">{new Date(os.createdAt).toLocaleDateString("pt-BR")}</td>
                                                 <td className="py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                                                    <Button size="sm" variant="ghost" className="text-[var(--zyllen-muted)] text-xs" onClick={() => { setSelectedOS(os); setTab("detail"); fetchDetailAttachments(os.id); setShowTransferPanel(false); setTransferringTo(""); }}>
+                                                    <Button size="sm" variant="ghost" className="text-[var(--zyllen-muted)] text-xs" onClick={() => { setSelectedOS(os); setTab("detail"); fetchDetailAttachments(os.id); }}>
                                                         <Eye size={14} />
                                                     </Button>
                                                     {os.status === "OPEN" && (

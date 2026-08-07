@@ -159,7 +159,6 @@ export class MaintenanceService {
                     project: { select: { id: true, name: true } },
                     openedBy: { select: { name: true } },
                     openedByContractor: { select: { name: true } },
-                    assignedTo: { select: { id: true, name: true } },
                     closedBy: { select: { name: true } },
                 },
                 orderBy: { createdAt: 'desc' },
@@ -494,50 +493,4 @@ export class MaintenanceService {
         return att;
     }
 
-    // ── Eligible assignees (internal users with any maintenance permission) ──
-    async findEligibleAssignees() {
-        return this.prisma.internalUser.findMany({
-            where: {
-                isActive: true,
-                role: {
-                    permissions: {
-                        some: { screenPermission: { screen: 'maintenance', action: 'execute' } },
-                    },
-                },
-            },
-            select: { id: true, name: true, role: { select: { name: true } } },
-            orderBy: { name: 'asc' },
-        });
-    }
-
-    // ── Assign / transfer OS ──
-    async assignOS(id: string, assignedToId: string | null) {
-        const os = await this.findById(id);
-        if (os.status === MaintenanceStatus.CLOSED) {
-            throw new BadRequestException('Não é possível transferir uma OS encerrada');
-        }
-        if (assignedToId) {
-            const user = await this.prisma.internalUser.findUnique({
-                where: { id: assignedToId },
-                include: {
-                    role: {
-                        include: { permissions: { include: { screenPermission: true } } },
-                    },
-                },
-            });
-            if (!user || !user.isActive) throw new NotFoundException('Colaborador não encontrado ou inativo');
-            const hasMaintPerm = user.role.permissions.some(
-                (p) => p.screenPermission.screen === 'maintenance',
-            );
-            if (!hasMaintPerm) throw new BadRequestException('Colaborador não possui permissão de manutenção');
-        }
-        return this.prisma.maintenanceOS.update({
-            where: { id },
-            data: { assignedToId },
-            include: {
-                openedBy: { select: { name: true } },
-                assignedTo: { select: { id: true, name: true } },
-            },
-        });
-    }
 }
