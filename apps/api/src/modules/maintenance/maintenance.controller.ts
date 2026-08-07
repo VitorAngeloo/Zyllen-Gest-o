@@ -1,6 +1,6 @@
 import {
     Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request,
-    UseInterceptors, UploadedFiles, BadRequestException, Res,
+    UseInterceptors, UploadedFiles, BadRequestException, ForbiddenException, Res,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -68,6 +68,30 @@ export class MaintenanceController {
         const l = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10) || 20));
         const result = await this.maintenanceService.findAll({ status, formType, assetId, skip: (p - 1) * l, take: l });
         return { data: result.data, total: result.total, page: p, limit: l };
+    }
+
+    @Get('eligible-assignees')
+    @RequirePermission('maintenance.view')
+    async findEligibleAssignees(@Request() req: any) {
+        if (req.user.role?.name !== 'Administrador') {
+            throw new ForbiddenException('Apenas administradores podem gerenciar transferências');
+        }
+        const data = await this.maintenanceService.findEligibleAssignees();
+        return { data };
+    }
+
+    @Put(':id/assign')
+    @RequirePermission('maintenance.view')
+    async assignOS(
+        @Request() req: any,
+        @Param('id') id: string,
+        @Body() body: { assignedToId?: string | null },
+    ) {
+        if (req.user.role?.name !== 'Administrador') {
+            throw new ForbiddenException('Apenas administradores podem transferir OS');
+        }
+        const data = await this.maintenanceService.assignOS(id, body.assignedToId ?? null);
+        return { data, message: body.assignedToId ? 'OS transferida com sucesso' : 'Responsável removido' };
     }
 
     @Get(':id')

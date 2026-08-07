@@ -173,7 +173,7 @@ export class ClientsService {
             } : {},
             select: { id: true, name: true, cnpj: true },
             orderBy: { name: 'asc' },
-            take: 50,
+            take: 500,
         });
     }
 

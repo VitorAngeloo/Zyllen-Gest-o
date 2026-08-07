@@ -38,6 +38,7 @@ model InternalUser {
   openedTickets       Ticket[]          @relation("OpenedTickets")
   maintenanceOpened   MaintenanceOS[]   @relation("OpenedBy")
   maintenanceClosed   MaintenanceOS[]   @relation("ClosedBy")
+  maintenanceAssigned MaintenanceOS[]   @relation("AssignedTo")
   receivings          Receiving[]
   labelPrintJobs      LabelPrintJob[]
   auditLogs           AuditLog[]
@@ -394,6 +395,7 @@ model MaintenanceOS {
   status                String    @default("OPEN")
   openedById            String?   // Internal user who opened
   openedByContractorId  String?   // Contractor who opened
+  assignedToId          String?   // Internal user currently responsible (transfer)
   closedById            String?
   notes                 String?
   formData              Json?     // JSON blob with form-specific fields
@@ -416,12 +418,14 @@ model MaintenanceOS {
   project            Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
   openedBy           InternalUser?   @relation("OpenedBy", fields: [openedById], references: [id])
   openedByContractor ContractorUser? @relation("OpenedByContractor", fields: [openedByContractorId], references: [id])
+  assignedTo         InternalUser?   @relation("AssignedTo", fields: [assignedToId], references: [id])
   closedBy           InternalUser?   @relation("ClosedBy", fields: [closedById], references: [id])
   attachments        MaintenanceAttachment[]
   followupBlocks     MaintenanceOSFollowupBlock[]
 
   @@index([openedById])
   @@index([openedByContractorId])
+  @@index([assignedToId])
   @@index([companyId])
   @@index([projectId])
   @@index([status])
