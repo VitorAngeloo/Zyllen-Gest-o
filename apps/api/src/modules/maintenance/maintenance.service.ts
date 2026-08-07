@@ -501,7 +501,7 @@ export class MaintenanceService {
                 isActive: true,
                 role: {
                     permissions: {
-                        some: { screenPermission: { screen: 'maintenance' } },
+                        some: { screenPermission: { screen: 'maintenance', action: 'execute' } },
                     },
                 },
             },
