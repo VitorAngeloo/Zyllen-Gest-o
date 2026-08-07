@@ -29,8 +29,8 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "warning" | "defau
 
 export default function ManutencaoPage() {
     const fetchOpts = useAuthedFetch();
-    const { user } = useAuth();
-    const isAdmin = user && 'role' in user && (user as any).role?.name === 'Administrador';
+    const { user, hasPermission } = useAuth();
+    const isAdmin = hasPermission('__admin_role__');
     const qc = useQueryClient();
     const [tab, setTab] = useState<Tab>("list");
     const [selectedOS, setSelectedOS] = useState<any>(null);
