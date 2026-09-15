@@ -14,6 +14,10 @@
 
 O frontend é deployado no Vercel. Há duas formas:
 
+Configuração do projeto Vercel `web`: **Root Directory = `apps/web`**, com **Include source files outside of the Root Directory** habilitado. O arquivo `apps/web/vercel.json` instala o workspace e compila `@zyllen/shared` antes do Next.js. Não aponte a raiz do projeto Vercel para `.`: ali não existe a dependência Next.js.
+
+Para uma atualização coordenada com a API, prepare primeiro com `vercel deploy --prod --skip-domain --yes` na raiz do repositório. Espere o build ficar `Ready`, atualize/verifique a API e só então execute `vercel promote <URL-do-deployment> --yes`. Isso mantém o domínio público na versão anterior durante a preparação.
+
 ### Forma 1 — Manual (atual, recomendada)
 
 Abra o terminal na raiz do projeto e execute:

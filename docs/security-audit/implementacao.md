@@ -2,7 +2,7 @@
 
 Data: 15/09/2026. Branch: `fix/security-audit`. Base auditada: `f3b2727190adbf96c9d35dc57b927e79f5c85275`.
 
-Status: código local implementado; compilação e testes isolados executados. **Sem commit, push, migração no Supabase, rotação de chave ou reinício da produção nesta etapa.**
+Status da implementação: código e testes concluídos. A publicação foi autorizada posteriormente; consulte [o registro de publicação](publicacao.md) para o estado atual de Git, backup, migração, chave JWT e serviços. O restante deste documento descreve a entrega e o checklist preparados antes do deploy.
 
 ## Decisões aplicadas
 
