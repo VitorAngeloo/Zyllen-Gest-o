@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { existsSync, readFileSync, unlinkSync } from 'fs';
@@ -12,11 +12,10 @@ export type ServeSource =
     | { type: 'local'; filePath: string };
 
 @Injectable()
-export class MaintenanceMediaStorageService {
+export class MaintenanceMediaStorageService implements OnModuleInit {
     private readonly supabaseClient?: SupabaseClient;
     private readonly bucket: string;
     private readonly signedUrlExpiresIn: number;
-    private readonly bucketIsPublic: boolean;
 
     constructor(private readonly configService: ConfigService) {
         const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
@@ -27,7 +26,6 @@ export class MaintenanceMediaStorageService {
             60,
             parseInt(this.configService.get<string>('SUPABASE_OS_MEDIA_SIGNED_URL_EXPIRES') || '600', 10) || 600,
         );
-        this.bucketIsPublic = (this.configService.get<string>('SUPABASE_OS_MEDIA_BUCKET_PUBLIC') || 'false').toLowerCase() === 'true';
 
         if (supabaseUrl && supabaseServiceRoleKey) {
             this.supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -40,13 +38,19 @@ export class MaintenanceMediaStorageService {
         return !!this.supabaseClient;
     }
 
+    async onModuleInit() {
+        if (!this.supabaseClient) return;
+        const { data, error } = await this.supabaseClient.storage.getBucket(this.bucket);
+        if (error || !data || data.public) throw new Error('Não foi possível confirmar bucket privado de anexos. Confira a configuração antes de iniciar a API.');
+    }
+
     async storeUploadedFile(file: Express.Multer.File, osId: string, localUploadDir: string): Promise<string> {
         if (!this.usesSupabase()) {
             return file.filename;
         }
 
         const sourcePath = file.path || join(localUploadDir, file.filename);
-        const ext = extname(file.originalname) || extname(file.filename) || '.bin';
+        const ext = extname(file.filename) || '.bin';
         const now = new Date();
         const yyyy = String(now.getUTCFullYear());
         const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
@@ -87,14 +91,6 @@ export class MaintenanceMediaStorageService {
         }
 
         const objectPath = filePath.slice(SUPABASE_PREFIX.length);
-
-        if (this.bucketIsPublic) {
-            const { data } = this.supabaseClient.storage.from(this.bucket).getPublicUrl(objectPath);
-            if (!data?.publicUrl) {
-                throw new InternalServerErrorException('Falha ao gerar URL publica do anexo');
-            }
-            return { type: 'redirect', url: data.publicUrl };
-        }
 
         const { data, error } = await this.supabaseClient.storage
             .from(this.bucket)

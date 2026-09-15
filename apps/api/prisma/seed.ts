@@ -215,22 +215,22 @@ async function main() {
     console.log(`  ✅ ${internosScreens.length} permissions assigned to Internos role`);
 
     // ── 4. Create Admin User ────────────────────
-    const adminPasswordHash = await bcrypt.hash('admin123', 10);
-    const adminPinHash = await bcrypt.hash('0000', 10);
-
-    const adminUser = await prisma.internalUser.upsert({
-        where: { email: 'admin@zyllen.com' },
-        update: {},
-        create: {
-            name: 'Administrador',
-            email: 'admin@zyllen.com',
-            passwordHash: adminPasswordHash,
-            pin4Hash: adminPinHash,
-            roleId: adminRole.id,
-            isActive: true,
-        },
-    });
-    console.log('  ✅ Admin user created:', adminUser.email, '(PIN: 0000)');
+    const existingAdmin = await prisma.internalUser.findFirst({ where: { roleId: adminRole.id } });
+    if (!existingAdmin) {
+        const email = process.env.BOOTSTRAP_ADMIN_EMAIL;
+        const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !password || password.length < 16) {
+            throw new Error('Primeiro administrador: defina BOOTSTRAP_ADMIN_EMAIL e BOOTSTRAP_ADMIN_PASSWORD exclusiva (mínimo 16 caracteres). Nenhum login padrão será criado.');
+        }
+        await prisma.internalUser.create({ data: {
+            name: 'Administrador', email, passwordHash: await bcrypt.hash(password, 10),
+            roleId: adminRole.id, isActive: true,
+            // Sem PIN padrão: o administrador cadastra seu PIN no primeiro login.
+        } });
+        console.log('  ✅ Primeiro administrador criado; cadastre o PIN no primeiro login.');
+    } else {
+        console.log('  ✅ Administrador existente preservado; credenciais não alteradas.');
+    }
 
     // ── 5. Create Default Location ──────────────
     const defaultLocation = await prisma.location.upsert({
@@ -303,8 +303,7 @@ async function main() {
     console.log('🎉 Seed completed successfully!');
     console.log('');
     console.log('📋 Summary:');
-    console.log('   Admin login: admin@zyllen.com / admin123');
-    console.log('   Admin PIN: 0000');
+    console.log('   Credenciais: configuradas pelo operador; nunca exibidas pelo seed.');
     console.log('   Roles: Admin, Técnico, Gestor, Internos');
     console.log(`   Permissions: ${createdPermissions.length} screen permissions`);
     console.log('   Location: Almoxarifado Central');

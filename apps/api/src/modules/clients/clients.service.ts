@@ -194,7 +194,9 @@ export class ClientsService {
         const [data, total] = await Promise.all([
             this.prisma.externalUser.findMany({
                 where,
-                include: {
+                select: {
+                    id: true, name: true, email: true, phone: true, position: true, city: true, state: true,
+                    companyId: true, projectId: true, isActive: true, createdAt: true, updatedAt: true,
                     company: { select: { id: true, name: true } },
                     project: { select: { id: true, name: true } },
                 },
@@ -218,7 +220,7 @@ export class ClientsService {
         state?: string;
         companyId: string;
         projectId?: string;
-    }) {
+    }, authorizedById: string) {
         const company = await this.prisma.company.findUnique({ where: { id: data.companyId } });
         if (!company) throw new NotFoundException('Empresa não encontrada');
 
@@ -240,14 +242,21 @@ export class ClientsService {
 
         const { password, cpf, ...rest } = data;
         const passwordHash = await bcrypt.hash(password, 10);
-        const created = await this.prisma.externalUser.create({
-            data: { ...rest, passwordHash, cpf: cpf ? encryptCPF(cpf) : null },
-            select: {
-                id: true, name: true, email: true, cpf: true, phone: true,
-                position: true, city: true, state: true,
-                company: { select: { id: true, name: true } },
-                project: { select: { id: true, name: true } },
-            },
+        const created = await this.prisma.$transaction(async tx => {
+            const user = await tx.externalUser.create({
+                data: { ...rest, passwordHash, cpf: cpf ? encryptCPF(cpf) : null },
+                select: {
+                    id: true, name: true, email: true, cpf: true, phone: true,
+                    position: true, city: true, state: true,
+                    company: { select: { id: true, name: true } },
+                    project: { select: { id: true, name: true } },
+                },
+            });
+            await tx.auditLog.create({ data: {
+                action: 'CLIENT_CREATED_BY_MANAGER', entityType: 'ExternalUser', entityId: user.id, userId: authorizedById,
+                details: { companyId: data.companyId, projectId: data.projectId ?? null },
+            } });
+            return user;
         });
         return { ...created, cpf: decryptCPFSafe(created.cpf) };
     }

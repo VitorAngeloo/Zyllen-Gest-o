@@ -1,17 +1,14 @@
 import {
     Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request,
-    UseInterceptors, UploadedFiles, BadRequestException, Res,
+    UseInterceptors, UploadedFiles, BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { verifiedMediaStorage, mediaUploadDirectory } from '../media/media-storage';
+import { join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
-import { randomUUID } from 'crypto';
-import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
-import { Public } from '../auth/public.decorator';
 import { FollowupsService } from './followups.service';
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
 import {
@@ -25,17 +22,10 @@ import {
 } from '@zyllen/shared';
 
 // Ensure uploads directory exists
-const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'followups');
+const UPLOAD_DIR = mediaUploadDirectory("followups");
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const followupStorage = diskStorage({
-    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-    filename: (_req, file, cb) => {
-        const unique = randomUUID();
-        const ext = extname(file.originalname) || '.bin';
-        cb(null, `${unique}${ext}`);
-    },
-});
+const followupStorage = verifiedMediaStorage(UPLOAD_DIR, true);
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktime|x-msvideo)|application\/pdf)$/;
@@ -178,36 +168,6 @@ export class FollowupsController {
         }));
         const data = await this.followupsService.addBlockAttachments(id, blockId, attachments, req.user.id);
         return { data, message: `${files.length} arquivo(s) enviado(s)` };
-    }
-
-    @Get(':id/blocks/:blockId/attachments/:attId/file')
-    @Public()
-    async serveFile(
-        @Param('id') id: string,
-        @Param('blockId') blockId: string,
-        @Param('attId') attId: string,
-        @Res() res: Response,
-    ) {
-        // Simple serve from disk
-        const block = await this.followupsService.findById(id);
-        const blk = block.blocks.find((b) => b.id === blockId);
-        if (!blk) throw new BadRequestException('Bloco não encontrado');
-        const att = blk.attachments.find((a) => a.id === attId);
-        if (!att) throw new BadRequestException('Anexo não encontrado');
-
-        const filePath = join(UPLOAD_DIR, att.filePath);
-        if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
-
-        const EXT_MIME: Record<string, string> = {
-            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-            '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-            '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
-            '.avi': 'video/x-msvideo', '.pdf': 'application/pdf',
-        };
-        const mime = att.mimeType || EXT_MIME[extname(att.fileName).toLowerCase()] || 'application/octet-stream';
-        res.setHeader('Content-Type', mime);
-        res.setHeader('Content-Disposition', `inline; filename="${att.fileName}"`);
-        return res.sendFile(filePath);
     }
 
     @Delete(':id/blocks/:blockId/attachments/:attId')

@@ -131,7 +131,7 @@ export default function MinhasOsPage() {
                     ...b,
                     attachments: (b.attachments ?? []).map((a: any) => ({
                         ...a,
-                        fileUrl: `${apiBase}/maintenance/${selectedOS.id}/followup-blocks/${b.id}/attachments/${a.id}/file`,
+                        fileUrl: `${apiBase}/media/os-followup/${encodeURIComponent(a.id)}/file`,
                     })),
                 }));
             } catch { /* ignore */ }
@@ -153,7 +153,7 @@ export default function MinhasOsPage() {
                 id: att.id,
                 fileName: att.fileName,
                 mimeType: att.mimeType,
-                fileUrl: `${apiBase}/maintenance/${selectedOS.id}/attachments/${att.id}/file`,
+                fileUrl: `${apiBase}/media/maintenance/${encodeURIComponent(att.id)}/file`,
             })),
             followupBlocks,
         });
@@ -213,7 +213,7 @@ export default function MinhasOsPage() {
         const statusCfg = STATUS_CONFIG[selectedOS.status] || STATUS_CONFIG.OPEN;
         const formRows = getOsFieldRows(selectedOS.formType, selectedOS.formData);
         const isInstalacaoSala = selectedOS.formType === "INSTALACAO_SALA";
-        const isSignatureLocked = isInstalacaoSala && !!(selectedOS.formData as any)?.witnessSignature;
+        const isSignatureLocked = !!(selectedOS.formData as any)?.witnessSignature;
 
         return (
             <div className="space-y-6">

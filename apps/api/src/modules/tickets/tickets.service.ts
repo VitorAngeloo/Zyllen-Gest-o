@@ -3,6 +3,7 @@ import {
     NotFoundException,
     BadRequestException,
     ForbiddenException,
+    ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
@@ -210,14 +211,16 @@ export class TicketsService {
         const user = await this.prisma.internalUser.findUnique({ where: { id: assignedToId } });
         if (!user) throw new NotFoundException('Usuário interno não encontrado');
 
-        return this.prisma.ticket.update({
-            where: { id: ticketId },
+        const assigned = await this.prisma.ticket.updateMany({
+            where: { id: ticketId, assignedToInternalUserId: null, status: { not: TicketStatus.CLOSED } },
             data: {
                 assignedToInternalUserId: assignedToId,
                 status: TicketStatus.IN_PROGRESS,
                 firstResponseAt: ticket.firstResponseAt ?? new Date(),
             },
         });
+        if (assigned.count !== 1) throw new ConflictException('Chamado já atribuído ou encerrado. Use a transferência autorizada.');
+        return this.findById(ticketId);
     }
 
     // ── Helper: check admin/gestor role ──
@@ -229,6 +232,7 @@ export class TicketsService {
     async assignWithPin(ticketId: string, userId: string, roleName: string, pin: string, assignedToId?: string) {
         const ticket = await this.findById(ticketId);
         if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException('Chamado encerrado não pode ser alterado');
+        if (ticket.assignedToInternalUserId) throw new ConflictException('Chamado já tem responsável. Use a transferência autorizada.');
 
         // Only admin/gestor can delegate to another user
         const targetId = assignedToId && this.isAdminOrGestor(roleName) ? assignedToId : userId;
@@ -239,15 +243,16 @@ export class TicketsService {
         const user = await this.prisma.internalUser.findUnique({ where: { id: targetId } });
         if (!user) throw new NotFoundException('Usuário interno não encontrado');
 
-        return this.prisma.ticket.update({
-            where: { id: ticketId },
+        const claimed = await this.prisma.ticket.updateMany({
+            where: { id: ticketId, assignedToInternalUserId: null, status: { not: TicketStatus.CLOSED } },
             data: {
                 assignedToInternalUserId: targetId,
                 status: TicketStatus.IN_PROGRESS,
                 firstResponseAt: ticket.firstResponseAt ?? new Date(),
             },
-            include: { company: { select: { name: true } }, assignedTo: { select: { name: true } } },
         });
+        if (claimed.count !== 1) throw new ConflictException('Outro usuário assumiu ou encerrou este chamado. Atualize a lista.');
+        return this.findById(ticketId);
     }
 
     // ── Close with PIN + resolution notes ──

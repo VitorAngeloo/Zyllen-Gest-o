@@ -884,7 +884,7 @@ O comando `pnpm db:seed` cria:
 
 | Dado | Valor |
 |------|-------|
-| **Usuário admin** | `admin@zyllen.com` / senha: `admin123` / PIN: `0000` |
+| **Primeiro administrador** | Defina `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD` por variável de ambiente; sem credenciais padrão. O PIN é cadastrado no primeiro acesso. |
 | **Papéis** | Admin (46 perms), Técnico (16 perms), Gestor (33 perms) |
 | **Permissões** | 46 permissões de tela organizadas em 14 módulos |
 | **Local padrão** | Almoxarifado Central |

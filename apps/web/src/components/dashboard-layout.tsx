@@ -26,7 +26,7 @@ interface PendingTicketRating {
     assignedTo?: { id: string; name: string } | null;
 }
 
-const NAV_ITEMS: { label: string; href: string; icon: any; perm?: string }[] = [
+const NAV_ITEMS: { label: string; href: string; icon: any; perm?: string; managerOnly?: boolean }[] = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, perm: "dashboard.view" },
     { label: "Meus Chamados TI", href: "/dashboard/chamados-ti", icon: MessageSquareText },
     { label: "Chamados", href: "/dashboard/chamados", icon: Headset, perm: "tickets.view" },
@@ -40,6 +40,7 @@ const NAV_ITEMS: { label: string; href: string; icon: any; perm?: string }[] = [
     { label: "Etiquetas", href: "/dashboard/etiquetas", icon: Tag, perm: "labels.view" },
     { label: "Compras", href: "/dashboard/compras", icon: ShoppingCart, perm: "purchases.view" },
     { label: "Clientes", href: "/dashboard/clientes", icon: Building2, perm: "settings.view" },
+    { label: "Aprovar clientes", href: "/dashboard/aprovacao-clientes", icon: ShieldCheck, managerOnly: true },
     { label: "Parceiros", href: "/dashboard/terceirizados", icon: HardHat, perm: "settings.view" },
     { label: "Colaboradores", href: "/dashboard/colaboradores", icon: Users, perm: "access.view" },
     { label: "Permissões", href: "/dashboard/permissoes", icon: Key, perm: "access.manage" },
@@ -57,6 +58,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const isInternos = user?.type === "internal" && "role" in (user ?? {}) && (user as any).role?.name === "Internos";
     const visibleItems = NAV_ITEMS.filter((item) => {
+        if (item.managerOnly) return user?.type === 'internal' && ['Administrador', 'Gestor'].includes((user as any)?.role?.name ?? '');
         // Hide Dashboard for Internos role
         if (isInternos && item.href === "/dashboard" && item.perm === "dashboard.view") return false;
         return !item.perm || hasPermission(item.perm);

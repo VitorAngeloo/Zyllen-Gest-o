@@ -207,21 +207,19 @@ export default function EtiquetasPage() {
     };
 
     // ─── Impressão ──────────────────────
-    const openPrintWindow = (labelsHtml: string, columns: number) => {
-        const origin = window.location.origin;
-        const fixedHtml = labelsHtml.replace(/src="\/brand\//g, `src="${origin}/brand/`);
+    const openPrintWindow = (labels: Element[], columns: number) => {
+        const validated = parseTemplate(JSON.stringify(activeTemplate));
+        if (!validated || columns !== validated.columns) { toast.error('Layout inválido. Revise o template antes de imprimir.'); return; }
         const popup = window.open("", "_blank", "width=900,height=700");
         if (!popup) { toast.error("Habilite popups para este site para imprimir etiquetas."); return; }
-        const labelWidth = activeTemplate.widthMm;
-        const labelHeight = activeTemplate.heightMm;
+        popup.opener = null;
+        const labelWidth = validated.widthMm;
+        const labelHeight = validated.heightMm;
         const pageW = labelWidth * columns;
         const qrPx = Math.max(Math.round((labelHeight - 8) * 3.78), 20);
-        popup.document.write(`<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Etiquetas</title>
-<style>
+        popup.document.title = 'Etiquetas';
+        const style = popup.document.createElement('style');
+        style.textContent = `
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: white; font-family: Arial, sans-serif; }
 @page { size: ${pageW}mm ${labelHeight}mm; margin: 0; }
@@ -231,24 +229,27 @@ html, body { margin: 0; padding: 0; background: white; font-family: Arial, sans-
 .sheet > div img { height: 8px !important; width: auto !important; }
 .sheet > div svg { width: ${qrPx}px !important; height: ${qrPx}px !important; }
 .sheet p { margin: 0 !important; line-height: 1.2 !important; }
-</style>
-</head>
-<body>
-<div class="sheet">${fixedHtml}</div>
-<script>
-window.addEventListener('afterprint', function() { window.close(); });
-window.onload = function() { setTimeout(function() { window.print(); }, 250); };
-</script>
-</body>
-</html>`);
-        popup.document.close();
+`;
+        popup.document.head.append(style);
+        const sheet = popup.document.createElement('div');
+        sheet.className = 'sheet';
+        for (const label of labels) {
+            const copy = label.cloneNode(true) as Element;
+            copy.querySelectorAll('img').forEach(img => { img.src = new URL(img.getAttribute('src') ?? '', window.location.origin).href; });
+            sheet.append(copy);
+        }
+        popup.document.body.replaceChildren(sheet);
+        popup.addEventListener('afterprint', () => popup.close(), { once: true });
+        const images = Array.from(sheet.querySelectorAll('img'));
+        Promise.all(images.map(img => img.decode().catch(() => undefined))).then(() => {
+            if (!popup.closed) { popup.focus(); popup.print(); }
+        });
     };
 
     const handleHtmlPrint = () => {
         const sheet = document.getElementById("queue-print-sheet");
         if (!sheet || !sheet.children.length) return;
-        const labelsHtml = Array.from(sheet.children).map((el) => el.outerHTML).join("");
-        openPrintWindow(labelsHtml, activeTemplate.columns || 1);
+        openPrintWindow(Array.from(sheet.children), activeTemplate.columns || 1);
     };
 
     // Mensagem amigável para falhas do Browser Print (404 = túnel expirado).

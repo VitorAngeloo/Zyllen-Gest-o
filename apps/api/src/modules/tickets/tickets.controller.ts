@@ -3,10 +3,8 @@ import {
     UseInterceptors, UploadedFiles, BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { verifiedMediaStorage, mediaUploadDirectory } from '../media/media-storage';
 import { existsSync, mkdirSync } from 'fs';
-import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
@@ -20,17 +18,10 @@ import {
 } from '@zyllen/shared';
 
 // Ensure uploads directory exists
-const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'tickets');
+const UPLOAD_DIR = mediaUploadDirectory("tickets");
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const ticketStorage = diskStorage({
-    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-    filename: (_req, file, cb) => {
-        const unique = randomUUID();
-        const ext = extname(file.originalname) || '.bin';
-        cb(null, `${unique}${ext}`);
-    },
-});
+const ticketStorage = verifiedMediaStorage(UPLOAD_DIR);
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktime|x-msvideo))$/;

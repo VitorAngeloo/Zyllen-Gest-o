@@ -73,6 +73,46 @@ model ExternalUser {
   tickets  Ticket[]
 }
 
+// Solicitação não é identidade autenticável. Só a aprovação cria ExternalUser.
+model ClientRegistrationRequest {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  name           String
+  passwordHash   String
+  cpf            String?
+  phone          String?
+  city           String?
+  state          String?
+  position       String?
+  companyId      String?
+  projectId      String?
+  companyName    String?
+  companyCnpj    String?
+  status         String   @default("PENDING")
+  reviewedById   String?
+  reviewedAt     DateTime?
+  rejectionReason String?
+  approvedUserId String?
+  createdAt      DateTime @default(now())
+
+  @@index([status, createdAt])
+}
+
+// Capability opaca: somente o hash é persistido, nunca o token compartilhável.
+model MediaShareLink {
+  id           String   @id @default(uuid())
+  tokenHash    String   @unique
+  kind         String
+  attachmentId String
+  createdById  String
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([kind, attachmentId])
+  @@index([expiresAt])
+}
+
 
 model ContractorUser {
   id           String   @id @default(uuid())

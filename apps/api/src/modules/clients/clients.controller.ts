@@ -1,8 +1,9 @@
 import {
-    Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, HttpCode, HttpStatus,
+    Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, HttpCode, HttpStatus, Request,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard } from '../auth/manager.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { ClientsService } from './clients.service';
@@ -169,15 +170,14 @@ export class ClientsController {
     }
 
     @Post('users')
-    @UseGuards(JwtAuthGuard, PermissionsGuard)
-    @RequirePermission('settings.manage')
-    async createExternalUser(@Body(new ZodValidationPipe(createExternalUserSchema)) body: {
+    @UseGuards(JwtAuthGuard, ManagerGuard)
+    async createExternalUser(@Request() req: any, @Body(new ZodValidationPipe(createExternalUserSchema)) body: {
         name: string; email: string; password: string; confirmPassword: string;
         cpf?: string; phone?: string; position?: string; city?: string; state?: string;
         companyId: string; projectId?: string;
     }) {
         const { confirmPassword, ...data } = body;
-        const result = await this.clientsService.createExternalUser(data);
+        const result = await this.clientsService.createExternalUser(data, req.user.id);
         return { data: result, message: 'Usuário externo criado' };
     }
 }

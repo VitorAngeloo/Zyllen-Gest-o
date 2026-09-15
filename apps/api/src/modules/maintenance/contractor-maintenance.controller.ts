@@ -1,32 +1,22 @@
 import {
     Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request,
-    ForbiddenException, UseInterceptors, UploadedFiles, BadRequestException, Res,
+    ForbiddenException, UseInterceptors, UploadedFiles, BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { verifiedMediaStorage, mediaUploadDirectory } from '../media/media-storage';
+import { join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
-import { randomUUID } from 'crypto';
-import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MaintenanceService } from './maintenance.service';
 import { MaintenanceMediaStorageService } from './maintenance-media-storage.service';
-import { Public } from '../auth/public.decorator';
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
 import { createMaintenanceSchema, updateOsFormDataSchema, updateMaintenanceStatusSchema } from '@zyllen/shared';
 
 // Reuse same upload dir as internal controller
-const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'maintenance');
+const UPLOAD_DIR = mediaUploadDirectory("maintenance");
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const maintenanceStorage = diskStorage({
-    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-    filename: (_req, file, cb) => {
-        const unique = randomUUID();
-        const ext = extname(file.originalname) || '.bin';
-        cb(null, `${unique}${ext}`);
-    },
-});
+const maintenanceStorage = verifiedMediaStorage(UPLOAD_DIR);
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktime|x-msvideo))$/;
@@ -217,38 +207,6 @@ export class ContractorMaintenanceController {
         return { data };
     }
 
-    @Get(':id/attachments/:attachmentId/file')
-    @Public()
-    async serveFile(
-        @Param('id') id: string,
-        @Param('attachmentId') attachmentId: string,
-        @Res() res: Response,
-    ) {
-        const attachments = await this.maintenanceService.findAttachments(id);
-        const att = attachments.find((a) => a.id === attachmentId);
-        if (!att) throw new BadRequestException('Anexo não encontrado');
-
-        const source = await this.mediaStorageService.resolveServeSource(att.filePath, UPLOAD_DIR);
-
-        if (source.type === 'redirect') {
-            return res.redirect(source.url);
-        }
-
-        const filePath = source.filePath;
-        if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
-
-        const EXT_MIME: Record<string, string> = {
-            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-            '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-            '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
-            '.avi': 'video/x-msvideo', '.pdf': 'application/pdf',
-        };
-        const mime = att.mimeType || EXT_MIME[extname(att.fileName).toLowerCase()] || 'application/octet-stream';
-        res.setHeader('Content-Type', mime);
-        res.setHeader('Content-Disposition', `inline; filename="${att.fileName}"`);
-        return res.sendFile(filePath);
-    }
-
     @Delete(':id/attachments/:attachmentId')
     async deleteAttachment(
         @Request() req: any,
@@ -351,35 +309,6 @@ export class ContractorMaintenanceController {
         }));
         const data = await this.maintenanceService.addFollowupBlockAttachments(id, blockId, attachments);
         return { data, message: `${files.length} arquivo(s) enviado(s)` };
-    }
-
-    @Get(':id/followup-blocks/:blockId/attachments/:attId/file')
-    @Public()
-    async serveFollowupFile(
-        @Param('id') id: string,
-        @Param('blockId') blockId: string,
-        @Param('attId') attId: string,
-        @Res() res: Response,
-    ) {
-        const blocks = await this.maintenanceService.findFollowupBlocks(id);
-        const block = blocks.find((b: any) => b.id === blockId);
-        if (!block) throw new BadRequestException('Bloco não encontrado');
-        const att = block.attachments.find((a: any) => a.id === attId);
-        if (!att) throw new BadRequestException('Anexo não encontrado');
-
-        const filePath = join(UPLOAD_DIR, att.filePath);
-        if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
-
-        const EXT_MIME: Record<string, string> = {
-            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-            '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-            '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
-            '.avi': 'video/x-msvideo',
-        };
-        const mime = att.mimeType || EXT_MIME[extname(att.fileName).toLowerCase()] || 'application/octet-stream';
-        res.setHeader('Content-Type', mime);
-        res.setHeader('Content-Disposition', `inline; filename="${att.fileName}"`);
-        return res.sendFile(filePath);
     }
 
     @Delete(':id/followup-blocks/:blockId/attachments/:attId')

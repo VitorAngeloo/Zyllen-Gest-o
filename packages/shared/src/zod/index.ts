@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { labelLayoutJsonSchema } from './label-layout';
+export { labelLayoutSchema, labelLayoutJsonSchema } from './label-layout';
 
 // ============================================
 // Zyllen Gestão — Shared Zod Schemas
@@ -286,7 +288,7 @@ export const reversalReasonSchema = z.object({
 
 export const updateLabelTemplateSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatório').optional(),
-    layout: z.string().min(1, 'Layout é obrigatório').optional(),
+    layout: labelLayoutJsonSchema.optional(),
 });
 
 export const updateContractorSchema = z.object({
@@ -455,7 +457,7 @@ export const printLabelBatchSchema = z.object({
 
 export const createLabelTemplateSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatório'),
-    layout: z.string().min(1, 'Layout é obrigatório'),
+    layout: labelLayoutJsonSchema,
 });
 
 // ── Pagination ──

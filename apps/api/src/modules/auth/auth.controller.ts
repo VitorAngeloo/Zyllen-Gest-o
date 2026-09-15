@@ -77,6 +77,7 @@ export class AuthController {
     @UseGuards(JwtAuthGuard)
     @HttpCode(HttpStatus.OK)
     async logout(@Res({ passthrough: true }) res: ExpressResponse) {
+        res.clearCookie('zyllen_media', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/media' });
         res.clearCookie('refresh_token', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',

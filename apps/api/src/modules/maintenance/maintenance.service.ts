@@ -34,6 +34,18 @@ function generateOsNumber(): string {
 @Injectable()
 export class MaintenanceService {
     constructor(private readonly prisma: PrismaService) { }
+    private transactionScope = false;
+
+    // Serializa as mutações de uma mesma OS, incluindo confirmação/edição concorrentes.
+    // A versão transacional não abre outra transação nem conecta outro PrismaClient.
+    private async withOsLock<T>(osId: string, work: (service: MaintenanceService) => Promise<T>): Promise<T> {
+        return this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT "id" FROM "MaintenanceOS" WHERE "id" = ${osId} FOR UPDATE`;
+            const service = new MaintenanceService(tx as unknown as PrismaService);
+            service.transactionScope = true;
+            return work(service);
+        });
+    }
 
     // ── Open OS ──
     async openOS(data: {
@@ -56,6 +68,9 @@ export class MaintenanceService {
         scheduledDate?: string;
         formData?: Record<string, unknown>;
     }) {
+        if (data.openedByContractorId && data.assetId) {
+            throw new ForbiddenException('Patrimônio não pode ser associado por este portal');
+        }
         // Validate asset if provided
         let asset: any = null;
         if (data.assetId) {
@@ -204,7 +219,8 @@ export class MaintenanceService {
     };
 
     // ── Update status ──
-    async updateStatus(id: string, status: string, userId: string, notes?: string, isContractor = false) {
+    async updateStatus(id: string, status: string, userId: string, notes?: string, isContractor = false): Promise<Prisma.MaintenanceOSGetPayload<{}>> {
+        if (!this.transactionScope) return this.withOsLock(id, (s) => s.updateStatus(id, status, userId, notes, isContractor));
         if (!Object.values(MaintenanceStatus).includes(status as MaintenanceStatus)) {
             throw new BadRequestException(`Status inválido. Use: ${Object.values(MaintenanceStatus).join(', ')}`);
         }
@@ -278,7 +294,8 @@ export class MaintenanceService {
         contactRole?: string;
         startedAt?: string;
         endedAt?: string;
-    }, isContractor = false) {
+    }, isContractor = false): Promise<Prisma.MaintenanceOSGetPayload<{}>> {
+        if (!this.transactionScope) return this.withOsLock(id, (s) => s.updateFormData(id, userId, data, isContractor));
         validateFormData(data.formData);
 
         const os = await this.findById(id);
@@ -291,7 +308,10 @@ export class MaintenanceService {
 
         // Signature lock — once witness signature is stored, service details are immutable
         const existingFormData = os.formData as Record<string, unknown> | null;
-        if (os.formType === 'INSTALACAO_SALA' && existingFormData?.witnessSignature) {
+        if (existingFormData?.witnessSignature && data.formData.witnessSignature !== existingFormData.witnessSignature) {
+            throw new ForbiddenException('Assinatura registrada é imutável');
+        }
+        if (existingFormData?.witnessSignature) {
             throw new ForbiddenException('Formulário bloqueado: detalhes do serviço não podem ser alterados após a assinatura do cliente');
         }
 
@@ -323,8 +343,9 @@ export class MaintenanceService {
     }
 
     // ── Client witness signature ──
-    async clientSignWitness(osId: string, companyId: string, signature: string) {
-        if (!signature || !signature.startsWith('data:image/')) {
+    async clientSignWitness(osId: string, companyId: string, signature: string): Promise<Prisma.MaintenanceOSGetPayload<{}>> {
+        if (!this.transactionScope) return this.withOsLock(osId, (s) => s.clientSignWitness(osId, companyId, signature));
+        if (!signature || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(signature)) {
             throw new BadRequestException('Assinatura inválida');
         }
         const os = await this.findById(osId);
@@ -332,6 +353,7 @@ export class MaintenanceService {
         if (os.status === MaintenanceStatus.CLOSED) throw new BadRequestException('OS já encerrada');
 
         const existingFormData = (os.formData as Record<string, unknown>) || {};
+        if (existingFormData.witnessSignature) throw new ForbiddenException('Assinatura registrada é imutável');
         const newFormData = { ...existingFormData, witnessSignature: signature };
         validateFormData(newFormData);
 
@@ -424,7 +446,8 @@ export class MaintenanceService {
         });
     }
 
-    async updateFollowupBlock(osId: string, blockId: string, data: { content?: string; order?: number }) {
+    async updateFollowupBlock(osId: string, blockId: string, data: { content?: string; order?: number }): Promise<Prisma.MaintenanceOSFollowupBlockGetPayload<{ include: { attachments: true } }>> {
+        if (!this.transactionScope) return this.withOsLock(osId, (s) => s.updateFollowupBlock(osId, blockId, data));
         const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({
             where: { id: blockId, maintenanceOSId: osId },
         });
@@ -440,12 +463,16 @@ export class MaintenanceService {
         });
     }
 
-    async lockFollowupBlock(osId: string, blockId: string) {
+    async lockFollowupBlock(osId: string, blockId: string): Promise<Prisma.MaintenanceOSFollowupBlockGetPayload<{ include: { attachments: true } }>> {
+        if (!this.transactionScope) return this.withOsLock(osId, (s) => s.lockFollowupBlock(osId, blockId));
         const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({
             where: { id: blockId, maintenanceOSId: osId },
         });
         if (!block) throw new NotFoundException('Bloco não encontrado');
         if (block.isLocked) throw new BadRequestException('Bloco já está confirmado');
+        if (block.type !== 'SIGNATURE' || !block.content || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(block.content)) {
+            throw new BadRequestException('Preencha uma assinatura PNG antes de confirmar');
+        }
         return this.prisma.maintenanceOSFollowupBlock.update({
             where: { id: blockId },
             data: { isLocked: true },
@@ -453,11 +480,13 @@ export class MaintenanceService {
         });
     }
 
-    async removeFollowupBlock(osId: string, blockId: string) {
+    async removeFollowupBlock(osId: string, blockId: string): Promise<void> {
+        if (!this.transactionScope) return this.withOsLock(osId, (s) => s.removeFollowupBlock(osId, blockId));
         const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({
             where: { id: blockId, maintenanceOSId: osId },
         });
         if (!block) throw new NotFoundException('Bloco não encontrado');
+        if (block.isLocked) throw new ForbiddenException('Bloco confirmado é imutável e não pode ser excluído');
         await this.prisma.maintenanceOSFollowupBlock.delete({ where: { id: blockId } });
     }
 
@@ -465,11 +494,13 @@ export class MaintenanceService {
         osId: string,
         blockId: string,
         files: { fileName: string; filePath: string; mimeType?: string }[],
-    ) {
+    ): Promise<Prisma.MaintenanceOSFollowupBlockGetPayload<{ include: { attachments: true } }> | null> {
+        if (!this.transactionScope) return this.withOsLock(osId, (s) => s.addFollowupBlockAttachments(osId, blockId, files));
         const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({
             where: { id: blockId, maintenanceOSId: osId },
         });
         if (!block) throw new NotFoundException('Bloco não encontrado');
+        if (block.isLocked) throw new ForbiddenException('Bloco confirmado é imutável');
         await this.prisma.maintenanceOSFollowupAttachment.createMany({
             data: files.map((f) => ({
                 blockId,
@@ -484,7 +515,11 @@ export class MaintenanceService {
         });
     }
 
-    async removeFollowupBlockAttachment(osId: string, blockId: string, attId: string) {
+    async removeFollowupBlockAttachment(osId: string, blockId: string, attId: string): Promise<Prisma.MaintenanceOSFollowupAttachmentGetPayload<{}>> {
+        if (!this.transactionScope) return this.withOsLock(osId, (s) => s.removeFollowupBlockAttachment(osId, blockId, attId));
+        const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({ where: { id: blockId, maintenanceOSId: osId } });
+        if (!block) throw new NotFoundException('Bloco não encontrado');
+        if (block.isLocked) throw new ForbiddenException('Bloco confirmado é imutável');
         const att = await this.prisma.maintenanceOSFollowupAttachment.findFirst({
             where: { id: attId, blockId, block: { maintenanceOSId: osId } },
         });

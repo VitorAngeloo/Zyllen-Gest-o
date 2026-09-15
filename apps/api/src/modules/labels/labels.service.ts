@@ -1,8 +1,10 @@
 import {
     Injectable,
     NotFoundException,
+    BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { labelLayoutJsonSchema } from '@zyllen/shared';
 
 type LabelDataContractV1 = {
     contractVersion: 'v1';
@@ -168,10 +170,12 @@ export class LabelsService {
     }
 
     async createTemplate(data: { name: string; layout: string }) {
+        if (!labelLayoutJsonSchema.safeParse(data.layout).success) throw new BadRequestException('Layout de etiqueta inválido');
         return this.prisma.labelTemplate.create({ data });
     }
 
     async updateTemplate(id: string, data: { name?: string; layout?: string }) {
+        if (data.layout !== undefined && !labelLayoutJsonSchema.safeParse(data.layout).success) throw new BadRequestException('Layout de etiqueta inválido');
         const existing = await this.prisma.labelTemplate.findUnique({ where: { id } });
         if (!existing) throw new NotFoundException('Template não encontrado');
         return this.prisma.labelTemplate.update({ where: { id }, data });

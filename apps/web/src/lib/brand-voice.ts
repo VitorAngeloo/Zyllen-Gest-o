@@ -252,3 +252,15 @@ const FORBIDDEN_PATTERNS = [
 export function hasForbiddenWords(text: string): string[] {
   return FORBIDDEN_PATTERNS.filter((re) => re.test(text)).map((re) => re.source);
 }
+
+export const SECURITY_COPY = {
+  registrationPending: 'Solicitação enviada! Aguarde a aprovação de um Administrador ou Gestor para acessar.',
+  registrationTitle: 'Aprovação de clientes',
+  registrationDescription: 'Confira o vínculo com a empresa e o projeto antes de liberar o acesso.',
+  managerOnly: 'Esta área é restrita a Administrador e Gestor.',
+  approved: 'Cliente aprovado. O acesso já está liberado.',
+  rejected: 'Solicitação rejeitada.',
+  noPending: 'Nenhuma solicitação encontrada nesta situação.',
+  shareCreated: 'Link criado. Válido por 24 horas. Qualquer pessoa com o link poderá abrir este anexo.',
+  shareRevoked: 'Link revogado.',
+} as const;

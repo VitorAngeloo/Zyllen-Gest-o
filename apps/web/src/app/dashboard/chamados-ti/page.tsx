@@ -1,4 +1,5 @@
 "use client";
+import { ShareAttachment } from '@web/components/share-attachment';
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
 import { apiClient } from "@web/lib/api-client";
@@ -236,8 +237,7 @@ export default function ChamadosTIPage() {
                                 <h4 className="text-xs font-medium text-[var(--zyllen-muted)] uppercase tracking-wider">Anexos</h4>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     {selectedTicket.attachments.map((att) => (
-                                        <a
-                                            key={att.id}
+                                        <div key={att.id}><a
                                             href={`${API_BASE}${att.filePath}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
@@ -260,6 +260,7 @@ export default function ChamadosTIPage() {
                                             )}
                                             <p className="text-xs text-[var(--zyllen-muted)] px-2 py-1 truncate">{att.fileName}</p>
                                         </a>
+                                        <ShareAttachment kind="ticket" id={att.id} fileName={att.fileName} /></div>
                                     ))}
                                 </div>
                             </div>

@@ -1,4 +1,5 @@
 "use client";
+import { ShareAttachment } from '@web/components/share-attachment';
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
@@ -1960,8 +1961,7 @@ export default function EstoquePage() {
                                                     const url = `${API_BASE}${att.filePath}`;
                                                     const isImage = att.mediaType === "IMAGE" || att.mimeType?.startsWith("image/");
                                                     return (
-                                                        <a
-                                                            key={att.id}
+                                                        <div key={att.id}><a
                                                             href={url}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
@@ -1974,6 +1974,7 @@ export default function EstoquePage() {
                                                                 <video src={url} className="h-20 w-full object-cover" />
                                                             )}
                                                         </a>
+                                                        <ShareAttachment kind="item" id={att.id} fileName={att.fileName} /></div>
                                                     );
                                                 })}
                                             </div>

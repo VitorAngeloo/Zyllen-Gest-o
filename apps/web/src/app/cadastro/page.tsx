@@ -1,4 +1,5 @@
 "use client";
+import { SECURITY_COPY } from '@web/lib/brand-voice';
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -78,7 +79,7 @@ function CadastroPageInner() {
                 if (v && v !== "__new__") payload[k] = v;
             }
             await apiClient.post("/register/client", payload);
-            toast.success("Cadastro realizado com sucesso! Faça login para acessar.");
+            toast.success(SECURITY_COPY.registrationPending, { duration: 10000 });
             router.push("/?type=client");
         } catch (err: any) {
             toast.error(err.message || "Erro ao cadastrar");

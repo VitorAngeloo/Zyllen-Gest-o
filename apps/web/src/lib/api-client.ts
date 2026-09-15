@@ -25,6 +25,7 @@ class ApiClient {
         const { body, headers, _retry, ...rest } = options;
 
         const config: RequestInit = {
+            credentials: 'include',
             ...rest,
             headers: {
                 'Content-Type': 'application/json',

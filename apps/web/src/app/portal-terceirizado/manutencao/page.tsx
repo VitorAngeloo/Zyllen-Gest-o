@@ -152,7 +152,7 @@ function ContractorMaintenanceInner() {
                 id: att.id,
                 fileName: att.fileName,
                 mimeType: att.mimeType,
-                fileUrl: `${apiBase}/contractor/maintenance/${selectedOS.id}/attachments/${att.id}/file`,
+                fileUrl: `${apiBase}/media/maintenance/${encodeURIComponent(att.id)}/file`,
             })),
         });
     };
@@ -196,7 +196,7 @@ function ContractorMaintenanceInner() {
             <OsFormWizard
                 userContext="contractor"
                 editMode
-                readOnly={selectedOS.status === "CLOSED"}
+                readOnly={selectedOS.status === "CLOSED" || !!(selectedOS.formData as any)?.witnessSignature}
                 initialData={{
                     id: selectedOS.id,
                     formType: selectedOS.formType as OsFormType,
@@ -251,7 +251,7 @@ function ContractorMaintenanceInner() {
                                 >
                                     {statusCfg.label}
                                 </span>
-                                {selectedOS.status !== "CLOSED" && (
+                                {selectedOS.status !== "CLOSED" && !(selectedOS.formData as any)?.witnessSignature && (
                                     <Button
                                         variant="outline"
                                         size="sm"

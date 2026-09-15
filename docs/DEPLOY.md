@@ -49,6 +49,10 @@ Enquanto esses secrets não estiverem configurados, use a **Forma 1**.
 
 A API roda como processo Node.js no Windows Server (este PC). O deploy é feito manualmente.
 
+### Versão de segurança (aprovação e anexos privados)
+
+Antes de parar a API, siga [o checklist da remediação](security-audit/implementacao.md): testes isolados aprovados, backup restaurável, revisão de migrations e `node docs/security-audit/preflight-security.cjs` na raiz. JWT com menos de 64 caracteres/default é recusado pela nova versão; combine a troca e o novo login dos usuários. Não altere a chave de CPF. Publicação do web e backend deve ser coordenada; links antigos públicos serão desativados.
+
 ### Passo a passo
 
 ```powershell
@@ -65,26 +69,29 @@ Stop-Process -Id <PID> -Force
 cd "c:\Users\SERVIDOR ZYLLEN\Documents\GitHub\Zyllen-Gest-o"
 git pull
 
-# 4. Compile a API
+# 4. Atualize dependências/pacote compartilhado e gere os tipos COM A API PARADA
+pnpm install --frozen-lockfile
+pnpm --filter @zyllen/shared build
 cd apps\api
+pnpm prisma generate
+
+# 5. Compile a API com o client atualizado
 pnpm build
 
-# 5. Aplique mudanças de banco de dados (se houver)
+# 6. Aplique mudanças de banco de dados (se houver)
 #    Aplica as migrations versionadas ainda pendentes. NÃO reseta,
 #    NÃO aceita perda de dados. Se não houver pendência, é no-op.
 pnpm prisma migrate deploy
 
-# 6. Atualize os tipos Prisma (após mudança de schema)
-#    A API precisa estar PARADA aqui, senão o generate falha com
-#    "EPERM ... query_engine-windows.dll" (arquivo travado pelo processo).
-pnpm prisma generate
+#    A geração foi feita antes do build: gerar depois não corrige
+#    tipos ausentes durante a compilação. A API parada evita EPERM no engine.
 
 # 7. Inicie a API novamente
 Start-Process -FilePath "node" `
   -ArgumentList "dist\main.js" `
   -RedirectStandardOutput "api-run.log" `
   -RedirectStandardError "api-err.log" `
-  -NoNewWindow
+  -WindowStyle Hidden
 
 # 8. Confirme que está rodando
 Start-Sleep -Seconds 3

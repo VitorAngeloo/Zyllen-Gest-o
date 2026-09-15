@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "description": "Copy into tmp/security-test-deps/package.json, then npm install --prefix tmp/security-test-deps --ignore-scripts --no-audit --no-fund",
+  "dependencies": {
+    "@electric-sql/pglite": "0.3.12",
+    "@electric-sql/pglite-socket": "0.0.17"
+  }
+}

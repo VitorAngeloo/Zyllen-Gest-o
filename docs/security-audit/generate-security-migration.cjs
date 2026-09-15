@@ -1,0 +1,24 @@
+/* Offline schema-to-schema diff. Does NOT inspect, connect to or migrate any database. */
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const root = path.resolve(__dirname, '../..');
+const scratch = path.join(root, 'tmp/security-tests');
+fs.mkdirSync(scratch, { recursive: true });
+const baseline = 'f3b2727190adbf96c9d35dc57b927e79f5c85275';
+const previous = execFileSync('git', ['show', `${baseline}:apps/api/prisma/schema.prisma`], { cwd: root, encoding: 'utf8' });
+const before = path.join(scratch, 'before-security.prisma');
+fs.writeFileSync(before, previous);
+const cli = require.resolve('prisma/build/index.js', { paths: [path.join(root, 'apps/api')] });
+const env = { ...process.env, DATABASE_URL: 'postgresql://test@127.0.0.1:1/test', DIRECT_URL: 'postgresql://test@127.0.0.1:1/test' };
+const run = args => execFileSync(process.execPath, [cli, ...args], { cwd: scratch, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+let sql = run(['migrate', 'diff', '--from-schema-datamodel', before, '--to-schema-datamodel', path.join(root, 'apps/api/prisma/schema.prisma'), '--script']);
+if (/\b(DROP|ALTER|DELETE|TRUNCATE|UPDATE)\b/i.test(sql) || !sql.includes('CREATE TABLE "ClientRegistrationRequest"') || !sql.includes('CREATE TABLE "MediaShareLink"')) throw new Error('Unexpected diff; manual review required. No migration written.');
+sql = sql.trimEnd() + '\n\n-- These tables are accessed exclusively through the server-side Prisma connection.\n-- No policy grants access to Supabase anonymous/authenticated API roles.\nALTER TABLE "ClientRegistrationRequest" ENABLE ROW LEVEL SECURITY;\nALTER TABLE "MediaShareLink" ENABLE ROW LEVEL SECURITY;\n';
+const folder = path.join(root, 'apps/api/prisma/migrations/20260915180000_security_client_approval_media_shares');
+fs.mkdirSync(folder, { recursive: true });
+const output = path.join(folder, 'migration.sql');
+if (fs.existsSync(output) && fs.readFileSync(output, 'utf8').trimEnd() !== sql.trimEnd()) throw new Error('Existing migration differs. Do not overwrite an applied migration.');
+if (!fs.existsSync(output)) fs.writeFileSync(output, sql);
+fs.writeFileSync(path.join(scratch, 'before-security.sql'), run(['migrate', 'diff', '--from-empty', '--to-schema-datamodel', before, '--script']));
+console.log('Additive migration generated offline. Review before deploy:\n' + sql);

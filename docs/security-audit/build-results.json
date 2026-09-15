@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-09-15T19:16:49.376Z",
+  "sharedBuild": "passed",
+  "apiTypecheckedCompilation": "passed",
+  "webTscNoEmit": "passed",
+  "nextProductionBuild": "passed",
+  "nextBundler": "Turbopack",
+  "isolated": true,
+  "outputRoot": "tmp/security-tests",
+  "productionDistOrDatabaseModified": false
+}

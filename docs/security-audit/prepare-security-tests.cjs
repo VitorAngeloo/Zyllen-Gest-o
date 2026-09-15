@@ -1,0 +1,21 @@
+/* Generates test artifacts only under tmp/security-tests. Never connects to a DB; URLs are overwritten. */
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const root = path.resolve(__dirname, '../..');
+const scratch = path.join(root, 'tmp/security-tests');
+fs.mkdirSync(scratch, { recursive: true });
+const prismaCli = require.resolve('prisma/build/index.js', { paths: [path.join(root, 'apps/api')] });
+const env = { ...process.env, PRISMA_GENERATE_SKIP_AUTOINSTALL: 'true', DATABASE_URL: 'postgresql://test@127.0.0.1:1/test', DIRECT_URL: 'postgresql://test@127.0.0.1:1/test' };
+fs.writeFileSync(path.join(scratch, 'package.json'), JSON.stringify({ private: true }));
+fs.mkdirSync(path.join(scratch, 'node_modules/@prisma'), { recursive: true });
+const clientLink = path.join(scratch, 'node_modules/@prisma/client');
+if (!fs.existsSync(clientLink)) fs.symlinkSync(path.dirname(require.resolve('@prisma/client/package.json', { paths: [path.join(root, 'apps/api')] })), clientLink, 'junction');
+const schema = fs.readFileSync(path.join(root, 'apps/api/prisma/schema.prisma'), 'utf8');
+fs.writeFileSync(path.join(scratch, 'schema.prisma'), schema.replace('provider = "prisma-client-js"', 'provider = "prisma-client-js"\n  output = "./client"'));
+const run = (args) => execFileSync(process.execPath, [prismaCli, ...args], { cwd: scratch, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+console.log(run(['generate', '--schema', path.join(scratch, 'schema.prisma')]));
+fs.writeFileSync(path.join(scratch, 'schema.sql'), run(['migrate', 'diff', '--from-empty', '--to-schema-datamodel', path.join(scratch, 'schema.prisma'), '--script']));
+fs.writeFileSync(path.join(scratch, 'tsconfig.api.json'), JSON.stringify({ extends: '../../apps/api/tsconfig.json', compilerOptions: { baseUrl: '../..', rootDir: '../..', outDir: './api-build', incremental: false, paths: { '@prisma/client': ['./tmp/security-tests/client'], '@zyllen/shared': ['./packages/shared/src'], '@api/*': ['./apps/api/src/*'] } }, include: ['../../apps/api/src/**/*.ts'] }, null, 2));
+fs.writeFileSync(path.join(scratch, '.gitignore'), '*\n');
+console.log('Isolated Prisma client and schema ready; no database connection was used.');

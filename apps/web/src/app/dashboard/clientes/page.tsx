@@ -2,7 +2,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
-import { useAuthedFetch } from "@web/lib/auth-context";
+import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -30,6 +30,8 @@ const EMPTY_USER = {
 };
 
 export default function ClientesPage() {
+    const { user, userType } = useAuth();
+    const canAuthorizeClient = userType === 'internal' && ['Administrador', 'Gestor'].includes((user as any)?.role?.name);
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
     const [tab, setTab] = useState<Tab>("companies");
@@ -362,7 +364,7 @@ export default function ClientesPage() {
             {tab === "users" && (
                 <div className="space-y-4">
                     {/* ─── Formulário Novo Usuário ─── */}
-                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                    {canAuthorizeClient && <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
                         <CardHeader>
                             <CardTitle className="text-white flex items-center gap-2">
                                 <UserPlus size={18} /> Novo Usuário Externo
@@ -521,7 +523,7 @@ export default function ClientesPage() {
                                 </Button>
                             </form>
                         </CardContent>
-                    </Card>
+                    </Card>}
 
                     {/* ─── Lista de Usuários Agrupados por Empresa ─── */}
                     <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">

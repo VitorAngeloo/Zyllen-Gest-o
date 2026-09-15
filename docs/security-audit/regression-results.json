@@ -1,0 +1,141 @@
+{
+  "generatedAt": "2026-09-15T19:19:37.988Z",
+  "environment": "PGlite in-memory + Prisma 6 + real NestJS HTTP, loopback only; no production DB",
+  "note": "PGlite serializes connections; not a PostgreSQL multi-process load test.",
+  "passed": 33,
+  "failed": 0,
+  "cases": [
+    {
+      "name": "Migration: additive upgrade preserves existing rows and denies untrusted SQL role",
+      "passed": true
+    },
+    {
+      "name": "A01/A02: public registration creates only a pending request; no account/company/OS claim",
+      "passed": true
+    },
+    {
+      "name": "A01: wrong-company project rejected at registration; rejection creates no login",
+      "passed": true
+    },
+    {
+      "name": "A01: direct client creation is also manager-only",
+      "passed": true
+    },
+    {
+      "name": "A12: client list omits password hashes and CPF ciphertext",
+      "passed": true
+    },
+    {
+      "name": "A03: maintenance read requires session; rejects foreign tenants/owners",
+      "passed": true
+    },
+    {
+      "name": "A03: os-followup read requires session; rejects foreign tenants/owners",
+      "passed": true
+    },
+    {
+      "name": "A03: followup read requires session; rejects foreign tenants/owners",
+      "passed": true
+    },
+    {
+      "name": "A03: ticket read requires session; rejects foreign tenants/owners",
+      "passed": true
+    },
+    {
+      "name": "A03: item read requires session; rejects foreign tenants/owners",
+      "passed": true
+    },
+    {
+      "name": "A03: internal personal TI attachment works without tickets.view; unrelated internal denied",
+      "passed": true
+    },
+    {
+      "name": "A03: seven old public handlers and raw uploads are unavailable",
+      "passed": true
+    },
+    {
+      "name": "A03: 24h share is manager-only, hashed, single-file, audited and revocable",
+      "passed": true
+    },
+    {
+      "name": "A03: expiration, disabled issuer and deleted attachment invalidate share",
+      "passed": true
+    },
+    {
+      "name": "A03: disabled users cannot reuse media cookie; logout clears it",
+      "passed": true
+    },
+    {
+      "name": "Regression: media DTO decoration preserves Decimal/date and signed form/audit blobs",
+      "passed": true
+    },
+    {
+      "name": "A04: contractor cannot supply arbitrary assetId; no OS side effects",
+      "passed": true
+    },
+    {
+      "name": "A05: PIN and legacy assign cannot replace current assignee; manager transfer works",
+      "passed": true
+    },
+    {
+      "name": "A05: concurrent first assignment has one winner",
+      "passed": true
+    },
+    {
+      "name": "A06: confirmed signature block rejects edit/delete/attachment changes",
+      "passed": true
+    },
+    {
+      "name": "A06: first witness signature locks original form; no overwrite by any portal",
+      "passed": true
+    },
+    {
+      "name": "A07: maintenance.execute alone cannot close OS; close permission can",
+      "passed": true
+    },
+    {
+      "name": "A08/A09: startup rejects missing, weak, public defaults and public bucket",
+      "passed": true
+    },
+    {
+      "name": "A10: forged HTML upload rejected and temporary file removed; genuine image gets safe extension",
+      "passed": true
+    },
+    {
+      "name": "A10: followup PDF remains supported; legacy HTML downloads as inert binary",
+      "passed": true
+    },
+    {
+      "name": "A11: strict label dimensions reject stored HTML/CSS payload on create and update",
+      "passed": true
+    },
+    {
+      "name": "Regression: tenant/owner guards still protect main OS and followup views",
+      "passed": true
+    },
+    {
+      "name": "Browser A11: real label parser/printer rejects malicious dimensions and prints escaped text without scripts",
+      "passed": true
+    },
+    {
+      "name": "Browser: approval screen, explicit company confirmation, successful manager approval",
+      "passed": true
+    },
+    {
+      "name": "Browser: non-manager cannot see/use client approval page",
+      "passed": true
+    },
+    {
+      "name": "Browser: authenticated image cookie works; external share UI creates and revokes anonymous access",
+      "passed": true
+    },
+    {
+      "name": "Browser: portal-cliente can view its image, no share control or signed-form edit",
+      "passed": true
+    },
+    {
+      "name": "Browser: portal-terceirizado can view its image, no share control or signed-form edit",
+      "passed": true
+    }
+  ]
+}

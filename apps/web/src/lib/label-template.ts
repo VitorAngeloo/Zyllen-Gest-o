@@ -6,6 +6,8 @@
 // posições fixas no código, o que elimina sobreposição e mantém o preview
 // fiel à impressão real.
 
+import { labelLayoutSchema } from '@zyllen/shared';
+
 export type LabelElementType =
     | "text"        // texto fixo (digitado pelo usuário)
     | "itemName"    // nome do item (SKU)
@@ -167,9 +169,8 @@ export function serializeTemplate(t: LabelTemplate): string {
 // (templates antigos sem `elements`).
 export function parseTemplate(layout: string): LabelTemplate | null {
     try {
-        const obj = JSON.parse(layout);
-        if (!obj || !Array.isArray(obj.elements)) return null;
-        return { ...blankTemplate(), ...obj, elements: obj.elements };
+        const parsed = labelLayoutSchema.safeParse(JSON.parse(layout));
+        return parsed.success ? parsed.data : null;
     } catch {
         return null;
     }

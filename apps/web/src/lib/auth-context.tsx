@@ -57,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     const logout = useCallback(() => {
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/media/session`, { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
         // Ask backend to clear the httpOnly refresh_token cookie
         const accessToken = localStorage.getItem("accessToken");
         if (accessToken) {
@@ -206,6 +207,7 @@ export function useAuth() {
 export function useAuthedFetch() {
     const { token } = useAuth();
     return React.useMemo(() => ({
+        credentials: 'include' as const,
         headers: token ? { Authorization: `Bearer ${token}` } : ({} as Record<string, string>),
     }), [token]);
 }

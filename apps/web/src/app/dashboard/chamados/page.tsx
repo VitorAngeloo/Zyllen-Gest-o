@@ -1,4 +1,5 @@
 "use client";
+import { ShareAttachment } from '@web/components/share-attachment';
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
@@ -567,7 +568,7 @@ export default function ChamadosPage() {
                                                     <h4 className="text-xs font-medium text-[var(--zyllen-muted)] uppercase tracking-wider mb-2">Anexos</h4>
                                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                                         {d.attachments.map((att: any) => (
-                                                            <a key={att.id} href={`${API_BASE}${att.filePath}`} target="_blank" rel="noopener noreferrer"
+                                                            <div key={att.id}><a href={`${API_BASE}${att.filePath}`} target="_blank" rel="noopener noreferrer"
                                                                 className="block rounded-lg border border-[var(--zyllen-border)] overflow-hidden hover:border-[var(--zyllen-highlight)]/30 transition-colors">
                                                                 {isImage(att.fileName) ? (
                                                                     <img src={`${API_BASE}${att.filePath}`} alt={att.fileName} className="w-full h-20 object-cover" />
@@ -578,6 +579,7 @@ export default function ChamadosPage() {
                                                                 )}
                                                                 <p className="text-[10px] text-[var(--zyllen-muted)] px-2 py-1 truncate">{att.fileName}</p>
                                                             </a>
+                                                            <ShareAttachment kind="ticket" id={att.id} fileName={att.fileName} /></div>
                                                         ))}
                                                     </div>
                                                 </div>

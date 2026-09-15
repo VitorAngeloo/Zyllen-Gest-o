@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
+import { validateSecurityConfig } from './lib/security-config';
 import { AppController } from './app.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -20,12 +19,14 @@ import { LabelsModule } from './modules/labels/labels.module';
 import { RegistrationModule } from './modules/registration/registration.module';
 import { FollowupsModule } from './modules/followups/followups.module';
 import { ScheduleModule } from './modules/schedule/schedule.module';
+import { MediaModule } from './modules/media/media.module';
 
 @Module({
     imports: [
         ConfigModule.forRoot({
             isGlobal: true,
             envFilePath: '.env',
+            validate: validateSecurityConfig,
         }),
         ThrottlerModule.forRoot([
             {
@@ -39,11 +40,6 @@ import { ScheduleModule } from './modules/schedule/schedule.module';
                 limit: 120,   // 120 requests/min for general endpoints
             },
         ]),
-        ServeStaticModule.forRoot({
-            rootPath: join(__dirname, '..', 'uploads'),
-            serveRoot: '/uploads',
-            serveStaticOptions: { index: false },
-        }),
         PrismaModule,
         AuthModule,
         AccessModule,
@@ -60,6 +56,7 @@ import { ScheduleModule } from './modules/schedule/schedule.module';
         RegistrationModule,
         FollowupsModule,
         ScheduleModule,
+        MediaModule,
     ],
     controllers: [AppController],
 })

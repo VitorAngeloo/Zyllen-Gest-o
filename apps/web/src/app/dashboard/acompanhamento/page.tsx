@@ -1,4 +1,5 @@
 "use client";
+import { ShareAttachment } from '@web/components/share-attachment';
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -63,7 +64,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "warning" | "defau
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-// Endpoint is @Public() — direct img src, no auth needed. Portal for lightbox.
+// Media reads use the httpOnly media session; the URL alone grants no access.
 function AttachmentImage({ baseUrl, alt, className }: { baseUrl: string; alt: string; className?: string }) {
     const [lightbox, setLightbox] = useState(false);
     const [mounted, setMounted] = useState(false);
@@ -1180,9 +1181,10 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                                 {block.attachments.map((att) => {
                                     const isImg = att.mimeType?.startsWith("image/") || /\.(jpe?g|png|gif|webp|bmp)$/i.test(att.fileName);
                                     const isVid = att.mimeType?.startsWith("video/") || /\.(mp4|webm|mov|avi)$/i.test(att.fileName);
-                                    const baseUrl = `${API_URL}/followups/${followupId}/blocks/${block.id}/attachments/${att.id}/file`;
+                                    const baseUrl = `${API_URL}/media/followup/${encodeURIComponent(att.id)}/file`;
                                     return (
                                         <div key={att.id} className="relative group rounded-lg overflow-hidden border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]">
+                                            <ShareAttachment kind="followup" id={att.id} fileName={att.fileName} />
                                             {isImg && (
                                                 <AttachmentImage
                                                     baseUrl={baseUrl}
@@ -1368,7 +1370,7 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                             <div className="space-y-2">
                                 {block.attachments.map((att) => {
                                     const tkn = typeof window !== "undefined" ? localStorage.getItem("accessToken") : "";
-                                    const url = `${API_URL}/followups/${followupId}/blocks/${block.id}/attachments/${att.id}/file${tkn ? `?token=${tkn}` : ""}`;
+                                    const url = `${API_URL}/media/followup/${encodeURIComponent(att.id)}/file`;
                                     return (
                                         <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]">
                                             <div className="size-8 rounded flex items-center justify-center bg-orange-500/15 text-orange-400 shrink-0">
@@ -1384,6 +1386,7 @@ function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
                                             >
                                                 <Download size={16} />
                                             </a>
+                                            <ShareAttachment kind="followup" id={att.id} fileName={att.fileName} />
                                             {!readOnly && (
                                                 <button onClick={() => removeAttachment.mutate(att.id)} className="text-[var(--zyllen-error)] hover:text-white">
                                                     <X size={14} />

@@ -1,4 +1,5 @@
 "use client";
+import { ShareAttachment } from '@web/components/share-attachment';
 import { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Label } from "@web/components/ui/label";
@@ -161,7 +162,7 @@ export function MediaUploader({
     const isVideo = (mime?: string | null, fileName?: string) =>
         mime?.startsWith("video/") || /\.(mp4|webm|mov|avi)$/i.test(fileName ?? "");
     const fileUrl = (att: MediaAttachment) =>
-        `${API_BASE}${apiBasePath}/${osId}/attachments/${att.id}/file${token ? `?token=${token}` : ""}`;
+        `${API_BASE}/media/maintenance/${encodeURIComponent(att.id)}/file`;
 
     return (
         <div className="space-y-3">
@@ -361,6 +362,7 @@ export function MediaUploader({
 
                                 {/* File name */}
                                 <div className="px-2 py-1">
+                                    <ShareAttachment kind="maintenance" id={att.id} fileName={att.fileName} />
                                     <p className="text-[10px] text-[var(--zyllen-muted)] truncate" title={att.fileName}>
                                         {att.fileName}
                                     </p>

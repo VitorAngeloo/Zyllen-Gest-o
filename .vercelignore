@@ -1,0 +1,11 @@
+# Only application source/config is needed for deployment.
+.git
+.env*
+**/.env*
+tmp
+docs
+**/*.log
+apps/api/uploads
+apps/api/dist
+AGENTS.md
+CLAUDE.md

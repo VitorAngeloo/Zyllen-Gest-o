@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { ResponseInterceptor } from './interceptors/response.interceptor';
+import { MediaService } from './modules/media/media.service';
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
@@ -21,7 +22,7 @@ async function bootstrap() {
     app.useGlobalFilters(new GlobalExceptionFilter());
 
     // Add success: true to all successful responses without altering existing shape
-    app.useGlobalInterceptors(new ResponseInterceptor());
+    app.useGlobalInterceptors(new ResponseInterceptor(app.get(MediaService)));
 
     // Global validation pipe for DTO validation
     app.useGlobalPipes(

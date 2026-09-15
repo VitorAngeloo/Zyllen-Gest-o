@@ -1,4 +1,5 @@
 "use client";
+import { ShareAttachment } from '@web/components/share-attachment';
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
@@ -239,7 +240,7 @@ function FollowupBlockCard({
         mime?.startsWith("video/") || /\.(mp4|webm|mov|avi)$/i.test(name ?? "");
 
     const attUrl = (att: FollowupAttachment) =>
-        `${API_URL}${apiBasePath}/${osId}/followup-blocks/${block.id}/attachments/${att.id}/file`;
+        `${API_URL}/media/os-followup/${encodeURIComponent(att.id)}/file`;
 
     const BLOCK_CONFIG: Record<BlockType, { label: string; icon: React.ReactNode; color: string }> = {
         TEXT: { label: "Texto", icon: <FileText size={14} />, color: "bg-blue-500/15 text-blue-400" },
@@ -354,7 +355,8 @@ function FollowupBlockCard({
                                             <div className="flex items-center justify-center h-28"><Upload size={28} className="text-[var(--zyllen-muted)]" /></div>
                                         )}
                                         <div className="px-2 py-1"><p className="text-[10px] text-[var(--zyllen-muted)] truncate">{att.fileName}</p></div>
-                                        {!readOnly && !clientMode && (
+                                        <ShareAttachment kind="os-followup" id={att.id} fileName={att.fileName} />
+                                        {!readOnly && !clientMode && !isLocked && (
                                             <button
                                                 type="button"
                                                 onClick={() => removeAtt.mutate(att.id)}

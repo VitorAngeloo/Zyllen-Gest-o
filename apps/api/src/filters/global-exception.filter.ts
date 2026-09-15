@@ -15,6 +15,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     catch(exception: unknown, host: ArgumentsHost): void {
         const ctx = host.switchToHttp();
         const response = ctx.getResponse<Response>();
+        // Downloads can be interrupted by a browser closing an image/video request.
+        // Never try to emit a JSON error after streaming headers have been sent.
+        if (response.destroyed) return;
+        if (response.headersSent) { response.end(); return; }
 
         let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
         let message = 'Erro interno do servidor';

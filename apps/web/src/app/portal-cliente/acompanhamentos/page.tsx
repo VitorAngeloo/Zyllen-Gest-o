@@ -132,7 +132,7 @@ export default function ClientFollowupsPage() {
                                             {block.attachments?.length > 0 ? (
                                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                                     {block.attachments.map((att: any) => {
-                                                        const fileUrl = `${API_URL}/followups/${selectedFollowup.id}/blocks/${block.id}/attachments/${att.id}/file`;
+                                                        const fileUrl = `${API_URL}/media/followup/${encodeURIComponent(att.id)}/file`;
                                                         return (
                                                             <div key={att.id} className="rounded-lg overflow-hidden border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]">
                                                                 {isImg(att.mimeType, att.fileName) ? (

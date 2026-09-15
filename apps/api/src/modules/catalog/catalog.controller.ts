@@ -15,10 +15,8 @@ import {
     ForbiddenException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { verifiedMediaStorage, mediaUploadDirectory } from '../media/media-storage';
 import { existsSync, mkdirSync } from 'fs';
-import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
@@ -26,16 +24,10 @@ import { CatalogService } from './catalog.service';
 import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
 import { createCategorySchema, createSkuItemSchema, updateCategorySchema, updateSkuItemSchema } from '@zyllen/shared';
 
-const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'media', 'catalog');
+const UPLOAD_DIR = mediaUploadDirectory("media", "catalog");
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const mediaStorage = diskStorage({
-    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-    filename: (_req, file, cb) => {
-        const ext = extname(file.originalname) || '.bin';
-        cb(null, `${randomUUID()}${ext}`);
-    },
-});
+const mediaStorage = verifiedMediaStorage(UPLOAD_DIR);
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_MIME = /^(image\/(jpeg|png|webp)|video\/(mp4|quicktime|webm))$/;

@@ -8,12 +8,15 @@ services:
     ports:
       - '3001:3001'
     environment:
-      - DATABASE_URL=file:./dev.db
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - DATABASE_URL=${DATABASE_URL:?Defina a URL PostgreSQL}
+      - DIRECT_URL=${DIRECT_URL:?Defina a URL direta PostgreSQL}
+      - JWT_SECRET=${JWT_SECRET:?Defina um segredo aleatorio de no minimo 64 caracteres}
+      - CPF_ENCRYPTION_KEY=${CPF_ENCRYPTION_KEY:?Defina a chave existente de criptografia de CPF}
+      - CORS_ORIGIN=${CORS_ORIGIN:?Defina as origens autorizadas do frontend}
       - API_PORT=3001
       - NODE_ENV=production
     volumes:
-      - api-data:/app/apps/api/prisma
+      - api-data:/app/apps/api/uploads
     restart: unless-stopped
 
   web:

@@ -1,16 +1,9 @@
 import {
     Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request,
-    ForbiddenException, BadRequestException, Res, NotFoundException,
+    ForbiddenException, BadRequestException,
 } from '@nestjs/common';
-import { join } from 'path';
-import { existsSync } from 'fs';
-import { extname } from 'path';
-import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MaintenanceService } from './maintenance.service';
-import { Public } from '../auth/public.decorator';
-
-const UPLOAD_DIR = join(__dirname, '..', '..', '..', 'uploads', 'maintenance');
 
 /**
  * Client portal — read-only access to OS linked to their company.
@@ -113,61 +106,5 @@ export class ClientMaintenanceController {
         if (os.companyId !== req.user.companyId) throw new ForbiddenException('OS não pertence à sua empresa');
         const data = await this.maintenanceService.lockFollowupBlock(id, blockId);
         return { data, message: 'Assinatura confirmada e bloqueada' };
-    }
-
-    // Public file serve — no auth required (URL is not guessable)
-    @Get(':id/attachments/:attachmentId/file')
-    @Public()
-    async serveFile(
-        @Param('id') id: string,
-        @Param('attachmentId') attachmentId: string,
-        @Res() res: Response,
-    ) {
-        const attachments = await this.maintenanceService.findAttachments(id);
-        const att = attachments.find((a) => a.id === attachmentId);
-        if (!att) throw new BadRequestException('Anexo não encontrado');
-
-        const filePath = join(UPLOAD_DIR, att.filePath);
-        if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
-
-        const EXT_MIME: Record<string, string> = {
-            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-            '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-            '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
-            '.avi': 'video/x-msvideo',
-        };
-        const mime = att.mimeType || EXT_MIME[extname(att.fileName).toLowerCase()] || 'application/octet-stream';
-        res.setHeader('Content-Type', mime);
-        res.setHeader('Content-Disposition', `inline; filename="${att.fileName}"`);
-        return res.sendFile(filePath);
-    }
-
-    @Get(':id/followup-blocks/:blockId/attachments/:attId/file')
-    @Public()
-    async serveFollowupFile(
-        @Param('id') id: string,
-        @Param('blockId') blockId: string,
-        @Param('attId') attId: string,
-        @Res() res: Response,
-    ) {
-        const blocks = await this.maintenanceService.findFollowupBlocks(id);
-        const block = blocks.find((b: any) => b.id === blockId);
-        if (!block) throw new BadRequestException('Bloco não encontrado');
-        const att = block.attachments.find((a: any) => a.id === attId);
-        if (!att) throw new BadRequestException('Anexo não encontrado');
-
-        const filePath = join(UPLOAD_DIR, att.filePath);
-        if (!existsSync(filePath)) throw new BadRequestException('Arquivo não encontrado no servidor');
-
-        const EXT_MIME: Record<string, string> = {
-            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-            '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-            '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
-            '.avi': 'video/x-msvideo',
-        };
-        const mime = att.mimeType || EXT_MIME[extname(att.fileName).toLowerCase()] || 'application/octet-stream';
-        res.setHeader('Content-Type', mime);
-        res.setHeader('Content-Disposition', `inline; filename="${att.fileName}"`);
-        return res.sendFile(filePath);
     }
 }
