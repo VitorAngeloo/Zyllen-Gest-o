@@ -51,6 +51,89 @@ module.exports = async ({ run, origin, admin, manager, tech, client, owner, os, 
             if (actor) await context.addInitScript(({ token, type }) => { localStorage.setItem('accessToken', token); localStorage.setItem('userType', type); }, { token: actor.token, type: actor.type });
             return context;
         };
+        const fillClientRegistration = async (page, email, newCompany = false) => {
+            await page.goto(base + '/cadastro', { waitUntil: 'networkidle' });
+            await page.getByPlaceholder('Seu nome completo', { exact: true }).fill('Solicitante QA Confirmacao');
+            await page.getByPlaceholder('seu@email.com', { exact: true }).fill(email);
+            await page.getByPlaceholder('Mínimo 6 caracteres', { exact: true }).fill('Registration-Test-2026!');
+            await page.getByPlaceholder('Repita a senha', { exact: true }).fill('Registration-Test-2026!');
+            const select = page.locator('select').filter({ has: page.locator('option[value="__new__"]') });
+            if (newCompany) {
+                await select.selectOption('__new__');
+                await page.getByPlaceholder('Empresa S.A.', { exact: true }).fill('Empresa QA Solicitada');
+            } else {
+                const companyId = await select.locator('option').evaluateAll(options => options.find(o => o.value && o.value !== '__new__')?.value);
+                assert(companyId, 'Existing companies must load in the registration form');
+                await select.selectOption(companyId);
+                assert.equal(await select.inputValue(), companyId);
+            }
+        };
+        for (const [actor, label] of [[null, 'anonymous'], [admin, 'existing admin session']]) {
+            await run(`Browser: client confirmation persists after reload and preserves ${label}`, async () => {
+                const context = await contextFor(actor); const page = await context.newPage();
+                let submissions = 0;
+                page.on('request', r => { if (r.method() === 'POST' && r.url() === origin + '/register/client') submissions++; });
+                const email = actor ? 'confirmation-admin@example.test' : 'confirmation-anonymous@example.test';
+                try {
+                    await fillClientRegistration(page, email, !!actor);
+                    const response = page.waitForResponse(r => r.url() === origin + '/register/client' && r.request().method() === 'POST');
+                    await page.getByRole('button', { name: 'Criar Conta de Cliente', exact: true }).click();
+                    assert.equal((await response).status(), 201);
+                    await page.waitForURL(base + '/cadastro/solicitacao-enviada');
+                    await page.getByRole('heading', { name: 'Solicitação enviada', exact: true }).waitFor();
+                    assert(await page.getByText('Aguardando aprovação', { exact: true }).isVisible());
+                    const action = actor ? 'Voltar para minha conta' : 'Ir para o login';
+                    await page.getByRole('link', { name: action, exact: true }).waitFor();
+                    assert.equal(await page.evaluate(() => localStorage.getItem('accessToken')), actor?.token ?? null);
+                    assert.equal(await page.locator('input[type="password"]').count(), 0);
+                    assert(!page.url().includes(email));
+                    if (actor) await page.getByText(/Sua conta atual continua conectada/).waitFor();
+                    const login = await context.request.post(origin + '/clients/login', { data: { email, password: 'Registration-Test-2026!' } });
+                    assert.equal(login.status(), 401, 'Pending request must not create a usable login');
+                    await page.reload({ waitUntil: 'networkidle' });
+                    await page.getByRole('link', { name: action, exact: true }).waitFor();
+                    assert.equal(new URL(page.url()).pathname, '/cadastro/solicitacao-enviada');
+                    assert.equal(submissions, 1, 'Reload must not resubmit registration');
+                    await page.screenshot({ path: path.join(shots, actor ? 'solicitacao-admin-desktop.png' : 'solicitacao-anon-desktop.png'), fullPage: true });
+                    await page.setViewportSize({ width: 390, height: 844 });
+                    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+                    await page.screenshot({ path: path.join(shots, actor ? 'solicitacao-admin-mobile.png' : 'solicitacao-anon-mobile.png'), fullPage: true });
+                    await page.getByRole('link', { name: 'Enviar outra solicitação', exact: true }).click();
+                    await page.waitForURL(base + '/cadastro');
+                    assert.equal(await page.getByPlaceholder('Seu nome completo', { exact: true }).inputValue(), '');
+                } finally { await context.close(); }
+            });
+        }
+        await run('Browser: rejected client registration stays on the form, never shows success', async () => {
+            const context = await contextFor(); const page = await context.newPage();
+            try {
+                await context.route(origin + '/register/client', route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { message: 'Solicitação já existente (teste de UI)' } }) }));
+                await fillClientRegistration(page, 'confirmation-rejected@example.test');
+                await page.getByRole('button', { name: 'Criar Conta de Cliente', exact: true }).click();
+                await page.getByText('Solicitação já existente (teste de UI)', { exact: true }).waitFor();
+                assert.equal(new URL(page.url()).pathname, '/cadastro');
+                assert.equal(await page.getByPlaceholder('seu@email.com', { exact: true }).inputValue(), 'confirmation-rejected@example.test');
+                assert.equal(await page.getByRole('heading', { name: 'Solicitação enviada', exact: true }).count(), 0);
+            } finally { await context.close(); }
+        });
+        await run('Browser: partner registration still creates an active account and returns to login', async () => {
+            const context = await contextFor(); const page = await context.newPage();
+            try {
+                await page.goto(base + '/cadastro?tab=contractor', { waitUntil: 'networkidle' });
+                await page.getByPlaceholder('Seu nome completo', { exact: true }).fill('Parceiro QA Confirmacao');
+                await page.getByPlaceholder('seu@email.com', { exact: true }).fill('partner-confirmation@example.test');
+                await page.getByPlaceholder('000.000.000-00', { exact: true }).fill('52998224725');
+                await page.getByPlaceholder('Mínimo 6 caracteres', { exact: true }).fill('Registration-Test-2026!');
+                await page.getByPlaceholder('Repita a senha', { exact: true }).fill('Registration-Test-2026!');
+                const response = page.waitForResponse(r => r.url() === origin + '/register/contractor' && r.request().method() === 'POST');
+                await page.getByRole('button', { name: 'Criar Conta de Parceiro', exact: true }).click();
+                assert.equal((await response).status(), 201);
+                await page.waitForURL(base + '/?type=contractor');
+                assert.equal(await page.evaluate(() => localStorage.getItem('accessToken')), null, 'Registration does not sign in automatically');
+                const login = await context.request.post(origin + '/register/contractor/login', { data: { email: 'partner-confirmation@example.test', password: 'Registration-Test-2026!' } });
+                assert.equal(login.status(), 200);
+            } finally { await context.close(); }
+        });
         await run('Browser A11: real label parser/printer rejects malicious dimensions and prints escaped text without scripts', async () => {
             const bundle = await buildPrintHarness({ root, scratch, apiRequire });
             const context = await contextFor(); const page = await context.newPage();

@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-15T19:19:37.988Z",
+  "generatedAt": "2026-09-15T20:42:34.525Z",
   "environment": "PGlite in-memory + Prisma 6 + real NestJS HTTP, loopback only; no production DB",
   "note": "PGlite serializes connections; not a PostgreSQL multi-process load test.",
-  "passed": 33,
+  "passed": 37,
   "failed": 0,
   "cases": [
     {
@@ -111,6 +111,22 @@
     },
     {
       "name": "Regression: tenant/owner guards still protect main OS and followup views",
+      "passed": true
+    },
+    {
+      "name": "Browser: client confirmation persists after reload and preserves anonymous",
+      "passed": true
+    },
+    {
+      "name": "Browser: client confirmation persists after reload and preserves existing admin session",
+      "passed": true
+    },
+    {
+      "name": "Browser: rejected client registration stays on the form, never shows success",
+      "passed": true
+    },
+    {
+      "name": "Browser: partner registration still creates an active account and returns to login",
       "passed": true
     },
     {

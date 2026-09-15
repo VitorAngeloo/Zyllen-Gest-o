@@ -255,6 +255,16 @@ export function hasForbiddenWords(text: string): string[] {
 
 export const SECURITY_COPY = {
   registrationPending: 'Solicitação enviada! Aguarde a aprovação de um Administrador ou Gestor para acessar.',
+  registrationSentTitle: 'Solicitação enviada',
+  registrationSentStatus: 'Aguardando aprovação',
+  registrationSentDescription: 'Seu cadastro de cliente será analisado por um Administrador ou Gestor.',
+  registrationSentNextStep: 'O acesso só será liberado após a aprovação. Depois disso, entre com o email e a senha informados no cadastro.',
+  registrationSentContact: 'Para acompanhar a solicitação, entre em contato com a equipe Skyline. Não é necessário enviar o mesmo cadastro novamente.',
+  registrationSessionPreserved: 'Sua conta atual continua conectada. Esta solicitação não alterou sua sessão nem liberou o acesso do novo cliente.',
+  registrationSessionLoading: 'Verificando sessão...',
+  registrationBackToAccount: 'Voltar para minha conta',
+  registrationGoToLogin: 'Ir para o login',
+  registrationAnotherRequest: 'Enviar outra solicitação',
   registrationTitle: 'Aprovação de clientes',
   registrationDescription: 'Confira o vínculo com a empresa e o projeto antes de liberar o acesso.',
   managerOnly: 'Esta área é restrita a Administrador e Gestor.',

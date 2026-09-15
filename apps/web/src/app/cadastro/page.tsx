@@ -1,5 +1,4 @@
 "use client";
-import { SECURITY_COPY } from '@web/lib/brand-voice';
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -79,8 +78,9 @@ function CadastroPageInner() {
                 if (v && v !== "__new__") payload[k] = v;
             }
             await apiClient.post("/register/client", payload);
-            toast.success(SECURITY_COPY.registrationPending, { duration: 10000 });
-            router.push("/?type=client");
+            // Preserve any existing session and do not return to the login page,
+            // which redirects authenticated users to their current account.
+            router.replace("/cadastro/solicitacao-enviada");
         } catch (err: any) {
             toast.error(err.message || "Erro ao cadastrar");
         } finally {
