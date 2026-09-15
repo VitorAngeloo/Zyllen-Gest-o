@@ -91,6 +91,7 @@ pnpm prisma migrate deploy
 #    tipos ausentes durante a compilação. A API parada evita EPERM no engine.
 
 # 7. Inicie a API novamente
+$env:NODE_ENV = 'production'
 Start-Process -FilePath "node" `
   -ArgumentList "dist\main.js" `
   -RedirectStandardOutput "api-run.log" `

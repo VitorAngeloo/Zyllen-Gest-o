@@ -1,0 +1,76 @@
+{
+  "checkedAt": "2026-09-15T19:51:24.672Z",
+  "scope": "read-only database metadata and anonymous HTTP checks; not a full logged-in business acceptance test",
+  "checks": [
+    {
+      "name": "security migration applied",
+      "passed": true
+    },
+    {
+      "name": "no failed migrations",
+      "passed": true
+    },
+    {
+      "name": "both new tables have RLS and server ownership",
+      "passed": true
+    },
+    {
+      "name": "http://127.0.0.1:3001/health => 200",
+      "passed": true
+    },
+    {
+      "name": "http://127.0.0.1:3001 allows credentialed production origin",
+      "passed": true
+    },
+    {
+      "name": "http://127.0.0.1:3001/register/client-requests => 401",
+      "passed": true
+    },
+    {
+      "name": "http://127.0.0.1:3001/media/maintenance/00000000-0000-0000-0000-000000000000/file => 401",
+      "passed": true
+    },
+    {
+      "name": "http://127.0.0.1:3001/uploads/security-deploy-probe => 404",
+      "passed": true
+    },
+    {
+      "name": "http://127.0.0.1:3001/maintenance/attachments/00000000-0000-0000-0000-000000000000/file => 404",
+      "passed": true
+    },
+    {
+      "name": "http://127.0.0.1:3001/media/shared/invalid => 404",
+      "passed": true
+    },
+    {
+      "name": "https://api.skylineti.com/health => 200",
+      "passed": true
+    },
+    {
+      "name": "https://api.skylineti.com allows credentialed production origin",
+      "passed": true
+    },
+    {
+      "name": "https://api.skylineti.com/register/client-requests => 401",
+      "passed": true
+    },
+    {
+      "name": "https://api.skylineti.com/media/maintenance/00000000-0000-0000-0000-000000000000/file => 401",
+      "passed": true
+    },
+    {
+      "name": "https://api.skylineti.com/uploads/security-deploy-probe => 404",
+      "passed": true
+    },
+    {
+      "name": "https://api.skylineti.com/maintenance/attachments/00000000-0000-0000-0000-000000000000/file => 404",
+      "passed": true
+    },
+    {
+      "name": "https://api.skylineti.com/media/shared/invalid => 404",
+      "passed": true
+    }
+  ],
+  "passed": 17,
+  "failed": 0
+}

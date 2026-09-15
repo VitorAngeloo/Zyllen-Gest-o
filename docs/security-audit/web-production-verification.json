@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-09-15T19:52:53.093Z",
+  "scope": "public pages, anonymous redirect and read-only CORS; no form submission or customer login",
+  "checks": [
+    "login page rendered with email/password inputs",
+    "browser can reach production API with credentials (CORS)",
+    "mobile login has no horizontal overflow",
+    "client registration page rendered (not submitted)",
+    "anonymous client-approval navigation redirects to login",
+    "no uncaught JavaScript errors during these checks"
+  ],
+  "passed": 6,
+  "failed": 0
+}
