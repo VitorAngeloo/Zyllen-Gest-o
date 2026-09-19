@@ -4,7 +4,8 @@ import {
     ConflictException,
 } from '@nestjs/common';
 import { randomInt } from 'crypto';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../../infrastructure/database/prisma.service';
 
 @Injectable()
 export class AssetsService {
@@ -30,7 +31,7 @@ export class AssetsService {
                 where,
                 include: {
                     sku: { select: { id: true, skuCode: true, name: true, brand: true, category: { select: { name: true } } } },
-                    currentLocation: { select: { id: true, name: true } },
+                    currentLocation: { select: { id: true, name: true, kind: true, companyId: true, projectId: true } },
                 },
                 orderBy: { createdAt: 'desc' },
                 ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
@@ -161,6 +162,11 @@ export class AssetsService {
         }
 
         return this.prisma.$transaction(async (tx) => {
+            if (data.currentLocationId) {
+                await tx.$queryRaw`SELECT id FROM "Location" WHERE id = ${data.currentLocationId} FOR SHARE`;
+                const destination = await tx.location.findUniqueOrThrow({ where: { id: data.currentLocationId } });
+                if (destination.kind === 'CLIENT') throw new ConflictException('Cadastre no estoque interno e registre um envio ao cliente com PIN e histórico');
+            }
             const assetCode = await this.generateNextAssetCode(tx, sku.codePrefix ?? 'SKY');
 
             return tx.asset.create({
@@ -202,6 +208,9 @@ export class AssetsService {
 
         return this.prisma.$transaction(async (tx) => {
             // 1. Create SkuItem
+            await tx.$queryRaw`SELECT id FROM "Location" WHERE id = ${data.locationId} FOR SHARE`;
+            const destination = await tx.location.findUniqueOrThrow({ where: { id: data.locationId } });
+            if (destination.kind === 'CLIENT') throw new ConflictException('Cadastre no estoque interno e registre o envio ao cliente');
             const skuItem = await tx.skuItem.create({
                 data: {
                     skuCode,
@@ -334,14 +343,18 @@ export class AssetsService {
 
     // ── Update asset location ──
     async updateLocation(id: string, locationId: string | null) {
-        await this.findById(id);
-        if (locationId) {
-            const location = await this.prisma.location.findUnique({ where: { id: locationId } });
-            if (!location) throw new NotFoundException('Local não encontrado');
-        }
-        return this.prisma.asset.update({
-            where: { id },
-            data: { currentLocationId: locationId },
+        return this.prisma.$transaction(async tx => {
+            const initial = await tx.asset.findUnique({ where: { id }, select: { currentLocationId: true } });
+            const ids = [...new Set([initial?.currentLocationId, locationId].filter((value): value is string => Boolean(value)))].sort();
+            if (ids.length) await tx.$queryRaw`SELECT id FROM "Location" WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR SHARE`;
+            await tx.$queryRaw`SELECT id FROM "Asset" WHERE id = ${id} FOR UPDATE`;
+            const asset = await tx.asset.findUnique({ where: { id }, include: { currentLocation: { select: { kind: true } } } });
+            if (!asset) throw new NotFoundException('Patrimônio não encontrado');
+            if (asset.currentLocationId !== initial?.currentLocationId) throw new ConflictException('Local alterado por outra operação; recarregue');
+            const location = locationId ? await tx.location.findUnique({ where: { id: locationId } }) : null;
+            if (locationId && !location) throw new NotFoundException('Local não encontrado');
+            if (asset.currentLocation?.kind || location?.kind) throw new ConflictException('Use envios/devoluções ou transferências para manter PIN, aprovação e histórico nos locais classificados');
+            return tx.asset.update({ where: { id }, data: { currentLocationId: locationId } });
         });
     }
 

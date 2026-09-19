@@ -26,7 +26,7 @@ import { ValidatePinDto } from './dto/validate-pin.dto';
 import { AccessService } from '../access/access.service';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { updateInternalUserSchema } from '@zyllen/shared';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 

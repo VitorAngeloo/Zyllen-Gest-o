@@ -1,0 +1,10 @@
+
+
+export enum PurchaseOrderStatus {
+    DRAFT = 'DRAFT',
+    APPROVED = 'APPROVED',
+    ORDERED = 'ORDERED',
+    PARTIALLY_RECEIVED = 'PARTIALLY_RECEIVED',
+    RECEIVED = 'RECEIVED',
+    CANCELLED = 'CANCELLED',
+}

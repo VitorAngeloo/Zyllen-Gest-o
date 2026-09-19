@@ -1,0 +1,667 @@
+"use client";
+import { maintenanceApi } from "@web/features/maintenance/api/maintenance-api";
+import { useState, useEffect, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
+import { Button } from "@web/components/ui/button";
+import { Input } from "@web/components/ui/input";
+import { Label } from "@web/components/ui/label";
+import { SearchableSelect } from "@web/components/ui/searchable-select";
+import { ArrowLeft, ArrowRight, Send, Save, FileText, MapPin, Loader2 } from "lucide-react";
+import { OsFormTypeSelector } from "./os-form-type-selector";
+import { OS_FORM_CONFIG, INTERNAL_FORM_TYPES, CONTRACTOR_FORM_TYPES } from "../../types/os-form.types";
+import type { OsFormType } from "../../types/os-form.types";
+import {
+    TerceirizadoFormFields,
+    InstalacaoSalaFormFields,
+    InstalacaoTelaFormFields,
+    DesinstalacaoFormFields,
+    SuporteRemotoFormFields,
+    ManutencaoTelaSalaFormFields,
+} from "./os-form-fields";
+import type { MediaAttachment, LocalMediaFile } from "./media-uploader";
+
+import { useAuthedFetch } from "@web/features/auth/context/auth-context";
+
+// Map form type to its field component
+const FORM_FIELD_COMPONENTS: Record<OsFormType, React.ComponentType<any>> = {
+    TERCEIRIZADO: TerceirizadoFormFields,
+    INSTALACAO_SALA: InstalacaoSalaFormFields,
+    INSTALACAO_TELA: InstalacaoTelaFormFields,
+    DESINSTALACAO: DesinstalacaoFormFields,
+    SUPORTE_REMOTO: SuporteRemotoFormFields,
+    MANUTENCAO_TELA_SALA: ManutencaoTelaSalaFormFields,
+};
+
+interface OsFormWizardProps {
+    /** 'internal' for dashboard users, 'contractor' for portal users */
+    userContext: "internal" | "contractor";
+    /** Callback when OS is submitted (create or save) */
+    onSubmit: (data: OsFormSubmitData) => Promise<void>;
+    /** Callback to save draft / progressive fill */
+    onSaveDraft?: (data: OsFormSubmitData) => Promise<void>;
+    /** Go back handler */
+    onCancel: () => void;
+    /** Currently submitting */
+    submitting?: boolean;
+    /** Pre-loaded data for editing an existing OS */
+    initialData?: Partial<OsFormSubmitData> & { id?: string };
+    /** True when editing an existing OS (progressive fill mode) */
+    editMode?: boolean;
+    /** When true, all fields are read-only (CLOSED OS) */
+    readOnly?: boolean;
+}
+
+export interface OsFormSubmitData {
+    formType: OsFormType;
+    assetId?: string;
+    companyId?: string;
+    projectId?: string;
+    notes?: string;
+    clientName?: string;
+    clientCity?: string;
+    clientState?: string;
+    location?: string;
+    contactName?: string;
+    contactPhone?: string;
+    startedAt?: string;
+    endedAt?: string;
+    scheduledDate?: string;
+    formData: Record<string, unknown>;
+    localFiles?: File[];
+}
+
+type WizardStep = "select-type" | "fill-form";
+
+const BRAZILIAN_STATES: { uf: string; name: string }[] = [
+    { uf: "AC", name: "Acre" }, { uf: "AL", name: "Alagoas" }, { uf: "AP", name: "Amapá" },
+    { uf: "AM", name: "Amazonas" }, { uf: "BA", name: "Bahia" }, { uf: "CE", name: "Ceará" },
+    { uf: "DF", name: "Distrito Federal" }, { uf: "ES", name: "Espírito Santo" },
+    { uf: "GO", name: "Goiás" }, { uf: "MA", name: "Maranhão" }, { uf: "MT", name: "Mato Grosso" },
+    { uf: "MS", name: "Mato Grosso do Sul" }, { uf: "MG", name: "Minas Gerais" },
+    { uf: "PA", name: "Pará" }, { uf: "PB", name: "Paraíba" }, { uf: "PR", name: "Paraná" },
+    { uf: "PE", name: "Pernambuco" }, { uf: "PI", name: "Piauí" }, { uf: "RJ", name: "Rio de Janeiro" },
+    { uf: "RN", name: "Rio Grande do Norte" }, { uf: "RS", name: "Rio Grande do Sul" },
+    { uf: "RO", name: "Rondônia" }, { uf: "RR", name: "Roraima" }, { uf: "SC", name: "Santa Catarina" },
+    { uf: "SP", name: "São Paulo" }, { uf: "SE", name: "Sergipe" }, { uf: "TO", name: "Tocantins" },
+];
+
+const IBGE_API = "https://servicodados.ibge.gov.br/api/v1/localidades/estados";
+const NOMINATIM_REVERSE_API = "https://nominatim.openstreetmap.org/reverse";
+
+const inputCls = "bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white placeholder:text-[var(--zyllen-muted)]/50";
+const selectCls = "w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm";
+
+export function OsFormWizard({
+    userContext,
+    onSubmit,
+    onSaveDraft,
+    onCancel,
+    submitting,
+    initialData,
+    editMode,
+    readOnly,
+}: OsFormWizardProps) {
+    const availableTypes = userContext === "contractor" ? CONTRACTOR_FORM_TYPES : INTERNAL_FORM_TYPES;
+
+    // If contractor or edit mode, skip type selection
+    const skipTypeSelect = editMode || availableTypes.length === 1;
+    const [step, setStep] = useState<WizardStep>(skipTypeSelect ? "fill-form" : "select-type");
+    const [selectedType, setSelectedType] = useState<OsFormType | null>(
+        initialData?.formType || (availableTypes.length === 1 ? availableTypes[0] : null)
+    );
+
+    // Common fields
+    const [clientName, setClientName] = useState(initialData?.clientName || "");
+    const [clientCity, setClientCity] = useState(initialData?.clientCity || "");
+    const [clientState, setClientState] = useState(initialData?.clientState || "");
+    const [location, setLocation] = useState(initialData?.location || "");
+    const [contactName, setContactName] = useState(initialData?.contactName || "");
+    const [contactPhone, setContactPhone] = useState(initialData?.contactPhone || "");
+    const [startedAt, setStartedAt] = useState(initialData?.startedAt || "");
+    const [endedAt, setEndedAt] = useState(initialData?.endedAt || "");
+
+    // Company combobox — must select from list, no free text
+    const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+    const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+    const [selectedCompanyId, setSelectedCompanyId] = useState(initialData?.companyId || "");
+    const [companySearch, setCompanySearch] = useState("");
+
+    // Project select — depends on the selected company
+    const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+    const [selectedProjectId, setSelectedProjectId] = useState(initialData?.projectId || "");
+
+    // Form-specific data
+    const [formData, setFormData] = useState<Record<string, unknown>>(initialData?.formData || {});
+
+    // Attachments (photos/videos)
+    const [attachments, setAttachments] = useState<MediaAttachment[]>([]);
+    const [localFiles, setLocalFiles] = useState<LocalMediaFile[]>([]);
+    const osId = initialData?.id;
+    const apiBasePath = userContext === "contractor" ? "/contractor/maintenance" : "/maintenance";
+    const authFetch = useAuthedFetch();
+
+    const fetchAttachments = useCallback(async () => {
+        if (!osId) return;
+        try {
+            const res = await maintenanceApi.listAttachments<{ data?: MediaAttachment[] | { data?: MediaAttachment[] } }>(apiBasePath, osId, authFetch);
+            const list = Array.isArray(res?.data)
+                ? res.data
+                : Array.isArray((res?.data as any)?.data)
+                    ? (res?.data as any).data
+                    : [];
+            setAttachments(list);
+        } catch { /* ignore — OS may not have attachments */ }
+    }, [osId, apiBasePath, authFetch]);
+
+    useEffect(() => {
+        if (osId) fetchAttachments();
+    }, [osId, fetchAttachments]);
+
+    useEffect(() => {
+        maintenanceApi.searchCompanies<{ data: { id: string; name: string }[] }>()
+            .then((res) => setCompanies(res.data || []))
+            .catch(() => {});
+    }, []);
+
+    // Load projects whenever a company is selected
+    useEffect(() => {
+        if (!selectedCompanyId) { setProjects([]); return; }
+        maintenanceApi.listPublicProjects<{ data: { id: string; name: string }[] }>(selectedCompanyId)
+            .then((res) => setProjects(res.data || []))
+            .catch(() => setProjects([]));
+    }, [selectedCompanyId]);
+
+    // Cascade: cities loaded from IBGE API based on selected state
+    const [cities, setCities] = useState<string[]>([]);
+    const [loadingCities, setLoadingCities] = useState(false);
+    const [locatingAddress, setLocatingAddress] = useState(false);
+    const [locationError, setLocationError] = useState<string | null>(null);
+
+    const config = selectedType ? OS_FORM_CONFIG[selectedType] : null;
+    const FormFieldsComponent = selectedType ? FORM_FIELD_COMPONENTS[selectedType] : null;
+
+    // Fetch cities when state changes
+    const fetchCities = useCallback(async (uf: string) => {
+        if (!uf) { setCities([]); return; }
+        setLoadingCities(true);
+        try {
+            const res = await fetch(`${IBGE_API}/${uf}/municipios?orderBy=nome`);
+            if (!res.ok) throw new Error("Erro ao buscar cidades");
+            const data: { nome: string }[] = await res.json();
+            setCities(data.map((c) => c.nome));
+        } catch {
+            setCities([]);
+        } finally {
+            setLoadingCities(false);
+        }
+    }, []);
+
+    // Load cities on mount if state is pre-set (edit mode)
+    useEffect(() => {
+        if (clientState) fetchCities(clientState);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleStateChange = (uf: string) => {
+        setClientState(uf);
+        setClientCity("");
+        if (uf) fetchCities(uf);
+        else setCities([]);
+    };
+
+    const handleCityChange = (city: string) => {
+        setClientCity(city);
+    };
+
+    // Auto-locate via GPS + reverse geocoding (OpenStreetMap)
+    const autoLocate = async () => {
+        setLocationError(null);
+        if (typeof window === "undefined" || !navigator.geolocation) {
+            setLocationError("Seu dispositivo não suporta geolocalização.");
+            return;
+        }
+
+        setLocatingAddress(true);
+        try {
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(
+                    resolve,
+                    reject,
+                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+                );
+            });
+
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+
+            // Try reverse geocoding; if it fails, fall back to raw coordinates
+            let addressText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+            let addr: Record<string, string> = {};
+            try {
+                const res = await fetch(
+                    `${NOMINATIM_REVERSE_API}?lat=${lat}&lon=${lon}&format=json&accept-language=pt-BR&zoom=18`,
+                );
+                if (res.ok) {
+                    const data = await res.json();
+                    addr = data?.address ?? {};
+                    if (data?.display_name) addressText = data.display_name;
+                }
+            } catch {
+                // Nominatim failed — keep raw coordinates
+            }
+
+            setLocation(addressText);
+
+            // Auto-fill state and city dropdowns
+            if (addr.state) {
+                const stateMatch = BRAZILIAN_STATES.find(
+                    (s) => s.name.toLowerCase() === addr.state.toLowerCase(),
+                );
+                if (stateMatch) {
+                    setClientState(stateMatch.uf);
+                    fetchCities(stateMatch.uf);
+                    const cityName = addr.city ?? addr.town ?? addr.village ?? addr.municipality;
+                    if (cityName) setClientCity(cityName);
+                }
+            }
+        } catch {
+            setLocationError("Não foi possível obter a localização pelo GPS. Verifique a permissão de localização.");
+        } finally {
+            setLocatingAddress(false);
+        }
+    };
+
+    const handleSelectType = (type: OsFormType) => {
+        setSelectedType(type);
+    };
+
+    const goToFillForm = () => {
+        if (!selectedType) return;
+        setStep("fill-form");
+    };
+
+    const goBackToTypeSelect = () => {
+        setStep("select-type");
+        setFormData({});
+    };
+
+    const buildSubmitData = (): OsFormSubmitData => ({
+        formType: selectedType!,
+        companyId: selectedCompanyId || undefined,
+        projectId: selectedProjectId || undefined,
+        clientName: clientName || undefined,
+        clientCity: clientCity || undefined,
+        clientState: clientState || undefined,
+        location: location || undefined,
+        contactName: contactName || undefined,
+        contactPhone: contactPhone || undefined,
+        startedAt: startedAt || undefined,
+        endedAt: endedAt || undefined,
+        formData,
+        localFiles: localFiles.length > 0 ? localFiles.map((item) => item.file) : undefined,
+    });
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedType || readOnly) return;
+        try {
+            await onSubmit(buildSubmitData());
+            if (localFiles.length > 0) {
+                setLocalFiles([]);
+                if (osId) await fetchAttachments();
+            }
+        } catch {
+            // Error toast is shown by the parent; keep localFiles so user can retry
+        }
+    };
+
+    const handleSaveDraft = async () => {
+        if (!selectedType || !onSaveDraft || readOnly) return;
+        try {
+            await onSaveDraft(buildSubmitData());
+            if (localFiles.length > 0) {
+                setLocalFiles([]);
+                if (osId) await fetchAttachments();
+            }
+        } catch {
+            // Error toast is shown by the parent; keep localFiles so user can retry
+        }
+    };
+
+    // ── Step 1: Select form type ──
+    if (step === "select-type") {
+        return (
+            <div className="space-y-6">
+                <button
+                    onClick={onCancel}
+                    className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] hover:text-white transition-colors"
+                >
+                    <ArrowLeft size={16} /> Voltar
+                </button>
+
+                <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        <FileText size={20} className="text-[var(--zyllen-highlight)]" />
+                        Selecione o Tipo de OS
+                    </h2>
+                    <p className="text-sm text-[var(--zyllen-muted)] mt-1">
+                        Escolha o formulário adequado para o serviço a ser realizado
+                    </p>
+                </div>
+
+                <OsFormTypeSelector
+                    availableTypes={availableTypes}
+                    selected={selectedType}
+                    onSelect={handleSelectType}
+                />
+
+                {selectedType && (
+                    <div className="flex justify-end">
+                        <Button variant="highlight" onClick={goToFillForm}>
+                            Continuar <ArrowRight size={16} className="ml-2" />
+                        </Button>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // ── Step 2: Fill form ──
+    return (
+        <div className="space-y-6">
+            <button
+                onClick={skipTypeSelect ? onCancel : goBackToTypeSelect}
+                className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] hover:text-white transition-colors"
+            >
+                <ArrowLeft size={16} /> Voltar
+            </button>
+
+            <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <FileText size={20} className="text-[var(--zyllen-highlight)]" />
+                    {editMode ? `Editar — ${config?.label}` : config?.label}
+                </h2>
+                <p className="text-sm text-[var(--zyllen-muted)] mt-1">
+                    {readOnly
+                        ? "Visualização — esta OS foi finalizada e não pode ser editada"
+                        : editMode
+                            ? "Preencha os campos conforme o serviço avança. Você pode salvar a qualquer momento."
+                            : "Preencha os dados abaixo para abrir a ordem de serviço"}
+                </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+                {/* ── Seção: Dados ── */}
+                <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-white text-sm">Dados</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {/* Estado / Cidade — cascade */}
+                        {config?.requiresClient && (
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-[var(--zyllen-muted)]">Estado (UF)</Label>
+                                        <select
+                                            value={clientState}
+                                            onChange={(e) => handleStateChange(e.target.value)}
+                                            disabled={readOnly}
+                                            className={selectCls}
+                                        >
+                                            <option value="">Selecione o estado...</option>
+                                            {BRAZILIAN_STATES.map((s) => (
+                                                <option key={s.uf} value={s.uf}>{s.uf} — {s.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[var(--zyllen-muted)]">
+                                            Cidade
+                                            {loadingCities && <Loader2 size={12} className="inline ml-2 animate-spin" />}
+                                        </Label>
+                                        <SearchableSelect
+                                            value={clientCity}
+                                            onValueChange={handleCityChange}
+                                            options={cities}
+                                            disabled={readOnly || !clientState || loadingCities}
+                                            loading={loadingCities}
+                                            placeholder={clientState ? "Selecione a cidade..." : "Selecione um estado primeiro"}
+                                            emptyText={clientState ? "Nenhuma cidade encontrada" : "Selecione um estado primeiro"}
+                                            loadingText="Carregando cidades..."
+                                            className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Empresa / Cliente — must select from registered companies */}
+                                <div className="space-y-2 relative">
+                                    <Label className="text-[var(--zyllen-muted)]">Empresa / Cliente *</Label>
+                                    {/* Selected state: show chip with clear button */}
+                                    {clientName && selectedCompanyId && !showCompanyDropdown ? (
+                                        <div className={`flex items-center gap-2 h-9 px-3 rounded-md border ${readOnly ? "opacity-60" : ""} bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-highlight)]/40`}>
+                                            <span className="text-sm text-white flex-1 truncate">{clientName}</span>
+                                            {!readOnly && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setClientName(""); setSelectedCompanyId(""); setSelectedProjectId(""); setCompanySearch(""); setShowCompanyDropdown(true); }}
+                                                    className="text-[var(--zyllen-muted)] hover:text-white transition-colors shrink-0 text-xs"
+                                                    title="Trocar empresa"
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        /* Search state */
+                                        !readOnly && (
+                                            <Input
+                                                placeholder="Digite para filtrar empresas cadastradas..."
+                                                value={companySearch}
+                                                onChange={(e) => { setCompanySearch(e.target.value); setShowCompanyDropdown(true); }}
+                                                onFocus={() => setShowCompanyDropdown(true)}
+                                                onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 200)}
+                                                autoComplete="off"
+                                                autoFocus={showCompanyDropdown}
+                                                className={inputCls}
+                                            />
+                                        )
+                                    )}
+                                    {/* Dropdown list */}
+                                    {showCompanyDropdown && !readOnly && (() => {
+                                        const filtered = companies
+                                            .filter((c) => !companySearch || c.name.toLowerCase().includes(companySearch.toLowerCase()))
+                                            .slice(0, 10);
+                                        return filtered.length > 0 ? (
+                                            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] rounded-md shadow-lg max-h-56 overflow-y-auto">
+                                                {filtered.map((company) => (
+                                                    <button
+                                                        key={company.id}
+                                                        type="button"
+                                                        className="w-full text-left px-3 py-2.5 text-sm text-white hover:bg-[var(--zyllen-highlight)]/20 transition-colors border-b border-[var(--zyllen-border)]/50 last:border-0"
+                                                        onMouseDown={() => {
+                                                            setClientName(company.name);
+                                                            setSelectedCompanyId(company.id);
+                                                            setSelectedProjectId("");
+                                                            setCompanySearch("");
+                                                            setShowCompanyDropdown(false);
+                                                        }}
+                                                    >
+                                                        {company.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] rounded-md shadow-lg px-3 py-2 text-sm text-[var(--zyllen-muted)]">
+                                                Nenhuma empresa encontrada
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+
+                                {/* Projeto — optional, only when the company has projects */}
+                                {selectedCompanyId && projects.length > 0 && (
+                                    <div className="space-y-2">
+                                        <Label className="text-[var(--zyllen-muted)]">Projeto</Label>
+                                        <select
+                                            className={selectCls}
+                                            value={selectedProjectId}
+                                            onChange={(e) => setSelectedProjectId(e.target.value)}
+                                            disabled={readOnly}
+                                        >
+                                            <option value="">Todos / não vincular projeto</option>
+                                            {projects.map((p) => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* Localização — auto-fill from GPS */}
+                        <div className="space-y-2">
+                            <Label className="text-[var(--zyllen-muted)]">Localização (Endereço)</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="Endereço completo — preenchido automaticamente pelo GPS"
+                                    value={location}
+                                    onChange={(e) => setLocation(e.target.value)}
+                                    readOnly={readOnly}
+                                    className={`${inputCls} flex-1`}
+                                />
+                                {!readOnly && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={autoLocate}
+                                        disabled={locatingAddress}
+                                        className="border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white shrink-0 h-9 px-3"
+                                        title="Usar localização atual do GPS"
+                                    >
+                                        {locatingAddress ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+                                    </Button>
+                                )}
+                            </div>
+                            {locationError && (
+                                <p className="text-xs text-red-400">{locationError}</p>
+                            )}
+                        </div>
+
+                        {/* Contato no Local (Responsável) — campos atômicos */}
+                        <div className="space-y-2">
+                            <Label className="text-[var(--zyllen-muted)] font-semibold text-xs uppercase tracking-wider">
+                                Contato no Local (Responsável)
+                            </Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <Label className="text-[var(--zyllen-muted)] text-xs">Nome</Label>
+                                    <Input
+                                        placeholder="Nome do responsável"
+                                        value={contactName}
+                                        onChange={(e) => setContactName(e.target.value)}
+                                        readOnly={readOnly}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[var(--zyllen-muted)] text-xs">Telefone</Label>
+                                    <Input
+                                        placeholder="(00) 00000-0000"
+                                        value={contactPhone}
+                                        onChange={(e) => setContactPhone(e.target.value)}
+                                        readOnly={readOnly}
+                                        className={inputCls}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Start / End datetime */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)]">Início do serviço</Label>
+                                <Input
+                                    type="datetime-local"
+                                    value={startedAt}
+                                    onChange={(e) => setStartedAt(e.target.value)}
+                                    readOnly={readOnly}
+                                    className={inputCls}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)]">Fim do serviço</Label>
+                                <Input
+                                    type="datetime-local"
+                                    value={endedAt}
+                                    onChange={(e) => setEndedAt(e.target.value)}
+                                    readOnly={readOnly}
+                                    className={inputCls}
+                                />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* ── Seção: Campos do Formulário (type-specific) ── */}
+                <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-white text-sm">Detalhes do Serviço</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {FormFieldsComponent && (
+                            <FormFieldsComponent
+                                formData={formData}
+                                onChange={setFormData}
+                                readOnly={readOnly}
+                                osId={osId}
+                                attachments={attachments}
+                                onRefreshAttachments={fetchAttachments}
+                                apiBasePath={apiBasePath}
+                                localFiles={localFiles}
+                                onLocalFilesChange={setLocalFiles}
+                                editMode={editMode}
+                            />
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* ── Actions ── */}
+                {!readOnly && (
+                    <div className="flex justify-end gap-3">
+                        {onSaveDraft && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleSaveDraft}
+                                disabled={submitting}
+                                className="min-w-[160px] border-[var(--zyllen-border)] text-[var(--zyllen-muted)] hover:text-white"
+                            >
+                                <Save size={16} className="mr-2" />
+                                Salvar Rascunho
+                            </Button>
+                        )}
+                        <Button
+                            type="submit"
+                            variant="highlight"
+                            disabled={submitting}
+                            className="min-w-[200px]"
+                        >
+                            {submitting ? (
+                                "Enviando..."
+                            ) : editMode ? (
+                                <>
+                                    <Send size={16} className="mr-2" /> Salvar Alterações
+                                </>
+                            ) : (
+                                <>
+                                    <Send size={16} className="mr-2" /> Abrir Ordem de Serviço
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                )}
+            </form>
+        </div>
+    );
+}

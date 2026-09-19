@@ -25,7 +25,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   transpilePackages: ["@zyllen/shared"],
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [{ source: "/(.*)", headers: securityHeaders }, { source: '/painel/espelho/:path*', headers: [
+      { key: 'Referrer-Policy', value: 'no-referrer' }, { key: 'X-Robots-Tag', value: 'noindex, nofollow' }, { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+    ] }];
   },
 };
 

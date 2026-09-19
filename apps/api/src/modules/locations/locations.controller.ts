@@ -8,13 +8,14 @@ import {
     Param,
     Query,
     UseGuards,
+    Request,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { LocationsService } from './locations.service';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
-import { createLocationSchema, updateLocationSchema } from '@zyllen/shared';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { createLocationSchema, updateLocationSchema, CreateLocationInput, UpdateLocationInput } from '@zyllen/shared';
 
 @Controller('locations')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -42,15 +43,15 @@ export class LocationsController {
 
     @Post()
     @RequirePermission('locations.create')
-    async create(@Body(new ZodValidationPipe(createLocationSchema)) body: { name: string; description?: string }) {
-        const data = await this.locationsService.create(body);
+    async create(@Request() req: any, @Body(new ZodValidationPipe(createLocationSchema)) body: CreateLocationInput) {
+        const data = await this.locationsService.create(body, req.user.id);
         return { data, message: 'Local criado com sucesso' };
     }
 
     @Put(':id')
     @RequirePermission('locations.update')
-    async update(@Param('id') id: string, @Body(new ZodValidationPipe(updateLocationSchema)) body: { name?: string; description?: string }) {
-        const data = await this.locationsService.update(id, body);
+    async update(@Param('id') id: string, @Request() req: any, @Body(new ZodValidationPipe(updateLocationSchema)) body: UpdateLocationInput) {
+        const data = await this.locationsService.update(id, body, req.user.id);
         return { data, message: 'Local atualizado com sucesso' };
     }
 

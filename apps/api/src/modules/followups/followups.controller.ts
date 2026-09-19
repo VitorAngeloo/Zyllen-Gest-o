@@ -3,14 +3,14 @@ import {
     UseInterceptors, UploadedFiles, BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { verifiedMediaStorage, mediaUploadDirectory } from '../media/media-storage';
+import { verifiedMediaStorage, mediaUploadDirectory } from '../../infrastructure/storage/verified-media-storage';
 import { join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { FollowupsService } from './followups.service';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
     createFollowupSchema,
     updateFollowupSchema,

@@ -8,7 +8,8 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const Module = require('node:module');
 const root = path.resolve(__dirname, '../..');
-const scratch = path.join(root, 'tmp/security-tests');
+const scratch = path.resolve(root, process.env.ZYLLEN_VALIDATION_DIR || 'tmp/security-tests');
+if (!scratch.startsWith(path.join(root, 'tmp') + path.sep)) throw new Error('Test artifacts must stay under tmp');
 const apiRequire = Module.createRequire(path.join(root, 'apps/api/package.json'));
 const deps = Module.createRequire(path.join(root, 'tmp/security-test-deps/package.json'));
 const { PGlite } = deps('@electric-sql/pglite');
@@ -62,14 +63,14 @@ async function main() {
     apiRequire('ts-node').register({ transpileOnly: true, project: path.join(root, 'apps/api/tsconfig.json') });
     apiRequire('reflect-metadata');
     const source = (name) => require(path.join(root, 'apps/api/src', name));
-    const { PrismaService } = source('prisma/prisma.service.ts');
+    const { PrismaService } = source('infrastructure/database/prisma.service.ts');
     prisma = new PrismaService();
     await prisma.$connect();
     const { Test } = apiRequire('@nestjs/testing');
     const { AppModule } = source('app.module.ts');
     const { MediaService } = source('modules/media/media.service.ts');
-    const { ResponseInterceptor } = source('interceptors/response.interceptor.ts');
-    const { GlobalExceptionFilter } = source('filters/global-exception.filter.ts');
+    const { ResponseInterceptor } = source('common/http/interceptors/response.interceptor.ts');
+    const { GlobalExceptionFilter } = source('common/http/filters/global-exception.filter.ts');
     const { ValidationPipe } = apiRequire('@nestjs/common');
     const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PrismaService).useValue(prisma).compile();
     app = module.createNestApplication({ logger: false });
@@ -316,7 +317,7 @@ async function main() {
         status(await http(`/maintenance/${closable.id}/status`, { actor: manager, method: 'PUT', body: { status: 'CLOSED' } }), 200);
     });
     await run('A08/A09: startup rejects missing, weak, public defaults and public bucket', async () => {
-        const { validateSecurityConfig } = source('lib/security-config.ts');
+        const { validateSecurityConfig } = source('config/security-config.ts');
         for (const JWT_SECRET of ['', 'change-me-in-production', 'a'.repeat(64), 'your-secret-' + 'a'.repeat(80)]) assert.throws(() => validateSecurityConfig({ JWT_SECRET }));
         assert.throws(() => validateSecurityConfig({ JWT_SECRET: process.env.JWT_SECRET, SUPABASE_OS_MEDIA_BUCKET_PUBLIC: 'true' }));
         assert.doesNotThrow(() => validateSecurityConfig({ JWT_SECRET: process.env.JWT_SECRET }));
@@ -355,7 +356,7 @@ async function main() {
         assert.equal(labelLayoutSchema.safeParse({ ...valid, columns: 0 }).success, false);
         assert.equal(labelLayoutSchema.safeParse({ ...valid, heightMm: Infinity }).success, false);
         assert.equal(labelLayoutSchema.safeParse(valid).success, true);
-        assert(!fs.readFileSync(path.join(root, 'apps/web/src/app/dashboard/etiquetas/page.tsx'), 'utf8').includes('document.write('));
+        assert(!fs.readFileSync(path.join(root, 'apps/web/src/features/labels/screens/labels-screen.tsx'), 'utf8').includes('document.write('));
     });
     await run('Regression: tenant/owner guards still protect main OS and followup views', async () => {
         status(await http(`/client/maintenance/${os.id}`, { actor: client }), 200);
@@ -365,10 +366,13 @@ async function main() {
         status(await http(`/client/followups/${follower.id}`, { actor: client }), 200);
         status(await http(`/client/followups/${follower.id}`, { actor: otherClient }), 403);
     });
+    const inventory = process.argv.includes('--features')
+        ? await require('../../scripts/quality/test-feature-api.cjs')({ run, prisma, http, admin, manager, pin })
+        : undefined;
     if (process.argv.includes('--browser')) {
         await prisma.maintenanceOS.update({ where: { id: os.id }, data: { clientName: 'Cliente QA Assinatura' } });
         await http('/register/client', { method: 'POST', body: { name: 'Solicitante QA Navegador', email: `${crypto.randomUUID()}@example.test`, password, companyId: company.id } });
-        await require('./test-security-browser.cjs')({ run, origin, admin, manager, tech, client, owner, os, resources, scratch, root, apiRequire });
+        await require('./test-security-browser.cjs')({ run, origin, admin, manager, tech, client, owner, os, resources, scratch, root, apiRequire, inventory, companyName: company.name });
     }
 }
 
@@ -378,7 +382,7 @@ main().catch(error => { console.error(error); cases.push({ name: 'Harness startu
     if (socket) await socket.stop().catch(() => undefined);
     if (db) await db.close().catch(() => undefined);
     const failed = cases.filter(c => !c.passed).length;
-    fs.writeFileSync(path.join(__dirname, 'regression-results.json'), JSON.stringify({ generatedAt: new Date().toISOString(), environment: 'PGlite in-memory + Prisma 6 + real NestJS HTTP, loopback only; no production DB', note: 'PGlite serializes connections; not a PostgreSQL multi-process load test.', passed: cases.length - failed, failed, cases }, null, 2));
+    fs.writeFileSync(path.join(process.env.ZYLLEN_VALIDATION_DIR ? scratch : __dirname, 'regression-results.json'), JSON.stringify({ generatedAt: new Date().toISOString(), environment: 'PGlite in-memory + Prisma 6 + real NestJS HTTP, loopback only; no production DB', note: 'PGlite serializes connections; not a PostgreSQL multi-process load test.', passed: cases.length - failed, failed, cases }, null, 2));
     console.log(`RESULT: ${cases.length - failed} passed, ${failed} failed`);
     process.exitCode = failed ? 1 : 0;
 });

@@ -46,7 +46,7 @@ function DialogContent({
         <div
             data-slot="dialog-content"
             className={cn(
-                "relative z-50 w-full max-w-lg rounded-xl border bg-[var(--zyllen-bg)] shadow-2xl",
+                "relative z-50 w-full max-w-lg rounded-lg border border-white/10 bg-[var(--zyllen-bg)] shadow-2xl shadow-black/40",
                 "animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2",
                 "max-h-[85vh] overflow-y-auto",
                 className

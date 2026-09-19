@@ -5,10 +5,10 @@ import {
     ForbiddenException,
     ConflictException,
 } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { AuthService } from '../auth/auth.service';
-import { decryptCPFSafe } from '../../lib/cpf-crypto';
-import { TicketStatus } from '@zyllen/shared';
+import { decryptCPFSafe } from '../../infrastructure/security/cpf-crypto';
+import { TicketStatus, type TicketSourceFilter } from '@zyllen/shared';
 
 const TICKET_INCLUDE = {
     company: true,
@@ -161,8 +161,9 @@ export class TicketsService {
     }
 
     // ── List tickets ──
-    async findAll(params?: { status?: string; companyId?: string; assignedToId?: string; externalUserId?: string; skip?: number; take?: number }) {
+    async findAll(params?: { status?: string; companyId?: string; assignedToId?: string; externalUserId?: string; source?: TicketSourceFilter; skip?: number; take?: number }) {
         const where = {
+            ...(params?.source && params.source !== 'ALL' ? { source: params.source } : {}),
             ...(params?.status ? { status: params.status } : {}),
             ...(params?.companyId ? { companyId: params.companyId } : {}),
             ...(params?.assignedToId ? { assignedToInternalUserId: params.assignedToId } : {}),

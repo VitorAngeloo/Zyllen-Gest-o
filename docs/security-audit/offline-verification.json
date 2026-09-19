@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-09-15T01:58:47.099Z",
+  "productionRequests": 0,
+  "databaseConnections": 0,
+  "checks": [
+    {
+      "name": "Public registration adopts a caller-selected existing company and arbitrary project",
+      "result": "confirmed"
+    },
+    {
+      "name": "Public registration fuzzy match reassigns unrelated unlinked OS",
+      "result": "confirmed"
+    },
+    {
+      "name": "Contractor-created OS mutates any existing asset identified in body",
+      "result": "confirmed"
+    },
+    {
+      "name": "Locked signature block can be deleted",
+      "result": "confirmed"
+    },
+    {
+      "name": "Existing client witness signature can be overwritten",
+      "result": "confirmed"
+    },
+    {
+      "name": "Non-manager can take an already assigned ticket through assignWithPin",
+      "result": "confirmed"
+    },
+    {
+      "name": "maintenance.execute alone passes the status route and service closes an OS",
+      "result": "confirmed"
+    },
+    {
+      "name": "External-user listing requests all scalar fields including passwordHash",
+      "result": "confirmed"
+    },
+    {
+      "name": "Client followup list forces authenticated company and rejects foreign detail",
+      "result": "confirmed"
+    },
+    {
+      "name": "Client OS detail rejects foreign company; missing company cannot list",
+      "result": "confirmed"
+    },
+    {
+      "name": "Signature-block ordinary update enforces isLocked",
+      "result": "confirmed"
+    },
+    {
+      "name": "RBAC rejects external and unauthorized internal users",
+      "result": "confirmed"
+    },
+    {
+      "name": "Upload filter accepts image/png claim while filename keeps .html extension",
+      "result": "confirmed"
+    }
+  ]
+}

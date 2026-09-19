@@ -1,0 +1,249 @@
+{
+  "checkedAt": "2026-09-15T19:25:15.506Z",
+  "mode": "production metadata only; read-only transaction",
+  "server": [
+    {
+      "version": "17.6",
+      "bypass_rls": true,
+      "superuser": false
+    }
+  ],
+  "tables": [
+    {
+      "tablename": "ApprovalRequest",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Asset",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "AssetCodeSequence",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "AssetEvent",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "AuditLog",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Category",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Company",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "ContractorUser",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "ExitReason",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "ExternalUser",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Followup",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "FollowupBlock",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "FollowupBlockAttachment",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "FollowupChecklistItem",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "FollowupComment",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "FollowupHistory",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "InternalUser",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "ItemMediaAttachment",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "LabelPrintJob",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "LabelTemplate",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Location",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "MaintenanceAttachment",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "MaintenanceOS",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "MaintenanceOSFollowupAttachment",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "MaintenanceOSFollowupBlock",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "MovementType",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Project",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "PurchaseOrder",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "PurchaseOrderItem",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Receiving",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "ReceivingItem",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Role",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "RolePermission",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Schedule",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "ScheduleInstaller",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "ScheduleRecurrence",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "ScreenPermission",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "SkuItem",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "StockMovement",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Supplier",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "Ticket",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "TicketAttachment",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "TicketMessage",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "TicketRating",
+      "owned_by_server": true,
+      "rowsecurity": false
+    },
+    {
+      "tablename": "_prisma_migrations",
+      "owned_by_server": true,
+      "rowsecurity": false
+    }
+  ],
+  "historicalSeed": {
+    "checked": true,
+    "activeAdminUsesKnownPassword": false
+  },
+  "pending": [
+    "20260915180000_security_client_approval_media_shares"
+  ],
+  "failedMigrations": [],
+  "changedAppliedMigrations": [],
+  "driftCheckSucceeded": true,
+  "baselineDriftIsEmpty": true
+}

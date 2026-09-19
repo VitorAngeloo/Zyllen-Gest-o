@@ -1,0 +1,4192 @@
+{
+  "head": "f3b2727190adbf96c9d35dc57b927e79f5c85275",
+  "handlers": 198,
+  "controllers": 20,
+  "routes": [
+    {
+      "file": "apps/api/src/app.controller.ts",
+      "line": 5,
+      "endLine": 8,
+      "handler": "health",
+      "method": "GET",
+      "route": "/health",
+      "classGuards": [],
+      "decorators": [
+        "Get('health')"
+      ],
+      "calls": [],
+      "policy": "Público de cadastro/login/health; sem guard RBAC",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/access/access.controller.ts",
+      "line": 33,
+      "endLine": 38,
+      "handler": "findAllRoles",
+      "method": "GET",
+      "route": "/access/roles",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('roles')",
+        "RequirePermission('access.view')"
+      ],
+      "calls": [
+        "this.accessService.findAllRoles()"
+      ],
+      "policy": "access.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/access/access.controller.ts",
+      "line": 40,
+      "endLine": 45,
+      "handler": "findRole",
+      "method": "GET",
+      "route": "/access/roles/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('roles/:id')",
+        "RequirePermission('access.view')"
+      ],
+      "calls": [
+        "this.accessService.findRoleById(id)"
+      ],
+      "policy": "access.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/access/access.controller.ts",
+      "line": 47,
+      "endLine": 52,
+      "handler": "createRole",
+      "method": "POST",
+      "route": "/access/roles",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('roles')",
+        "RequirePermission('access.manage_roles')"
+      ],
+      "calls": [
+        "this.accessService.createRole(body)"
+      ],
+      "policy": "access.manage_roles; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/access/access.controller.ts",
+      "line": 54,
+      "endLine": 62,
+      "handler": "updateRole",
+      "method": "PUT",
+      "route": "/access/roles/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put('roles/:id')",
+        "RequirePermission('access.manage_roles')"
+      ],
+      "calls": [
+        "this.accessService.updateRole(id, body)"
+      ],
+      "policy": "access.manage_roles; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/access/access.controller.ts",
+      "line": 64,
+      "endLine": 69,
+      "handler": "deleteRole",
+      "method": "DELETE",
+      "route": "/access/roles/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete('roles/:id')",
+        "RequirePermission('access.manage_roles')"
+      ],
+      "calls": [
+        "this.accessService.deleteRole(id)"
+      ],
+      "policy": "access.manage_roles; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/access/access.controller.ts",
+      "line": 75,
+      "endLine": 80,
+      "handler": "findAllPermissions",
+      "method": "GET",
+      "route": "/access/permissions",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('permissions')",
+        "RequirePermission('access.view')"
+      ],
+      "calls": [
+        "this.accessService.findAllPermissions()"
+      ],
+      "policy": "access.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/access/access.controller.ts",
+      "line": 82,
+      "endLine": 87,
+      "handler": "createPermission",
+      "method": "POST",
+      "route": "/access/permissions",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('permissions')",
+        "RequirePermission('access.manage_permissions')"
+      ],
+      "calls": [
+        "this.accessService.createPermission(body)"
+      ],
+      "policy": "access.manage_permissions; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/access/access.controller.ts",
+      "line": 89,
+      "endLine": 94,
+      "handler": "deletePermission",
+      "method": "DELETE",
+      "route": "/access/permissions/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete('permissions/:id')",
+        "RequirePermission('access.manage_permissions')"
+      ],
+      "calls": [
+        "this.accessService.deletePermission(id)"
+      ],
+      "policy": "access.manage_permissions; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/access/access.controller.ts",
+      "line": 100,
+      "endLine": 111,
+      "handler": "assignPermissions",
+      "method": "POST",
+      "route": "/access/roles/:id/permissions",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('roles/:id/permissions')",
+        "RequirePermission('access.manage_permissions')"
+      ],
+      "calls": [
+        "this.accessService.assignPermissionsToRole( roleId, body.permissionIds, )"
+      ],
+      "policy": "access.manage_permissions; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/assets/assets.controller.ts",
+      "line": 25,
+      "endLine": 39,
+      "handler": "findAll",
+      "method": "GET",
+      "route": "/assets",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get()",
+        "RequirePermission('assets.view')"
+      ],
+      "calls": [
+        "this.assetsService.findAll({ skuId, status, locationId, search, skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "assets.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/assets/assets.controller.ts",
+      "line": 41,
+      "endLine": 53,
+      "handler": "getEquipmentSummary",
+      "method": "GET",
+      "route": "/assets/summary",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('summary')",
+        "RequirePermission('assets.view')"
+      ],
+      "calls": [
+        "this.assetsService.getEquipmentSummary({ search, categoryId, skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "assets.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/assets/assets.controller.ts",
+      "line": 55,
+      "endLine": 60,
+      "handler": "lookup",
+      "method": "GET",
+      "route": "/assets/lookup/:assetCode",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('lookup/:assetCode')",
+        "RequirePermission('assets.lookup')"
+      ],
+      "calls": [
+        "this.assetsService.lookupByCode(assetCode)"
+      ],
+      "policy": "assets.lookup; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/assets/assets.controller.ts",
+      "line": 62,
+      "endLine": 67,
+      "handler": "findById",
+      "method": "GET",
+      "route": "/assets/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id')",
+        "RequirePermission('assets.view')"
+      ],
+      "calls": [
+        "this.assetsService.findById(id)"
+      ],
+      "policy": "assets.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/assets/assets.controller.ts",
+      "line": 69,
+      "endLine": 74,
+      "handler": "getTimeline",
+      "method": "GET",
+      "route": "/assets/:id/timeline",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id/timeline')",
+        "RequirePermission('assets.view')"
+      ],
+      "calls": [
+        "this.assetsService.getTimeline(id)"
+      ],
+      "policy": "assets.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/assets/assets.controller.ts",
+      "line": 76,
+      "endLine": 86,
+      "handler": "createEvent",
+      "method": "POST",
+      "route": "/assets/:id/events",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/events')",
+        "RequirePermission('assets.create')"
+      ],
+      "calls": [
+        "this.assetsService.createEvent(id, body.description.trim(), req.user.id)"
+      ],
+      "policy": "assets.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/assets/assets.controller.ts",
+      "line": 88,
+      "endLine": 101,
+      "handler": "bulkRegister",
+      "method": "POST",
+      "route": "/assets/bulk",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('bulk')",
+        "RequirePermission('assets.create')"
+      ],
+      "calls": [
+        "this.assetsService.bulkRegister(body)"
+      ],
+      "policy": "assets.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/assets/assets.controller.ts",
+      "line": 103,
+      "endLine": 108,
+      "handler": "create",
+      "method": "POST",
+      "route": "/assets",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post()",
+        "RequirePermission('assets.create')"
+      ],
+      "calls": [
+        "this.assetsService.create(body)"
+      ],
+      "policy": "assets.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/assets/assets.controller.ts",
+      "line": 110,
+      "endLine": 115,
+      "handler": "updateStatus",
+      "method": "PUT",
+      "route": "/assets/:id/status",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/status')",
+        "RequirePermission('assets.create')"
+      ],
+      "calls": [
+        "this.assetsService.updateStatus(id, body.status)"
+      ],
+      "policy": "assets.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/assets/assets.controller.ts",
+      "line": 117,
+      "endLine": 122,
+      "handler": "updateLocation",
+      "method": "PUT",
+      "route": "/assets/:id/location",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/location')",
+        "RequirePermission('assets.create')"
+      ],
+      "calls": [
+        "this.assetsService.updateLocation(id, body.locationId)"
+      ],
+      "policy": "assets.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 40,
+      "endLine": 60,
+      "handler": "login",
+      "method": "POST",
+      "route": "/auth/login",
+      "classGuards": [],
+      "decorators": [
+        "Post('login')",
+        "HttpCode(HttpStatus.OK)",
+        "UseGuards(ThrottlerGuard)",
+        "Throttle({ auth: { ttl: 60000, limit: 30 } })"
+      ],
+      "calls": [
+        "this.authService.loginInternal(dto.email, dto.password)"
+      ],
+      "policy": "Fluxo público de sessão",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 62,
+      "endLine": 74,
+      "handler": "refresh",
+      "method": "POST",
+      "route": "/auth/refresh",
+      "classGuards": [],
+      "decorators": [
+        "Post('refresh')",
+        "HttpCode(HttpStatus.OK)",
+        "UseGuards(ThrottlerGuard)",
+        "Throttle({ auth: { ttl: 60000, limit: 30 } })"
+      ],
+      "calls": [
+        "this.authService.refresh(token)"
+      ],
+      "policy": "Fluxo público de sessão",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 76,
+      "endLine": 87,
+      "handler": "logout",
+      "method": "POST",
+      "route": "/auth/logout",
+      "classGuards": [],
+      "decorators": [
+        "Post('logout')",
+        "UseGuards(JwtAuthGuard)",
+        "HttpCode(HttpStatus.OK)"
+      ],
+      "calls": [],
+      "policy": "Fluxo público de sessão",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 89,
+      "endLine": 106,
+      "handler": "createUser",
+      "method": "POST",
+      "route": "/auth/users",
+      "classGuards": [],
+      "decorators": [
+        "Post('users')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('access.manage')"
+      ],
+      "calls": [
+        "this.authService.createInternalUser({ name: dto.name, email: dto.email, password: dto.password, roleId: dto.roleId, sector: dto.sector, description: dto.description, })"
+      ],
+      "policy": "access.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 108,
+      "endLine": 115,
+      "handler": "setupPin",
+      "method": "POST",
+      "route": "/auth/setup-pin",
+      "classGuards": [],
+      "decorators": [
+        "Post('setup-pin')",
+        "UseGuards(ThrottlerGuard, JwtAuthGuard)",
+        "Throttle({ auth: { ttl: 60000, limit: 30 } })",
+        "HttpCode(HttpStatus.OK)"
+      ],
+      "calls": [
+        "this.authService.setupPin(req.user.id, dto.pin)"
+      ],
+      "policy": "JWT + identidade do chamador; sem ID alheio livre",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 117,
+      "endLine": 123,
+      "handler": "hasPin",
+      "method": "GET",
+      "route": "/auth/has-pin",
+      "classGuards": [],
+      "decorators": [
+        "Get('has-pin')",
+        "UseGuards(JwtAuthGuard)",
+        "HttpCode(HttpStatus.OK)"
+      ],
+      "calls": [
+        "this.authService.hasPin(req.user.id)"
+      ],
+      "policy": "JWT + identidade do chamador; sem ID alheio livre",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 125,
+      "endLine": 131,
+      "handler": "listUsers",
+      "method": "GET",
+      "route": "/auth/users",
+      "classGuards": [],
+      "decorators": [
+        "Get('users')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('access.view')"
+      ],
+      "calls": [
+        "this.authService.findAllInternalUsers()"
+      ],
+      "policy": "access.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 133,
+      "endLine": 139,
+      "handler": "getUserDetail",
+      "method": "GET",
+      "route": "/auth/users/:id",
+      "classGuards": [],
+      "decorators": [
+        "Get('users/:id')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('access.view')"
+      ],
+      "calls": [
+        "this.authService.findInternalUserById(id)"
+      ],
+      "policy": "access.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 141,
+      "endLine": 153,
+      "handler": "updateUser",
+      "method": "PUT",
+      "route": "/auth/users/:id",
+      "classGuards": [],
+      "decorators": [
+        "Put('users/:id')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('access.manage')"
+      ],
+      "calls": [
+        "this.authService.updateInternalUser(id, body)"
+      ],
+      "policy": "access.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 155,
+      "endLine": 161,
+      "handler": "deleteUser",
+      "method": "DELETE",
+      "route": "/auth/users/:id",
+      "classGuards": [],
+      "decorators": [
+        "Delete('users/:id')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('access.manage')"
+      ],
+      "calls": [
+        "this.authService.deleteInternalUser(id, req.user.id)"
+      ],
+      "policy": "access.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 163,
+      "endLine": 167,
+      "handler": "me",
+      "method": "GET",
+      "route": "/auth/me",
+      "classGuards": [],
+      "decorators": [
+        "Get('me')",
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "calls": [],
+      "policy": "JWT + identidade do chamador; sem ID alheio livre",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 169,
+      "endLine": 178,
+      "handler": "myProfile",
+      "method": "GET",
+      "route": "/auth/me/profile",
+      "classGuards": [],
+      "decorators": [
+        "Get('me/profile')",
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "calls": [
+        "this.authService.findInternalUserById(req.user.id)",
+        "this.accessService.getUserPermissions(req.user.id)"
+      ],
+      "policy": "JWT + identidade do chamador; sem ID alheio livre",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 180,
+      "endLine": 201,
+      "handler": "updateMyProfile",
+      "method": "PUT",
+      "route": "/auth/me/profile",
+      "classGuards": [],
+      "decorators": [
+        "Put('me/profile')",
+        "UseGuards(JwtAuthGuard)",
+        "HttpCode(HttpStatus.OK)"
+      ],
+      "calls": [
+        "this.authService.verifyCurrentPassword(req.user.id, dto.currentPassword)",
+        "this.authService.updateInternalUser(req.user.id, allowed)"
+      ],
+      "policy": "JWT + identidade do chamador; sem ID alheio livre",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 203,
+      "endLine": 208,
+      "handler": "myPermissions",
+      "method": "GET",
+      "route": "/auth/me/permissions",
+      "classGuards": [],
+      "decorators": [
+        "Get('me/permissions')",
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "calls": [
+        "this.accessService.getUserPermissions(req.user.id)"
+      ],
+      "policy": "JWT + identidade do chamador; sem ID alheio livre",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 210,
+      "endLine": 217,
+      "handler": "validatePin",
+      "method": "POST",
+      "route": "/auth/validate-pin",
+      "classGuards": [],
+      "decorators": [
+        "Post('validate-pin')",
+        "UseGuards(ThrottlerGuard, JwtAuthGuard)",
+        "Throttle({ auth: { ttl: 60000, limit: 30 } })",
+        "HttpCode(HttpStatus.OK)"
+      ],
+      "calls": [
+        "this.authService.validatePin(req.user.id, dto.pin)"
+      ],
+      "policy": "JWT + identidade do chamador; sem ID alheio livre",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/auth/auth.controller.ts",
+      "line": 219,
+      "endLine": 226,
+      "handler": "resetPin",
+      "method": "POST",
+      "route": "/auth/users/:id/reset-pin",
+      "classGuards": [],
+      "decorators": [
+        "Post('users/:id/reset-pin')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('access.manage')",
+        "HttpCode(HttpStatus.OK)"
+      ],
+      "calls": [
+        "this.authService.resetPin(id)"
+      ],
+      "policy": "access.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+      "line": 51,
+      "endLine": 61,
+      "handler": "findAllCategories",
+      "method": "GET",
+      "route": "/catalog/categories",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('categories')",
+        "RequirePermission('catalog.view')"
+      ],
+      "calls": [
+        "this.catalogService.findAllCategories({ skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "catalog.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+      "line": 63,
+      "endLine": 68,
+      "handler": "findCategory",
+      "method": "GET",
+      "route": "/catalog/categories/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('categories/:id')",
+        "RequirePermission('catalog.view')"
+      ],
+      "calls": [
+        "this.catalogService.findCategoryById(id)"
+      ],
+      "policy": "catalog.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+      "line": 70,
+      "endLine": 75,
+      "handler": "createCategory",
+      "method": "POST",
+      "route": "/catalog/categories",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('categories')",
+        "RequirePermission('catalog.create')"
+      ],
+      "calls": [
+        "this.catalogService.createCategory(body)"
+      ],
+      "policy": "catalog.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+      "line": 77,
+      "endLine": 82,
+      "handler": "updateCategory",
+      "method": "PUT",
+      "route": "/catalog/categories/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put('categories/:id')",
+        "RequirePermission('catalog.update')"
+      ],
+      "calls": [
+        "this.catalogService.updateCategory(id, body)"
+      ],
+      "policy": "catalog.update; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+      "line": 84,
+      "endLine": 89,
+      "handler": "deleteCategory",
+      "method": "DELETE",
+      "route": "/catalog/categories/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete('categories/:id')",
+        "RequirePermission('catalog.delete')"
+      ],
+      "calls": [
+        "this.catalogService.deleteCategory(id)"
+      ],
+      "policy": "catalog.delete; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+      "line": 93,
+      "endLine": 105,
+      "handler": "findAllSkus",
+      "method": "GET",
+      "route": "/catalog/skus",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('skus')",
+        "RequirePermission('catalog.view')"
+      ],
+      "calls": [
+        "this.catalogService.findAllSkuItems({ categoryId, search, skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "catalog.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+      "line": 107,
+      "endLine": 112,
+      "handler": "findSku",
+      "method": "GET",
+      "route": "/catalog/skus/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('skus/:id')",
+        "RequirePermission('catalog.view')"
+      ],
+      "calls": [
+        "this.catalogService.findSkuById(id)"
+      ],
+      "policy": "catalog.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+      "line": 114,
+      "endLine": 145,
+      "handler": "createSku",
+      "method": "POST",
+      "route": "/catalog/skus",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('skus')",
+        "RequirePermission('catalog.create')",
+        "UseInterceptors(FilesInterceptor('files', 10, { storage: mediaStorage, limits: { fileSize: MAX_FILE_SIZE } }))"
+      ],
+      "calls": [
+        "this.catalogService.createSkuItem({ ...body, attachments: (files ?? []).map((file) => ({ fileName: file.originalname, filePath: `/uploads/media/catalog/${file.filename}`, mimeType: file.mimetype, mediaType: file.mimetype.startsWith('image/') ? 'IMAGE' : 'VIDEO', uploadedById: req.user.id, })), })"
+      ],
+      "policy": "catalog.create; interno/global",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+      "line": 147,
+      "endLine": 152,
+      "handler": "updateSku",
+      "method": "PUT",
+      "route": "/catalog/skus/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put('skus/:id')",
+        "RequirePermission('catalog.update')"
+      ],
+      "calls": [
+        "this.catalogService.updateSkuItem(id, body)"
+      ],
+      "policy": "catalog.update; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+      "line": 154,
+      "endLine": 159,
+      "handler": "deleteSku",
+      "method": "DELETE",
+      "route": "/catalog/skus/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete('skus/:id')",
+        "RequirePermission('catalog.delete')"
+      ],
+      "calls": [
+        "this.catalogService.deleteSkuItem(id)"
+      ],
+      "policy": "catalog.delete; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 25,
+      "endLine": 31,
+      "handler": "loginExternal",
+      "method": "POST",
+      "route": "/clients/login",
+      "classGuards": [],
+      "decorators": [
+        "Post('login')",
+        "HttpCode(HttpStatus.OK)",
+        "UseGuards(ThrottlerGuard)",
+        "Throttle({ auth: { ttl: 60000, limit: 30 } })"
+      ],
+      "calls": [
+        "this.clientsService.loginExternal(body.email, body.password)"
+      ],
+      "policy": "Público de cadastro/login/health; sem guard RBAC",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 34,
+      "endLine": 40,
+      "handler": "searchCompanies",
+      "method": "GET",
+      "route": "/clients/companies/search",
+      "classGuards": [],
+      "decorators": [
+        "Get('companies/search')",
+        "UseGuards(ThrottlerGuard)",
+        "Throttle({ auth: { ttl: 60000, limit: 30 } })"
+      ],
+      "calls": [
+        "this.clientsService.searchCompanies(query)"
+      ],
+      "policy": "Público de cadastro/login/health; sem guard RBAC",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 43,
+      "endLine": 49,
+      "handler": "findProjectsByCompanyPublic",
+      "method": "GET",
+      "route": "/clients/companies/:companyId/projects-public",
+      "classGuards": [],
+      "decorators": [
+        "Get('companies/:companyId/projects-public')",
+        "UseGuards(ThrottlerGuard)",
+        "Throttle({ auth: { ttl: 60000, limit: 30 } })"
+      ],
+      "calls": [
+        "this.clientsService.findProjectsPublic(companyId)"
+      ],
+      "policy": "Público de cadastro/login/health; sem guard RBAC",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 52,
+      "endLine": 58,
+      "handler": "findAllContractors",
+      "method": "GET",
+      "route": "/clients/contractors",
+      "classGuards": [],
+      "decorators": [
+        "Get('contractors')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.view')"
+      ],
+      "calls": [
+        "this.clientsService.findAllContractors()"
+      ],
+      "policy": "settings.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 60,
+      "endLine": 66,
+      "handler": "updateContractor",
+      "method": "PUT",
+      "route": "/clients/contractors/:id",
+      "classGuards": [],
+      "decorators": [
+        "Put('contractors/:id')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.clientsService.updateContractor(id, body)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 68,
+      "endLine": 74,
+      "handler": "deleteContractor",
+      "method": "DELETE",
+      "route": "/clients/contractors/:id",
+      "classGuards": [],
+      "decorators": [
+        "Delete('contractors/:id')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.clientsService.deleteContractor(id)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 77,
+      "endLine": 83,
+      "handler": "findAllCompanies",
+      "method": "GET",
+      "route": "/clients/companies",
+      "classGuards": [],
+      "decorators": [
+        "Get('companies')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.view')"
+      ],
+      "calls": [
+        "this.clientsService.findAllCompanies()"
+      ],
+      "policy": "settings.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 85,
+      "endLine": 91,
+      "handler": "findCompany",
+      "method": "GET",
+      "route": "/clients/companies/:id",
+      "classGuards": [],
+      "decorators": [
+        "Get('companies/:id')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.view')"
+      ],
+      "calls": [
+        "this.clientsService.findCompanyById(id)"
+      ],
+      "policy": "settings.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 93,
+      "endLine": 99,
+      "handler": "createCompany",
+      "method": "POST",
+      "route": "/clients/companies",
+      "classGuards": [],
+      "decorators": [
+        "Post('companies')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.clientsService.createCompany(body)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 101,
+      "endLine": 107,
+      "handler": "updateCompany",
+      "method": "PUT",
+      "route": "/clients/companies/:id",
+      "classGuards": [],
+      "decorators": [
+        "Put('companies/:id')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.clientsService.updateCompany(id, body)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 109,
+      "endLine": 115,
+      "handler": "deleteCompany",
+      "method": "DELETE",
+      "route": "/clients/companies/:id",
+      "classGuards": [],
+      "decorators": [
+        "Delete('companies/:id')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.clientsService.deleteCompany(id)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 118,
+      "endLine": 124,
+      "handler": "findProjectsByCompany",
+      "method": "GET",
+      "route": "/clients/companies/:companyId/projects",
+      "classGuards": [],
+      "decorators": [
+        "Get('companies/:companyId/projects')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.view')"
+      ],
+      "calls": [
+        "this.clientsService.findProjectsByCompany(companyId)"
+      ],
+      "policy": "settings.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 126,
+      "endLine": 135,
+      "handler": "createProject",
+      "method": "POST",
+      "route": "/clients/companies/:companyId/projects",
+      "classGuards": [],
+      "decorators": [
+        "Post('companies/:companyId/projects')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.clientsService.createProject(companyId, body)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 137,
+      "endLine": 146,
+      "handler": "updateProject",
+      "method": "PUT",
+      "route": "/clients/projects/:id",
+      "classGuards": [],
+      "decorators": [
+        "Put('projects/:id')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.clientsService.updateProject(id, body)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 148,
+      "endLine": 154,
+      "handler": "deleteProject",
+      "method": "DELETE",
+      "route": "/clients/projects/:id",
+      "classGuards": [],
+      "decorators": [
+        "Delete('projects/:id')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.clientsService.deleteProject(id)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 157,
+      "endLine": 169,
+      "handler": "findAllExternalUsers",
+      "method": "GET",
+      "route": "/clients/users",
+      "classGuards": [],
+      "decorators": [
+        "Get('users')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.view')"
+      ],
+      "calls": [
+        "this.clientsService.findAllExternalUsers({ companyId, skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "settings.view; interno/global",
+      "result": "A12",
+      "findings": [
+        "A12"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/clients/clients.controller.ts",
+      "line": 171,
+      "endLine": 182,
+      "handler": "createExternalUser",
+      "method": "POST",
+      "route": "/clients/users",
+      "classGuards": [],
+      "decorators": [
+        "Post('users')",
+        "UseGuards(JwtAuthGuard, PermissionsGuard)",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.clientsService.createExternalUser(data)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/client-followups.controller.ts",
+      "line": 20,
+      "endLine": 37,
+      "handler": "listMyCompanyFollowups",
+      "method": "GET",
+      "route": "/client/followups",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get()"
+      ],
+      "calls": [
+        "this.followupsService.findAll({ companyId: req.user.companyId, status: status || undefined, skip: (p - 1) * l, take: l, })"
+      ],
+      "policy": "JWT + tipo externo + companyId do chamador",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/client-followups.controller.ts",
+      "line": 39,
+      "endLine": 47,
+      "handler": "findOne",
+      "method": "GET",
+      "route": "/client/followups/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id')"
+      ],
+      "calls": [
+        "this.followupsService.findById(id)"
+      ],
+      "policy": "JWT + tipo externo + companyId do chamador",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 50,
+      "endLine": 66,
+      "handler": "findAll",
+      "method": "GET",
+      "route": "/followups",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get()",
+        "RequirePermission('followups.view')"
+      ],
+      "calls": [
+        "this.followupsService.findAll({ status, companyId, search, skip: (p - 1) * l, take: l, })"
+      ],
+      "policy": "followups.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 68,
+      "endLine": 73,
+      "handler": "findById",
+      "method": "GET",
+      "route": "/followups/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id')",
+        "RequirePermission('followups.view')"
+      ],
+      "calls": [
+        "this.followupsService.findById(id)"
+      ],
+      "policy": "followups.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 75,
+      "endLine": 86,
+      "handler": "create",
+      "method": "POST",
+      "route": "/followups",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post()",
+        "RequirePermission('followups.create')"
+      ],
+      "calls": [
+        "this.followupsService.create({ ...body, createdById: req.user.id, })"
+      ],
+      "policy": "followups.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 88,
+      "endLine": 97,
+      "handler": "update",
+      "method": "PUT",
+      "route": "/followups/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id')",
+        "RequirePermission('followups.edit')"
+      ],
+      "calls": [
+        "this.followupsService.update(id, req.user.id, body)"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 99,
+      "endLine": 108,
+      "handler": "updateStatus",
+      "method": "PUT",
+      "route": "/followups/:id/status",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/status')",
+        "RequirePermission('followups.edit')"
+      ],
+      "calls": [
+        "this.followupsService.update(id, req.user.id, { status: body.status })"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 110,
+      "endLine": 115,
+      "handler": "remove",
+      "method": "DELETE",
+      "route": "/followups/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete(':id')",
+        "RequirePermission('followups.delete')"
+      ],
+      "calls": [
+        "this.followupsService.remove(id)"
+      ],
+      "policy": "followups.delete; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 119,
+      "endLine": 128,
+      "handler": "addBlock",
+      "method": "POST",
+      "route": "/followups/:id/blocks",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/blocks')",
+        "RequirePermission('followups.edit')"
+      ],
+      "calls": [
+        "this.followupsService.addBlock(id, req.user.id, body)"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 130,
+      "endLine": 140,
+      "handler": "updateBlock",
+      "method": "PUT",
+      "route": "/followups/:id/blocks/:blockId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/blocks/:blockId')",
+        "RequirePermission('followups.edit')"
+      ],
+      "calls": [
+        "this.followupsService.updateBlock(id, blockId, req.user.id, body)"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 142,
+      "endLine": 151,
+      "handler": "removeBlock",
+      "method": "DELETE",
+      "route": "/followups/:id/blocks/:blockId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete(':id/blocks/:blockId')",
+        "RequirePermission('followups.edit')"
+      ],
+      "calls": [
+        "this.followupsService.removeBlock(id, blockId, req.user.id)"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 155,
+      "endLine": 181,
+      "handler": "uploadAttachments",
+      "method": "POST",
+      "route": "/followups/:id/blocks/:blockId/attachments",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/blocks/:blockId/attachments')",
+        "RequirePermission('followups.edit')",
+        "UseInterceptors(FilesInterceptor('files', 10, { storage: followupStorage, limits: { fileSize: MAX_FILE_SIZE } }))"
+      ],
+      "calls": [
+        "this.followupsService.addBlockAttachments(id, blockId, attachments, req.user.id)"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 183,
+      "endLine": 211,
+      "handler": "serveFile",
+      "method": "GET",
+      "route": "/followups/:id/blocks/:blockId/attachments/:attId/file",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id/blocks/:blockId/attachments/:attId/file')",
+        "Public()"
+      ],
+      "calls": [
+        "this.followupsService.findById(id)"
+      ],
+      "policy": "Público; apenas relação dos IDs pai/filho",
+      "result": "A03",
+      "findings": [
+        "A03"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 213,
+      "endLine": 226,
+      "handler": "deleteAttachment",
+      "method": "DELETE",
+      "route": "/followups/:id/blocks/:blockId/attachments/:attId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete(':id/blocks/:blockId/attachments/:attId')",
+        "RequirePermission('followups.edit')"
+      ],
+      "calls": [
+        "this.followupsService.removeBlockAttachment(id, blockId, attId)"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 230,
+      "endLine": 239,
+      "handler": "addChecklistItem",
+      "method": "POST",
+      "route": "/followups/:id/blocks/:blockId/checklist",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/blocks/:blockId/checklist')",
+        "RequirePermission('followups.edit')"
+      ],
+      "calls": [
+        "this.followupsService.addChecklistItem(id, blockId, body)"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 241,
+      "endLine": 251,
+      "handler": "updateChecklistItem",
+      "method": "PUT",
+      "route": "/followups/:id/blocks/:blockId/checklist/:itemId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/blocks/:blockId/checklist/:itemId')",
+        "RequirePermission('followups.edit')"
+      ],
+      "calls": [
+        "this.followupsService.updateChecklistItem(id, blockId, itemId, body)"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 253,
+      "endLine": 262,
+      "handler": "removeChecklistItem",
+      "method": "DELETE",
+      "route": "/followups/:id/blocks/:blockId/checklist/:itemId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete(':id/blocks/:blockId/checklist/:itemId')",
+        "RequirePermission('followups.edit')"
+      ],
+      "calls": [
+        "this.followupsService.removeChecklistItem(id, blockId, itemId)"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 266,
+      "endLine": 276,
+      "handler": "addComment",
+      "method": "POST",
+      "route": "/followups/:id/blocks/:blockId/comments",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/blocks/:blockId/comments')",
+        "RequirePermission('followups.edit')"
+      ],
+      "calls": [
+        "this.followupsService.addComment(id, blockId, req.user.id, body.text)"
+      ],
+      "policy": "followups.edit; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/followups/followups.controller.ts",
+      "line": 280,
+      "endLine": 285,
+      "handler": "getHistory",
+      "method": "GET",
+      "route": "/followups/:id/history",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id/history')",
+        "RequirePermission('followups.view')"
+      ],
+      "calls": [
+        "this.followupsService.getHistory(id)"
+      ],
+      "policy": "followups.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 61,
+      "endLine": 101,
+      "handler": "createEntry",
+      "method": "POST",
+      "route": "/inventory/entry",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('entry')",
+        "RequirePermission('inventory.bipar_entrada')",
+        "UseInterceptors(FilesInterceptor('files', 10, { storage: mediaStorage, limits: { fileSize: MAX_FILE_SIZE } }))"
+      ],
+      "calls": [
+        "this.inventoryService.createEntry({ ...body, userId: req.user.id, attachments: (files ?? []).map((file) => ({ fileName: file.originalname, filePath: `/uploads/media/inventory-entry/${file.filename}`, mimeType: file.mimetype, mediaType: file.mimetype.startsWith('image/') ? 'IMAGE' : 'VIDEO', uploadedById: req.user.id, })), })"
+      ],
+      "policy": "inventory.bipar_entrada; interno/global",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 104,
+      "endLine": 120,
+      "handler": "createExit",
+      "method": "POST",
+      "route": "/inventory/exit",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('exit')",
+        "RequirePermission('inventory.bipar_saida')"
+      ],
+      "calls": [
+        "this.inventoryService.createExit({ ...body, userId: req.user.id })"
+      ],
+      "policy": "inventory.bipar_saida; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 123,
+      "endLine": 128,
+      "handler": "createBatchExit",
+      "method": "POST",
+      "route": "/inventory/exit-batch",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('exit-batch')",
+        "RequirePermission('inventory.bipar_saida')"
+      ],
+      "calls": [
+        "this.inventoryService.createBatchExit({ ...body, userId: req.user.id })"
+      ],
+      "policy": "inventory.bipar_saida; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 131,
+      "endLine": 137,
+      "handler": "approveExit",
+      "method": "POST",
+      "route": "/inventory/approvals/:id/approve",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('approvals/:id/approve')",
+        "RequirePermission('approvals.approve')",
+        "HttpCode(HttpStatus.OK)"
+      ],
+      "calls": [
+        "this.inventoryService.approveExit(id, req.user.id, body.pin)"
+      ],
+      "policy": "approvals.approve; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 140,
+      "endLine": 146,
+      "handler": "rejectExit",
+      "method": "POST",
+      "route": "/inventory/approvals/:id/reject",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('approvals/:id/reject')",
+        "RequirePermission('approvals.reject')",
+        "HttpCode(HttpStatus.OK)"
+      ],
+      "calls": [
+        "this.inventoryService.rejectExit(id, req.user.id, body.pin)"
+      ],
+      "policy": "approvals.reject; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 149,
+      "endLine": 154,
+      "handler": "requestReversal",
+      "method": "POST",
+      "route": "/inventory/movements/:id/reversal",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('movements/:id/reversal')",
+        "RequirePermission('inventory.historico')"
+      ],
+      "calls": [
+        "this.inventoryService.requestReversal(id, req.user.id, body.reason)"
+      ],
+      "policy": "inventory.historico; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 157,
+      "endLine": 163,
+      "handler": "approveReversal",
+      "method": "POST",
+      "route": "/inventory/reversals/:id/approve",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('reversals/:id/approve')",
+        "RequirePermission('approvals.approve')",
+        "HttpCode(HttpStatus.OK)"
+      ],
+      "calls": [
+        "this.inventoryService.approveReversal(id, req.user.id, body.pin)"
+      ],
+      "policy": "approvals.approve; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 166,
+      "endLine": 171,
+      "handler": "getPendingApprovals",
+      "method": "GET",
+      "route": "/inventory/approvals/pending",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('approvals/pending')",
+        "RequirePermission('approvals.view')"
+      ],
+      "calls": [
+        "this.inventoryService.getPendingApprovals()"
+      ],
+      "policy": "approvals.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 174,
+      "endLine": 179,
+      "handler": "getStats",
+      "method": "GET",
+      "route": "/inventory/stats",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('stats')",
+        "RequirePermission('inventory.view')"
+      ],
+      "calls": [
+        "this.inventoryService.getStats()"
+      ],
+      "policy": "inventory.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 182,
+      "endLine": 196,
+      "handler": "findAllMovements",
+      "method": "GET",
+      "route": "/inventory/movements",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('movements')",
+        "RequirePermission('inventory.historico')"
+      ],
+      "calls": [
+        "this.inventoryService.findAllMovements({ skuId, locationId, typeId, search, skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "inventory.historico; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 199,
+      "endLine": 207,
+      "handler": "getBalances",
+      "method": "GET",
+      "route": "/inventory/balances",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('balances')",
+        "RequirePermission('inventory.view')"
+      ],
+      "calls": [
+        "this.inventoryService.getBalances({ locationId, skuId })"
+      ],
+      "policy": "inventory.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 210,
+      "endLine": 215,
+      "handler": "findMovementTypes",
+      "method": "GET",
+      "route": "/inventory/movement-types",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('movement-types')",
+        "RequirePermission('inventory.view')"
+      ],
+      "calls": [
+        "this.inventoryService.findAllMovementTypes()"
+      ],
+      "policy": "inventory.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 217,
+      "endLine": 222,
+      "handler": "createMovementType",
+      "method": "POST",
+      "route": "/inventory/movement-types",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('movement-types')",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.inventoryService.createMovementType(body)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 224,
+      "endLine": 229,
+      "handler": "updateMovementType",
+      "method": "PUT",
+      "route": "/inventory/movement-types/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put('movement-types/:id')",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.inventoryService.updateMovementType(id, body)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 231,
+      "endLine": 236,
+      "handler": "deleteMovementType",
+      "method": "DELETE",
+      "route": "/inventory/movement-types/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete('movement-types/:id')",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.inventoryService.deleteMovementType(id)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 239,
+      "endLine": 244,
+      "handler": "findExitReasons",
+      "method": "GET",
+      "route": "/inventory/exit-reasons",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('exit-reasons')",
+        "RequirePermission('inventory.view')"
+      ],
+      "calls": [
+        "this.inventoryService.findAllExitReasons({ onlyActive: onlyActive === 'true' })"
+      ],
+      "policy": "inventory.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 246,
+      "endLine": 251,
+      "handler": "createExitReason",
+      "method": "POST",
+      "route": "/inventory/exit-reasons",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('exit-reasons')",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.inventoryService.createExitReason({ name: body.name })"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 253,
+      "endLine": 258,
+      "handler": "updateExitReason",
+      "method": "PUT",
+      "route": "/inventory/exit-reasons/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put('exit-reasons/:id')",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.inventoryService.updateExitReason(id, body)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+      "line": 260,
+      "endLine": 265,
+      "handler": "deleteExitReason",
+      "method": "DELETE",
+      "route": "/inventory/exit-reasons/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete('exit-reasons/:id')",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.inventoryService.deleteExitReason(id)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/labels/labels.controller.ts",
+      "line": 16,
+      "endLine": 21,
+      "handler": "registerPrint",
+      "method": "POST",
+      "route": "/labels/print",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('print')",
+        "RequirePermission('labels.print')"
+      ],
+      "calls": [
+        "this.labelsService.registerPrint({ assetId: body.assetId, printedById: req.user.id })"
+      ],
+      "policy": "labels.print; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/labels/labels.controller.ts",
+      "line": 23,
+      "endLine": 28,
+      "handler": "registerPrintBatch",
+      "method": "POST",
+      "route": "/labels/print-batch",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('print-batch')",
+        "RequirePermission('labels.print')"
+      ],
+      "calls": [
+        "this.labelsService.registerPrintBatch({ assetIds: body.assetIds, printedById: req.user.id })"
+      ],
+      "policy": "labels.print; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/labels/labels.controller.ts",
+      "line": 30,
+      "endLine": 35,
+      "handler": "findAllPrints",
+      "method": "GET",
+      "route": "/labels/history",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('history')",
+        "RequirePermission('labels.view')"
+      ],
+      "calls": [
+        "this.labelsService.findAll({ assetId })"
+      ],
+      "policy": "labels.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/labels/labels.controller.ts",
+      "line": 37,
+      "endLine": 42,
+      "handler": "getLabelData",
+      "method": "GET",
+      "route": "/labels/data/:assetId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('data/:assetId')",
+        "RequirePermission('labels.view')"
+      ],
+      "calls": [
+        "this.labelsService.getLabelData(assetId)"
+      ],
+      "policy": "labels.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/labels/labels.controller.ts",
+      "line": 45,
+      "endLine": 50,
+      "handler": "findAllTemplates",
+      "method": "GET",
+      "route": "/labels/templates",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('templates')",
+        "RequirePermission('labels.view')"
+      ],
+      "calls": [
+        "this.labelsService.findAllTemplates()"
+      ],
+      "policy": "labels.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/labels/labels.controller.ts",
+      "line": 52,
+      "endLine": 57,
+      "handler": "createTemplate",
+      "method": "POST",
+      "route": "/labels/templates",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('templates')",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.labelsService.createTemplate(body)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "A11",
+      "findings": [
+        "A11"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/labels/labels.controller.ts",
+      "line": 59,
+      "endLine": 64,
+      "handler": "updateTemplate",
+      "method": "PUT",
+      "route": "/labels/templates/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put('templates/:id')",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.labelsService.updateTemplate(id, body)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "A11",
+      "findings": [
+        "A11"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/labels/labels.controller.ts",
+      "line": 66,
+      "endLine": 71,
+      "handler": "deleteTemplate",
+      "method": "DELETE",
+      "route": "/labels/templates/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete('templates/:id')",
+        "RequirePermission('settings.manage')"
+      ],
+      "calls": [
+        "this.labelsService.deleteTemplate(id)"
+      ],
+      "policy": "settings.manage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/locations/locations.controller.ts",
+      "line": 24,
+      "endLine": 34,
+      "handler": "findAll",
+      "method": "GET",
+      "route": "/locations",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get()",
+        "RequirePermission('locations.view')"
+      ],
+      "calls": [
+        "this.locationsService.findAll({ skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "locations.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/locations/locations.controller.ts",
+      "line": 36,
+      "endLine": 41,
+      "handler": "findById",
+      "method": "GET",
+      "route": "/locations/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id')",
+        "RequirePermission('locations.view')"
+      ],
+      "calls": [
+        "this.locationsService.findById(id)"
+      ],
+      "policy": "locations.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/locations/locations.controller.ts",
+      "line": 43,
+      "endLine": 48,
+      "handler": "create",
+      "method": "POST",
+      "route": "/locations",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post()",
+        "RequirePermission('locations.create')"
+      ],
+      "calls": [
+        "this.locationsService.create(body)"
+      ],
+      "policy": "locations.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/locations/locations.controller.ts",
+      "line": 50,
+      "endLine": 55,
+      "handler": "update",
+      "method": "PUT",
+      "route": "/locations/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id')",
+        "RequirePermission('locations.update')"
+      ],
+      "calls": [
+        "this.locationsService.update(id, body)"
+      ],
+      "policy": "locations.update; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/locations/locations.controller.ts",
+      "line": 57,
+      "endLine": 62,
+      "handler": "delete",
+      "method": "DELETE",
+      "route": "/locations/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete(':id')",
+        "RequirePermission('locations.delete')"
+      ],
+      "calls": [
+        "this.locationsService.delete(id)"
+      ],
+      "policy": "locations.delete; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+      "line": 37,
+      "endLine": 54,
+      "handler": "listMyCompanyOrders",
+      "method": "GET",
+      "route": "/client/maintenance",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get()"
+      ],
+      "calls": [
+        "this.maintenanceService.findAll({ companyId: req.user.companyId, status: status || undefined, skip: (p - 1) * l, take: l, })"
+      ],
+      "policy": "JWT + tipo externo + companyId do chamador",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+      "line": 56,
+      "endLine": 62,
+      "handler": "findOne",
+      "method": "GET",
+      "route": "/client/maintenance/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)"
+      ],
+      "policy": "JWT + tipo externo + companyId do chamador",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+      "line": 64,
+      "endLine": 71,
+      "handler": "listFollowupBlocks",
+      "method": "GET",
+      "route": "/client/maintenance/:id/followup-blocks",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id/followup-blocks')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.findFollowupBlocks(id)"
+      ],
+      "policy": "JWT + tipo externo + companyId do chamador",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+      "line": 74,
+      "endLine": 90,
+      "handler": "signBlock",
+      "method": "PUT",
+      "route": "/client/maintenance/:id/followup-blocks/:blockId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Put(':id/followup-blocks/:blockId')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.findFollowupBlocks(id)",
+        "this.maintenanceService.updateFollowupBlock(id, blockId, { content: body.content })"
+      ],
+      "policy": "JWT + tipo externo + companyId do chamador",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+      "line": 93,
+      "endLine": 103,
+      "handler": "signWitness",
+      "method": "PUT",
+      "route": "/client/maintenance/:id/witness-signature",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Put(':id/witness-signature')"
+      ],
+      "calls": [
+        "this.maintenanceService.clientSignWitness(id, req.user.companyId, body.signature)"
+      ],
+      "policy": "JWT + tipo externo + companyId do chamador",
+      "result": "A06",
+      "findings": [
+        "A06"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+      "line": 105,
+      "endLine": 116,
+      "handler": "lockBlock",
+      "method": "POST",
+      "route": "/client/maintenance/:id/followup-blocks/:blockId/lock",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Post(':id/followup-blocks/:blockId/lock')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.lockFollowupBlock(id, blockId)"
+      ],
+      "policy": "JWT + tipo externo + companyId do chamador",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+      "line": 119,
+      "endLine": 143,
+      "handler": "serveFile",
+      "method": "GET",
+      "route": "/client/maintenance/:id/attachments/:attachmentId/file",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id/attachments/:attachmentId/file')",
+        "Public()"
+      ],
+      "calls": [
+        "this.maintenanceService.findAttachments(id)"
+      ],
+      "policy": "Público; apenas relação dos IDs pai/filho",
+      "result": "A03",
+      "findings": [
+        "A03"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+      "line": 145,
+      "endLine": 172,
+      "handler": "serveFollowupFile",
+      "method": "GET",
+      "route": "/client/maintenance/:id/followup-blocks/:blockId/attachments/:attId/file",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id/followup-blocks/:blockId/attachments/:attId/file')",
+        "Public()"
+      ],
+      "calls": [
+        "this.maintenanceService.findFollowupBlocks(id)"
+      ],
+      "policy": "Público; apenas relação dos IDs pai/filho",
+      "result": "A03",
+      "findings": [
+        "A03"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 53,
+      "endLine": 70,
+      "handler": "myOrders",
+      "method": "GET",
+      "route": "/contractor/maintenance",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get()"
+      ],
+      "calls": [
+        "this.maintenanceService.findAll({ openedByContractorId: req.user.id, status: status || undefined, skip: (p - 1) * l, take: l, })"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 72,
+      "endLine": 80,
+      "handler": "findOne",
+      "method": "GET",
+      "route": "/contractor/maintenance/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 82,
+      "endLine": 115,
+      "handler": "openOS",
+      "method": "POST",
+      "route": "/contractor/maintenance",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Post()"
+      ],
+      "calls": [
+        "this.maintenanceService.openOS({ assetId: body.assetId, openedByContractorId: req.user.id, notes: body.notes, formType: body.formType || 'TERCEIRIZADO', clientName: body.clientName, clientCity: body.clientCity, clientState: body.clientState, location: body.location, startedAt: body.startedAt, endedAt: body.endedAt, scheduledDate: body.scheduledDate"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "A04",
+      "findings": [
+        "A04"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 117,
+      "endLine": 135,
+      "handler": "updateFormData",
+      "method": "PUT",
+      "route": "/contractor/maintenance/:id/form-data",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Put(':id/form-data')"
+      ],
+      "calls": [
+        "this.maintenanceService.updateFormData(id, req.user.id, body, true)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 137,
+      "endLine": 154,
+      "handler": "updateStatus",
+      "method": "PUT",
+      "route": "/contractor/maintenance/:id/status",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Put(':id/status')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.updateStatus(id, body.status, req.user.id, body.notes, true)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 158,
+      "endLine": 207,
+      "handler": "uploadAttachments",
+      "method": "POST",
+      "route": "/contractor/maintenance/:id/attachments",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Post(':id/attachments')",
+        "UseInterceptors(FilesInterceptor('files', 10, { storage: maintenanceStorage, limits: { fileSize: MAX_FILE_SIZE } }))"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.mediaStorageService.storeUploadedFile(file, id, UPLOAD_DIR)",
+        "this.maintenanceService.addAttachments(id, attachments, req.user.id)",
+        "this.mediaStorageService.deleteStoredFile(storedPath, UPLOAD_DIR)",
+        "this.maintenanceService.findAttachments(id)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 209,
+      "endLine": 218,
+      "handler": "listAttachments",
+      "method": "GET",
+      "route": "/contractor/maintenance/:id/attachments",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id/attachments')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.findAttachments(id)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 220,
+      "endLine": 250,
+      "handler": "serveFile",
+      "method": "GET",
+      "route": "/contractor/maintenance/:id/attachments/:attachmentId/file",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id/attachments/:attachmentId/file')",
+        "Public()"
+      ],
+      "calls": [
+        "this.maintenanceService.findAttachments(id)",
+        "this.mediaStorageService.resolveServeSource(att.filePath, UPLOAD_DIR)"
+      ],
+      "policy": "Público; apenas relação dos IDs pai/filho",
+      "result": "A03",
+      "findings": [
+        "A03"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 252,
+      "endLine": 266,
+      "handler": "deleteAttachment",
+      "method": "DELETE",
+      "route": "/contractor/maintenance/:id/attachments/:attachmentId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Delete(':id/attachments/:attachmentId')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.deleteAttachment(id, attachmentId)",
+        "this.mediaStorageService.deleteStoredFile(att.filePath, UPLOAD_DIR)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 270,
+      "endLine": 277,
+      "handler": "listFollowupBlocks",
+      "method": "GET",
+      "route": "/contractor/maintenance/:id/followup-blocks",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id/followup-blocks')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.findFollowupBlocks(id)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 279,
+      "endLine": 290,
+      "handler": "addFollowupBlock",
+      "method": "POST",
+      "route": "/contractor/maintenance/:id/followup-blocks",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Post(':id/followup-blocks')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.addFollowupBlock(id, body)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 292,
+      "endLine": 304,
+      "handler": "updateFollowupBlock",
+      "method": "PUT",
+      "route": "/contractor/maintenance/:id/followup-blocks/:blockId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Put(':id/followup-blocks/:blockId')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.updateFollowupBlock(id, blockId, body)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 306,
+      "endLine": 317,
+      "handler": "removeFollowupBlock",
+      "method": "DELETE",
+      "route": "/contractor/maintenance/:id/followup-blocks/:blockId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Delete(':id/followup-blocks/:blockId')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.removeFollowupBlock(id, blockId)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "A06",
+      "findings": [
+        "A06"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 319,
+      "endLine": 330,
+      "handler": "lockFollowupBlock",
+      "method": "POST",
+      "route": "/contractor/maintenance/:id/followup-blocks/:blockId/lock",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Post(':id/followup-blocks/:blockId/lock')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.lockFollowupBlock(id, blockId)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 332,
+      "endLine": 354,
+      "handler": "uploadFollowupAttachments",
+      "method": "POST",
+      "route": "/contractor/maintenance/:id/followup-blocks/:blockId/attachments",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Post(':id/followup-blocks/:blockId/attachments')",
+        "UseInterceptors(FilesInterceptor('files', 10, { storage: maintenanceStorage, limits: { fileSize: MAX_FILE_SIZE } }))"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.addFollowupBlockAttachments(id, blockId, attachments)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 356,
+      "endLine": 383,
+      "handler": "serveFollowupFile",
+      "method": "GET",
+      "route": "/contractor/maintenance/:id/followup-blocks/:blockId/attachments/:attId/file",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id/followup-blocks/:blockId/attachments/:attId/file')",
+        "Public()"
+      ],
+      "calls": [
+        "this.maintenanceService.findFollowupBlocks(id)"
+      ],
+      "policy": "Público; apenas relação dos IDs pai/filho",
+      "result": "A03",
+      "findings": [
+        "A03"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+      "line": 385,
+      "endLine": 401,
+      "handler": "deleteFollowupAttachment",
+      "method": "DELETE",
+      "route": "/contractor/maintenance/:id/followup-blocks/:blockId/attachments/:attId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Delete(':id/followup-blocks/:blockId/attachments/:attId')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)",
+        "this.maintenanceService.removeFollowupBlockAttachment(id, blockId, attId)"
+      ],
+      "policy": "JWT + contractor + dono da OS (criação fixa autor)",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 44,
+      "endLine": 56,
+      "handler": "myOrders",
+      "method": "GET",
+      "route": "/maintenance/my-orders",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('my-orders')",
+        "RequirePermission('maintenance.view')"
+      ],
+      "calls": [
+        "this.maintenanceService.findAll({ openedById: req.user.id, status, skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "maintenance.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 58,
+      "endLine": 71,
+      "handler": "findAll",
+      "method": "GET",
+      "route": "/maintenance",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get()",
+        "RequirePermission('maintenance.view')"
+      ],
+      "calls": [
+        "this.maintenanceService.findAll({ status, formType, assetId, skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "maintenance.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 73,
+      "endLine": 78,
+      "handler": "findById",
+      "method": "GET",
+      "route": "/maintenance/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id')",
+        "RequirePermission('maintenance.view')"
+      ],
+      "calls": [
+        "this.maintenanceService.findById(id)"
+      ],
+      "policy": "maintenance.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 80,
+      "endLine": 88,
+      "handler": "open",
+      "method": "POST",
+      "route": "/maintenance",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post()",
+        "RequirePermission('maintenance.open')"
+      ],
+      "calls": [
+        "this.maintenanceService.openOS({ ...body, openedById: req.user.id, })"
+      ],
+      "policy": "maintenance.open; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 90,
+      "endLine": 99,
+      "handler": "updateStatus",
+      "method": "PUT",
+      "route": "/maintenance/:id/status",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/status')",
+        "RequirePermission('maintenance.execute')"
+      ],
+      "calls": [
+        "this.maintenanceService.updateStatus(id, body.status, req.user.id, body.notes)"
+      ],
+      "policy": "maintenance.execute; interno/global",
+      "result": "A07",
+      "findings": [
+        "A07"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 101,
+      "endLine": 110,
+      "handler": "updateFormData",
+      "method": "PUT",
+      "route": "/maintenance/:id/form-data",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/form-data')",
+        "RequirePermission('maintenance.execute')"
+      ],
+      "calls": [
+        "this.maintenanceService.updateFormData(id, req.user.id, body)"
+      ],
+      "policy": "maintenance.execute; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 114,
+      "endLine": 160,
+      "handler": "uploadAttachments",
+      "method": "POST",
+      "route": "/maintenance/:id/attachments",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/attachments')",
+        "RequirePermission(['maintenance.open', 'maintenance.execute'])",
+        "UseInterceptors(FilesInterceptor('files', 10, { storage: maintenanceStorage, limits: { fileSize: MAX_FILE_SIZE } }))"
+      ],
+      "calls": [
+        "this.mediaStorageService.storeUploadedFile(file, id, UPLOAD_DIR)",
+        "this.maintenanceService.addAttachments(id, attachments, req.user.id)",
+        "this.mediaStorageService.deleteStoredFile(storedPath, UPLOAD_DIR)",
+        "this.maintenanceService.findAttachments(id)"
+      ],
+      "policy": "[maintenance.open, maintenance.execute]; interno/global",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 162,
+      "endLine": 167,
+      "handler": "listAttachments",
+      "method": "GET",
+      "route": "/maintenance/:id/attachments",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id/attachments')",
+        "RequirePermission('maintenance.view')"
+      ],
+      "calls": [
+        "this.maintenanceService.findAttachments(id)"
+      ],
+      "policy": "maintenance.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 169,
+      "endLine": 199,
+      "handler": "serveFile",
+      "method": "GET",
+      "route": "/maintenance/:id/attachments/:attachmentId/file",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id/attachments/:attachmentId/file')",
+        "Public()"
+      ],
+      "calls": [
+        "this.maintenanceService.findAttachments(id)",
+        "this.mediaStorageService.resolveServeSource(att.filePath, UPLOAD_DIR)"
+      ],
+      "policy": "Público; apenas relação dos IDs pai/filho",
+      "result": "A03",
+      "findings": [
+        "A03"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 201,
+      "endLine": 210,
+      "handler": "deleteAttachment",
+      "method": "DELETE",
+      "route": "/maintenance/:id/attachments/:attachmentId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete(':id/attachments/:attachmentId')",
+        "RequirePermission('maintenance.execute')"
+      ],
+      "calls": [
+        "this.maintenanceService.deleteAttachment(id, attachmentId)",
+        "this.mediaStorageService.deleteStoredFile(att.filePath, UPLOAD_DIR)"
+      ],
+      "policy": "maintenance.execute; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 214,
+      "endLine": 219,
+      "handler": "listFollowupBlocks",
+      "method": "GET",
+      "route": "/maintenance/:id/followup-blocks",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id/followup-blocks')",
+        "RequirePermission('maintenance.view')"
+      ],
+      "calls": [
+        "this.maintenanceService.findFollowupBlocks(id)"
+      ],
+      "policy": "maintenance.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 221,
+      "endLine": 229,
+      "handler": "addFollowupBlock",
+      "method": "POST",
+      "route": "/maintenance/:id/followup-blocks",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/followup-blocks')",
+        "RequirePermission('maintenance.execute')"
+      ],
+      "calls": [
+        "this.maintenanceService.addFollowupBlock(id, body)"
+      ],
+      "policy": "maintenance.execute; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 231,
+      "endLine": 240,
+      "handler": "updateFollowupBlock",
+      "method": "PUT",
+      "route": "/maintenance/:id/followup-blocks/:blockId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/followup-blocks/:blockId')",
+        "RequirePermission('maintenance.execute')"
+      ],
+      "calls": [
+        "this.maintenanceService.updateFollowupBlock(id, blockId, body)"
+      ],
+      "policy": "maintenance.execute; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 242,
+      "endLine": 250,
+      "handler": "removeFollowupBlock",
+      "method": "DELETE",
+      "route": "/maintenance/:id/followup-blocks/:blockId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete(':id/followup-blocks/:blockId')",
+        "RequirePermission('maintenance.execute')"
+      ],
+      "calls": [
+        "this.maintenanceService.removeFollowupBlock(id, blockId)"
+      ],
+      "policy": "maintenance.execute; interno/global",
+      "result": "A06",
+      "findings": [
+        "A06"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 252,
+      "endLine": 260,
+      "handler": "lockFollowupBlock",
+      "method": "POST",
+      "route": "/maintenance/:id/followup-blocks/:blockId/lock",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/followup-blocks/:blockId/lock')",
+        "RequirePermission('maintenance.execute')"
+      ],
+      "calls": [
+        "this.maintenanceService.lockFollowupBlock(id, blockId)"
+      ],
+      "policy": "maintenance.execute; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 262,
+      "endLine": 283,
+      "handler": "uploadFollowupAttachments",
+      "method": "POST",
+      "route": "/maintenance/:id/followup-blocks/:blockId/attachments",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/followup-blocks/:blockId/attachments')",
+        "RequirePermission('maintenance.execute')",
+        "UseInterceptors(FilesInterceptor('files', 10, { storage: maintenanceStorage, limits: { fileSize: MAX_FILE_SIZE } }))"
+      ],
+      "calls": [
+        "this.maintenanceService.addFollowupBlockAttachments(id, blockId, attachments)"
+      ],
+      "policy": "maintenance.execute; interno/global",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 285,
+      "endLine": 312,
+      "handler": "serveFollowupFile",
+      "method": "GET",
+      "route": "/maintenance/:id/followup-blocks/:blockId/attachments/:attId/file",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id/followup-blocks/:blockId/attachments/:attId/file')",
+        "Public()"
+      ],
+      "calls": [
+        "this.maintenanceService.findFollowupBlocks(id)"
+      ],
+      "policy": "Público; apenas relação dos IDs pai/filho",
+      "result": "A03",
+      "findings": [
+        "A03"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+      "line": 314,
+      "endLine": 327,
+      "handler": "deleteFollowupAttachment",
+      "method": "DELETE",
+      "route": "/maintenance/:id/followup-blocks/:blockId/attachments/:attId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete(':id/followup-blocks/:blockId/attachments/:attId')",
+        "RequirePermission('maintenance.execute')"
+      ],
+      "calls": [
+        "this.maintenanceService.removeFollowupBlockAttachment(id, blockId, attId)"
+      ],
+      "policy": "maintenance.execute; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/purchases/purchases.controller.ts",
+      "line": 16,
+      "endLine": 28,
+      "handler": "findAll",
+      "method": "GET",
+      "route": "/purchases",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get()",
+        "RequirePermission('purchases.view')"
+      ],
+      "calls": [
+        "this.purchasesService.findAll({ status, supplierId, skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "purchases.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/purchases/purchases.controller.ts",
+      "line": 30,
+      "endLine": 35,
+      "handler": "findById",
+      "method": "GET",
+      "route": "/purchases/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id')",
+        "RequirePermission('purchases.view')"
+      ],
+      "calls": [
+        "this.purchasesService.findById(id)"
+      ],
+      "policy": "purchases.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/purchases/purchases.controller.ts",
+      "line": 37,
+      "endLine": 42,
+      "handler": "createOrder",
+      "method": "POST",
+      "route": "/purchases",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post()",
+        "RequirePermission('purchases.create')"
+      ],
+      "calls": [
+        "this.purchasesService.createOrder(body)"
+      ],
+      "policy": "purchases.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/purchases/purchases.controller.ts",
+      "line": 44,
+      "endLine": 49,
+      "handler": "updateStatus",
+      "method": "PUT",
+      "route": "/purchases/:id/status",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/status')",
+        "RequirePermission('purchases.approve')"
+      ],
+      "calls": [
+        "this.purchasesService.updateStatus(id, body.status)"
+      ],
+      "policy": "purchases.approve; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/purchases/purchases.controller.ts",
+      "line": 51,
+      "endLine": 65,
+      "handler": "receiveItems",
+      "method": "POST",
+      "route": "/purchases/:id/receive",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/receive')",
+        "RequirePermission('purchases.receive')"
+      ],
+      "calls": [
+        "this.purchasesService.receiveItems({ purchaseOrderId: id, receivedById: req.user.id, items: body.items, locationId: body.locationId, })"
+      ],
+      "policy": "purchases.receive; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/registration/registration.controller.ts",
+      "line": 18,
+      "endLine": 38,
+      "handler": "registerClient",
+      "method": "POST",
+      "route": "/register/client",
+      "classGuards": [],
+      "decorators": [
+        "Post('client')",
+        "UseGuards(ThrottlerGuard)",
+        "Throttle({ auth: { ttl: 60000, limit: 30 } })"
+      ],
+      "calls": [
+        "this.registrationService.registerClient(body)"
+      ],
+      "policy": "Público de cadastro/login/health; sem guard RBAC",
+      "result": "A01, A02",
+      "findings": [
+        "A01",
+        "A02"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/registration/registration.controller.ts",
+      "line": 41,
+      "endLine": 56,
+      "handler": "registerContractor",
+      "method": "POST",
+      "route": "/register/contractor",
+      "classGuards": [],
+      "decorators": [
+        "Post('contractor')",
+        "UseGuards(ThrottlerGuard)",
+        "Throttle({ auth: { ttl: 60000, limit: 30 } })"
+      ],
+      "calls": [
+        "this.registrationService.registerContractor(body)"
+      ],
+      "policy": "Público de cadastro/login/health; sem guard RBAC",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/registration/registration.controller.ts",
+      "line": 59,
+      "endLine": 67,
+      "handler": "loginContractor",
+      "method": "POST",
+      "route": "/register/contractor/login",
+      "classGuards": [],
+      "decorators": [
+        "Post('contractor/login')",
+        "HttpCode(HttpStatus.OK)",
+        "UseGuards(ThrottlerGuard)",
+        "Throttle({ auth: { ttl: 60000, limit: 30 } })"
+      ],
+      "calls": [
+        "this.registrationService.loginContractor(body.email, body.password)"
+      ],
+      "policy": "Público de cadastro/login/health; sem guard RBAC",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/schedule/schedule.controller.ts",
+      "line": 29,
+      "endLine": 34,
+      "handler": "getInstallers",
+      "method": "GET",
+      "route": "/schedule/installers",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('installers')",
+        "RequirePermission('schedule.view')"
+      ],
+      "calls": [
+        "this.scheduleService.findInstallers(onlyActive === 'true')"
+      ],
+      "policy": "schedule.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/schedule/schedule.controller.ts",
+      "line": 36,
+      "endLine": 45,
+      "handler": "updateInstallerSettings",
+      "method": "PUT",
+      "route": "/schedule/installers/:userId",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put('installers/:userId')",
+        "RequirePermission('schedule.manage_installers')"
+      ],
+      "calls": [
+        "this.scheduleService.updateInstallerSettings(userId, body)"
+      ],
+      "policy": "schedule.manage_installers; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/schedule/schedule.controller.ts",
+      "line": 47,
+      "endLine": 72,
+      "handler": "findAll",
+      "method": "GET",
+      "route": "/schedule",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get()",
+        "RequirePermission('schedule.view')"
+      ],
+      "calls": [
+        "this.scheduleService.findAll({ startDate, endDate, installerId, status, type, companyId, skip: (p - 1) * l, take: l, })"
+      ],
+      "policy": "schedule.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/schedule/schedule.controller.ts",
+      "line": 74,
+      "endLine": 91,
+      "handler": "checkConflicts",
+      "method": "GET",
+      "route": "/schedule/conflicts",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('conflicts')",
+        "RequirePermission('schedule.view')"
+      ],
+      "calls": [
+        "this.scheduleService.checkConflicts({ installerIds: ids, startDate, endDate, excludeScheduleId: excludeId, })"
+      ],
+      "policy": "schedule.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/schedule/schedule.controller.ts",
+      "line": 93,
+      "endLine": 98,
+      "handler": "findById",
+      "method": "GET",
+      "route": "/schedule/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id')",
+        "RequirePermission('schedule.view')"
+      ],
+      "calls": [
+        "this.scheduleService.findById(id)"
+      ],
+      "policy": "schedule.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/schedule/schedule.controller.ts",
+      "line": 100,
+      "endLine": 108,
+      "handler": "create",
+      "method": "POST",
+      "route": "/schedule",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post()",
+        "RequirePermission('schedule.create')"
+      ],
+      "calls": [
+        "this.scheduleService.create(body, req.user.id)"
+      ],
+      "policy": "schedule.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/schedule/schedule.controller.ts",
+      "line": 110,
+      "endLine": 118,
+      "handler": "update",
+      "method": "PUT",
+      "route": "/schedule/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id')",
+        "RequirePermission('schedule.update')"
+      ],
+      "calls": [
+        "this.scheduleService.update(id, body)"
+      ],
+      "policy": "schedule.update; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/schedule/schedule.controller.ts",
+      "line": 120,
+      "endLine": 128,
+      "handler": "cancel",
+      "method": "DELETE",
+      "route": "/schedule/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete(':id')",
+        "RequirePermission('schedule.delete')"
+      ],
+      "calls": [
+        "this.scheduleService.cancel(id, cancelSeries === 'true')"
+      ],
+      "policy": "schedule.delete; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/suppliers/suppliers.controller.ts",
+      "line": 24,
+      "endLine": 34,
+      "handler": "findAll",
+      "method": "GET",
+      "route": "/suppliers",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get()",
+        "RequirePermission('suppliers.view')"
+      ],
+      "calls": [
+        "this.suppliersService.findAll({ skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "suppliers.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/suppliers/suppliers.controller.ts",
+      "line": 36,
+      "endLine": 41,
+      "handler": "findById",
+      "method": "GET",
+      "route": "/suppliers/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id')",
+        "RequirePermission('suppliers.view')"
+      ],
+      "calls": [
+        "this.suppliersService.findById(id)"
+      ],
+      "policy": "suppliers.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/suppliers/suppliers.controller.ts",
+      "line": 43,
+      "endLine": 48,
+      "handler": "create",
+      "method": "POST",
+      "route": "/suppliers",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post()",
+        "RequirePermission('suppliers.create')"
+      ],
+      "calls": [
+        "this.suppliersService.create(body)"
+      ],
+      "policy": "suppliers.create; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/suppliers/suppliers.controller.ts",
+      "line": 50,
+      "endLine": 55,
+      "handler": "update",
+      "method": "PUT",
+      "route": "/suppliers/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id')",
+        "RequirePermission('suppliers.update')"
+      ],
+      "calls": [
+        "this.suppliersService.update(id, body)"
+      ],
+      "policy": "suppliers.update; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/suppliers/suppliers.controller.ts",
+      "line": 57,
+      "endLine": 62,
+      "handler": "delete",
+      "method": "DELETE",
+      "route": "/suppliers/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Delete(':id')",
+        "RequirePermission('suppliers.delete')"
+      ],
+      "calls": [
+        "this.suppliersService.delete(id)"
+      ],
+      "policy": "suppliers.delete; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/client-tickets.controller.ts",
+      "line": 46,
+      "endLine": 51,
+      "handler": "currentTicket",
+      "method": "GET",
+      "route": "/client/tickets/current",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get('current')"
+      ],
+      "calls": [
+        "this.ticketsService.findCurrentForUser(req.user.id)"
+      ],
+      "policy": "JWT + externo + externalUserId do chamador",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/client-tickets.controller.ts",
+      "line": 53,
+      "endLine": 70,
+      "handler": "myTickets",
+      "method": "GET",
+      "route": "/client/tickets",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get()"
+      ],
+      "calls": [
+        "this.ticketsService.findAll({ externalUserId: req.user.id, status: status || undefined, skip: (p - 1) * l, take: l, })"
+      ],
+      "policy": "JWT + externo + externalUserId do chamador",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/client-tickets.controller.ts",
+      "line": 72,
+      "endLine": 81,
+      "handler": "findOne",
+      "method": "GET",
+      "route": "/client/tickets/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Get(':id')"
+      ],
+      "calls": [
+        "this.ticketsService.findById(id)"
+      ],
+      "policy": "JWT + externo + externalUserId do chamador",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/client-tickets.controller.ts",
+      "line": 84,
+      "endLine": 122,
+      "handler": "createTicket",
+      "method": "POST",
+      "route": "/client/tickets",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Post()",
+        "UseInterceptors(FilesInterceptor('files', 10, {\r\n        storage: ticketStorage,\r\n        limits: { fileSize: MAX_FILE_SIZE },\r\n        fileFilter: (_req, file, cb) => {\r\n            if (ALLOWED_MIME.test(file.mimetype)) {\r\n                cb(null, true);\r\n            } else {\r\n                cb(new BadRequestException(`Tipo de arquivo não permitido: ${file.mimetype}`), false);\r\n            }\r\n        },\r\n    }))"
+      ],
+      "calls": [
+        "this.ticketsService.createWithAttachments({ description: description.trim(), companyId: req.user.companyId, externalUserId: req.user.id, files: attachments, })"
+      ],
+      "policy": "JWT + externo + externalUserId do chamador",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/tickets/client-tickets.controller.ts",
+      "line": 125,
+      "endLine": 158,
+      "handler": "addAttachments",
+      "method": "POST",
+      "route": "/client/tickets/:id/attachments",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard)"
+      ],
+      "decorators": [
+        "Post(':id/attachments')",
+        "UseInterceptors(FilesInterceptor('files', 10, {\r\n        storage: ticketStorage,\r\n        limits: { fileSize: MAX_FILE_SIZE },\r\n        fileFilter: (_req, file, cb) => {\r\n            if (ALLOWED_MIME.test(file.mimetype)) {\r\n                cb(null, true);\r\n            } else {\r\n                cb(new BadRequestException(`Tipo de arquivo não permitido: ${file.mimetype}`), false);\r\n            }\r\n        },\r\n    }))"
+      ],
+      "calls": [
+        "this.ticketsService.findById(id)",
+        "this.ticketsService.addAttachments(id, req.user.id, attachments)"
+      ],
+      "policy": "JWT + externo + externalUserId do chamador",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 43,
+      "endLine": 57,
+      "handler": "findAll",
+      "method": "GET",
+      "route": "/tickets",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get()",
+        "RequirePermission('tickets.view')"
+      ],
+      "calls": [
+        "this.ticketsService.findAll({ status, companyId, assignedToId, externalUserId, skip: (p - 1) * l, take: l })"
+      ],
+      "policy": "tickets.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 59,
+      "endLine": 64,
+      "handler": "listInternalUsers",
+      "method": "GET",
+      "route": "/tickets/internal-users",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('internal-users')",
+        "RequirePermission('tickets.view')"
+      ],
+      "calls": [
+        "this.ticketsService.listInternalUsers()"
+      ],
+      "policy": "tickets.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 66,
+      "endLine": 70,
+      "handler": "myInternalTickets",
+      "method": "GET",
+      "route": "/tickets/my-internal",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('my-internal')"
+      ],
+      "calls": [
+        "this.ticketsService.findMyInternalTickets(req.user.id)"
+      ],
+      "policy": "JWT + req.user.id; posse no fluxo my-internal",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 72,
+      "endLine": 76,
+      "handler": "pendingInternalRating",
+      "method": "GET",
+      "route": "/tickets/my-internal/pending-rating",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get('my-internal/pending-rating')"
+      ],
+      "calls": [
+        "this.ticketsService.findPendingRatingForInternalUser(req.user.id)"
+      ],
+      "policy": "JWT + req.user.id; posse no fluxo my-internal",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 78,
+      "endLine": 113,
+      "handler": "createInternal",
+      "method": "POST",
+      "route": "/tickets/internal",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('internal')",
+        "UseInterceptors(FilesInterceptor('files', 10, {\r\n        storage: ticketStorage,\r\n        limits: { fileSize: MAX_FILE_SIZE },\r\n        fileFilter: (_req, file, cb) => {\r\n            if (ALLOWED_MIME.test(file.mimetype)) {\r\n                cb(null, true);\r\n            } else {\r\n                cb(new BadRequestException(`Tipo de arquivo não permitido: ${file.mimetype}`), false);\r\n            }\r\n        },\r\n    }))"
+      ],
+      "calls": [
+        "this.ticketsService.createInternalTicket({ title, description, priority, internalUserId: req.user.id, files: attachments, })"
+      ],
+      "policy": "JWT + req.user.id; posse no fluxo my-internal",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 115,
+      "endLine": 120,
+      "handler": "findById",
+      "method": "GET",
+      "route": "/tickets/:id",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Get(':id')",
+        "RequirePermission('tickets.view')"
+      ],
+      "calls": [
+        "this.ticketsService.findById(id)"
+      ],
+      "policy": "tickets.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 122,
+      "endLine": 166,
+      "handler": "create",
+      "method": "POST",
+      "route": "/tickets",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post()",
+        "RequirePermission('tickets.triage')",
+        "UseInterceptors(FilesInterceptor('files', 10, {\r\n        storage: ticketStorage,\r\n        limits: { fileSize: MAX_FILE_SIZE },\r\n        fileFilter: (_req, file, cb) => {\r\n            if (ALLOWED_MIME.test(file.mimetype)) {\r\n                cb(null, true);\r\n            } else {\r\n                cb(new BadRequestException(`Tipo de arquivo não permitido: ${file.mimetype}`), false);\r\n            }\r\n        },\r\n    }))"
+      ],
+      "calls": [
+        "this.ticketsService.create({ title: title!, description: description!, companyId: companyId!, externalUserId: externalUserId!, priority, })",
+        "this.ticketsService.addAttachments(ticket.id, null, attachments)",
+        "this.ticketsService.findById(ticket.id)"
+      ],
+      "policy": "tickets.triage; interno/global",
+      "result": "A10",
+      "findings": [
+        "A10"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 168,
+      "endLine": 173,
+      "handler": "assign",
+      "method": "PUT",
+      "route": "/tickets/:id/assign",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/assign')",
+        "RequirePermission('tickets.assign')"
+      ],
+      "calls": [
+        "this.ticketsService.assign(id, body.assignedToId)"
+      ],
+      "policy": "tickets.assign; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 175,
+      "endLine": 186,
+      "handler": "assignWithPin",
+      "method": "PUT",
+      "route": "/tickets/:id/assign-with-pin",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/assign-with-pin')",
+        "RequirePermission('tickets.view')"
+      ],
+      "calls": [
+        "this.ticketsService.assignWithPin( id, req.user.id, req.user.role.name, body.pin, body.assignedToId, )"
+      ],
+      "policy": "tickets.view; interno/global",
+      "result": "A05",
+      "findings": [
+        "A05"
+      ]
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 188,
+      "endLine": 199,
+      "handler": "closeWithPin",
+      "method": "PUT",
+      "route": "/tickets/:id/close-with-pin",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/close-with-pin')",
+        "RequirePermission('tickets.view')"
+      ],
+      "calls": [
+        "this.ticketsService.closeWithPin( id, req.user.id, req.user.role.name, body.pin, body.resolutionNotes, )"
+      ],
+      "policy": "tickets.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 201,
+      "endLine": 212,
+      "handler": "reassign",
+      "method": "PUT",
+      "route": "/tickets/:id/reassign",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/reassign')",
+        "RequirePermission('tickets.triage')"
+      ],
+      "calls": [
+        "this.ticketsService.reassign( id, req.user.id, req.user.role.name, body.pin, body.assignedToId, )"
+      ],
+      "policy": "tickets.triage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 214,
+      "endLine": 219,
+      "handler": "changeStatus",
+      "method": "PUT",
+      "route": "/tickets/:id/status",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Put(':id/status')",
+        "RequirePermission('tickets.triage')"
+      ],
+      "calls": [
+        "this.ticketsService.changeStatus(id, body.status)"
+      ],
+      "policy": "tickets.triage; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 221,
+      "endLine": 226,
+      "handler": "addMessage",
+      "method": "POST",
+      "route": "/tickets/:id/messages",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post(':id/messages')",
+        "RequirePermission('tickets.view')"
+      ],
+      "calls": [
+        "this.ticketsService.addMessage(id, req.user.id, 'internal', body.content)"
+      ],
+      "policy": "tickets.view; interno/global",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 228,
+      "endLine": 236,
+      "handler": "addInternalMessage",
+      "method": "POST",
+      "route": "/tickets/my-internal/:id/messages",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('my-internal/:id/messages')"
+      ],
+      "calls": [
+        "this.ticketsService.addInternalMessage(id, req.user.id, body.content)"
+      ],
+      "policy": "JWT + req.user.id; posse no fluxo my-internal",
+      "result": "Controle observado",
+      "findings": []
+    },
+    {
+      "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+      "line": 238,
+      "endLine": 246,
+      "handler": "submitInternalTicketRating",
+      "method": "POST",
+      "route": "/tickets/my-internal/:id/rating",
+      "classGuards": [
+        "UseGuards(JwtAuthGuard, PermissionsGuard)"
+      ],
+      "decorators": [
+        "Post('my-internal/:id/rating')"
+      ],
+      "calls": [
+        "this.ticketsService.submitTicketRating(id, req.user.id, body)"
+      ],
+      "policy": "JWT + req.user.id; posse no fluxo my-internal",
+      "result": "Controle observado",
+      "findings": []
+    }
+  ]
+}

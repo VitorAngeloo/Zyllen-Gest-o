@@ -15,13 +15,13 @@ import {
     ForbiddenException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { verifiedMediaStorage, mediaUploadDirectory } from '../media/media-storage';
+import { verifiedMediaStorage, mediaUploadDirectory } from '../../infrastructure/storage/verified-media-storage';
 import { existsSync, mkdirSync } from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { CatalogService } from './catalog.service';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createCategorySchema, createSkuItemSchema, updateCategorySchema, updateSkuItemSchema } from '@zyllen/shared';
 
 const UPLOAD_DIR = mediaUploadDirectory("media", "catalog");

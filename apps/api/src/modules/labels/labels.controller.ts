@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { LabelsService } from './labels.service';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { printLabelSchema, printLabelBatchSchema, createLabelTemplateSchema, updateLabelTemplateSchema } from '@zyllen/shared';
 
 @Controller('labels')

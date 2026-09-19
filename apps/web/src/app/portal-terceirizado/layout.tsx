@@ -1,5 +1,5 @@
 "use client";
-import PortalLayout from "@web/components/portal-layout";
+import PortalLayout from "@web/components/layouts/portal-layout";
 import { Wrench, LayoutDashboard } from "lucide-react";
 
 const CONTRACTOR_NAV = [

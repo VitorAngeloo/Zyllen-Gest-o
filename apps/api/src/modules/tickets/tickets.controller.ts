@@ -3,18 +3,20 @@ import {
     UseInterceptors, UploadedFiles, BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { verifiedMediaStorage, mediaUploadDirectory } from '../media/media-storage';
+import { verifiedMediaStorage, mediaUploadDirectory } from '../../infrastructure/storage/verified-media-storage';
 import { existsSync, mkdirSync } from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { TicketsService } from './tickets.service';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { TicketStatisticsService } from './ticket-statistics.service';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
     createTicketSchema, assignTicketSchema, updateTicketStatusSchema,
     createTicketMessageSchema, assignTicketWithPinSchema,
     closeTicketWithPinSchema, reassignTicketSchema,
     createInternalTicketSchema, createTicketRatingSchema,
+    ticketSourceFilterSchema, ticketStatisticsQuerySchema, type TicketStatisticsQuery, type TicketSourceFilter,
 } from '@zyllen/shared';
 
 // Ensure uploads directory exists
@@ -29,7 +31,10 @@ const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktim
 @Controller('tickets')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class TicketsController {
-    constructor(private readonly ticketsService: TicketsService) { }
+    constructor(
+        private readonly ticketsService: TicketsService,
+        private readonly statistics: TicketStatisticsService,
+    ) { }
 
     @Get()
     @RequirePermission('tickets.view')
@@ -40,11 +45,21 @@ export class TicketsController {
         @Query('externalUserId') externalUserId?: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
+        @Query('source', new ZodValidationPipe(ticketSourceFilterSchema)) source?: TicketSourceFilter,
     ) {
         const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
         const l = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10) || 20));
-        const result = await this.ticketsService.findAll({ status, companyId, assignedToId, externalUserId, skip: (p - 1) * l, take: l });
+        const result = await this.ticketsService.findAll({ status, companyId, assignedToId, externalUserId, source, skip: (p - 1) * l, take: l });
         return { data: result.data, total: result.total, page: p, limit: l };
+    }
+
+    @Get('statistics')
+    @RequirePermission('tickets.view')
+    async getStatistics(
+        @Query(new ZodValidationPipe(ticketStatisticsQuerySchema)) query: TicketStatisticsQuery,
+        @Request() req: any,
+    ) {
+        return { data: await this.statistics.get(query, req.user) };
     }
 
     @Get('internal-users')

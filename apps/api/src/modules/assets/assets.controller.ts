@@ -14,7 +14,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { AssetsService } from './assets.service';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createAssetSchema, bulkEquipmentSchema, updateAssetStatusSchema, updateAssetLocationSchema } from '@zyllen/shared';
 
 @Controller('assets')

@@ -24,7 +24,7 @@ function TabsList({ className, ...props }: React.ComponentProps<"div">) {
         <div
             data-slot="tabs-list"
             className={cn(
-                "inline-flex items-center gap-1 rounded-md p-1 bg-[var(--zyllen-bg)] border border-[var(--zyllen-border)]",
+                "inline-flex items-center gap-1 border-b border-white/10",
                 className
             )}
             {...props}
@@ -41,10 +41,10 @@ function TabsTrigger({ className, value, children, ...props }: React.ComponentPr
             data-state={active ? "active" : "inactive"}
             onClick={() => ctx.onValueChange(value)}
             className={cn(
-                "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm px-4 py-2 text-sm font-medium transition-all",
+                "-mb-px inline-flex items-center justify-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
                 active
-                    ? "bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg-dark)] shadow-sm"
-                    : "text-[var(--zyllen-muted)] hover:text-white",
+                    ? "border-[var(--zyllen-highlight)] text-white"
+                    : "border-transparent text-[var(--zyllen-muted)] hover:border-white/20 hover:text-white",
                 className
             )}
             {...props}

@@ -1,3 +1,5 @@
+import { validateFormData } from './utils/maintenance-form';
+import { generateOsNumber } from './utils/os-number';
 import {
     Injectable,
     NotFoundException,
@@ -9,27 +11,15 @@ import { randomInt } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { MaintenanceStatus } from '@zyllen/shared';
 
-import { PrismaService } from '../../prisma/prisma.service';
-import { decryptCPFSafe } from '../../lib/cpf-crypto';
+import { PrismaService } from '../../infrastructure/database/prisma.service';
+import { decryptCPFSafe } from '../../infrastructure/security/cpf-crypto';
 
-const FORM_DATA_MAX_BYTES = 64 * 1024; // 64 KB
+ // 64 KB
 
-function validateFormData(formData: Record<string, unknown>): void {
-    const size = Buffer.byteLength(JSON.stringify(formData), 'utf8');
-    if (size > FORM_DATA_MAX_BYTES) {
-        throw new BadRequestException(
-            `formData excede o limite permitido de ${FORM_DATA_MAX_BYTES / 1024} KB`,
-        );
-    }
-}
+
 
 // OS number generator: OS-YYYYMM-XXXX
-function generateOsNumber(): string {
-    const now = new Date();
-    const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const rand = String(randomInt(0, 10_000)).padStart(4, '0');
-    return `OS-${ym}-${rand}`;
-}
+
 
 @Injectable()
 export class MaintenanceService {

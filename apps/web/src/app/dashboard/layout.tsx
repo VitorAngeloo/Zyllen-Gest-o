@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
-import { useAuth, useAuthedFetch } from "@web/lib/auth-context";
+import { useAuth, useAuthedFetch } from "@web/features/auth/context/auth-context";
 import { apiClient } from "@web/lib/api-client";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import DashboardLayout from "@web/components/dashboard-layout";
+import DashboardLayout from "@web/components/layouts/dashboard-layout";
 import { Lock, X } from "lucide-react";
 import { toast } from "sonner";
 

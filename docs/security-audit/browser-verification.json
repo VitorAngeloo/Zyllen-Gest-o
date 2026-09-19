@@ -1,0 +1,16 @@
+{
+  "scope": "Synthetic loopback server; no production, database, credentials or remote requests",
+  "timestamp": "2026-09-15T02:02:08.826Z",
+  "browser": "153.0.8010.36",
+  "results": [
+    {
+      "name": "Real parseTemplate + openPrintWindow execute stored heightMm as JavaScript in the opener origin",
+      "result": "confirmed"
+    },
+    {
+      "name": "Same Express static middleware serves retained .html extension as text/html and browser executes it",
+      "result": "confirmed",
+      "contentType": "text/html; charset=UTF-8"
+    }
+  ]
+}

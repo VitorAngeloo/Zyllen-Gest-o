@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-09-19T13:55:48.392Z",
+  "mode": "read-only; values and hashes omitted",
+  "checks": {
+    "startupSecretAndBucketFlagValid": true,
+    "jwtMinimumLengthMet": true,
+    "jwtNotPlaceholder": true,
+    "cpfKeyIs64HexChars": true,
+    "databaseUrlIsPostgres": true,
+    "directUrlIsPostgres": true,
+    "corsOriginConfigured": true,
+    "supabaseStorageConfigured": false,
+    "supabaseStorageConfigurationComplete": true
+  },
+  "notChecked": [
+    "Actual Supabase bucket privacy/storage policies",
+    "Whether historical seeded credentials are in use",
+    "Backup and restore readiness",
+    "Database schema drift and pending migrations"
+  ]
+}

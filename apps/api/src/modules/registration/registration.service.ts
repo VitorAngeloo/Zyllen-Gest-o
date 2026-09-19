@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../../prisma/prisma.service';
-import { encryptCPF } from '../../lib/cpf-crypto';
+import { PrismaService } from '../../infrastructure/database/prisma.service';
+import { encryptCPF } from '../../infrastructure/security/cpf-crypto';
 
 @Injectable()
 export class RegistrationService {

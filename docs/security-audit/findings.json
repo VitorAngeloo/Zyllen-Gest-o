@@ -1,0 +1,692 @@
+{
+  "project": "Zyllen Gestão",
+  "date": "14 de setembro de 2026",
+  "head": "f3b2727190adbf96c9d35dc57b927e79f5c85275",
+  "findings": [
+    {
+      "id": "A01",
+      "severity": "alta",
+      "category": 1,
+      "title": "Autocadastro permite ingressar em empresa escolhida pelo solicitante",
+      "problem": "POST /register/client é público e usa companyId informado no corpo depois de verificar apenas se a empresa existe. A conta nasce ativa. Também aceita projectId sem validar a relação com a empresa. O login passa a emitir uma identidade legítima da empresa escolhida; os filtros posteriores por companyId deixam de distinguir o invasor dos clientes reais.",
+      "condition": "Cadastro público habilitado; atacante conhece o UUID da empresa ou informa nome/CNPJ que coincidem com uma empresa existente. A busca pública de empresas fornece id, nome e CNPJ. Não requer conta prévia, convite, comprovação de vínculo ou aprovação no fluxo encontrado.",
+      "impact": "Leitura das OS e dos acompanhamentos da empresa e ações de assinatura autorizadas a seus clientes. Não foi alegado acesso a chamados pessoais de outros usuários: esses endpoints usam externalUserId.",
+      "proof": "Reprodução offline executou RegistrationService.registerClient com empresa/projeto sintéticos alheios e confirmou que os identificadores foram persistidos, sem isActive=false.",
+      "fix": "Vincular empresas existentes somente por convite de uso único emitido por responsável autorizado ou por aprovação interna. Resolver companyId e projectId no servidor e validar que o projeto pertence à empresa aprovada. Deixar cadastros não aprovados inativos e não executar vinculações de dados durante o cadastro público.",
+      "acceptance": [
+        "Cadastro sem convite não adota empresa existente nem projeto externo.",
+        "Convite é autenticado, expira, é de uso único e limita empresa/projeto.",
+        "Conta pendente não acessa os portais antes de aprovação.",
+        "Teste de duas empresas comprova que novos usuários não obtêm OS/acompanhamentos da empresa alheia."
+      ],
+      "refs": [
+        {
+          "file": "apps/api/src/modules/registration/registration.controller.ts",
+          "start": 18,
+          "end": 21,
+          "note": "Rota pública, somente throttling.",
+          "code": "18:     @Post('client')\n19:     @UseGuards(ThrottlerGuard)\n20:     @Throttle({ auth: { ttl: 60000, limit: 30 } })\n21:     async registerClient("
+        },
+        {
+          "file": "apps/api/src/modules/registration/registration.service.ts",
+          "start": 47,
+          "end": 54,
+          "note": "Existência não prova vínculo.",
+          "code": "47:         if (data.companyId) {\n48:             company = await this.prisma.company.findUnique({ where: { id: data.companyId } });\n49:             if (!company) throw new NotFoundException('Empresa não encontrada');\n50:         } else if (data.companyName) {\n51:             company = data.companyCnpj\n52:                 ? await this.prisma.company.findUnique({ where: { cnpj: data.companyCnpj } })\n53:                 : null;\n54:             if (!company) {"
+        },
+        {
+          "file": "apps/api/src/modules/registration/registration.service.ts",
+          "start": 66,
+          "end": 77,
+          "note": "Empresa e projeto recebidos são gravados.",
+          "code": "66:         const user = await this.prisma.externalUser.create({\n67:             data: {\n68:                 name: data.name,\n69:                 email: data.email,\n70:                 passwordHash,\n71:                 phone: data.phone,\n72:                 city: data.city,\n73:                 state: data.state,\n74:                 position: data.position,\n75:                 companyId: company?.id || null,\n76:                 projectId: data.projectId || null,\n77:             },"
+        },
+        {
+          "file": "apps/api/prisma/schema.prisma",
+          "start": 65,
+          "end": 67,
+          "note": "Conta externa ativa por padrão.",
+          "code": "65:   companyId    String?\n66:   projectId    String?  // Projeto vinculado\n67:   isActive     Boolean  @default(true)"
+        },
+        {
+          "file": "apps/api/src/modules/clients/clients.service.ts",
+          "start": 166,
+          "end": 175,
+          "note": "Descoberta pública dos identificadores.",
+          "code": "166:     async searchCompanies(query?: string) {\n167:         return this.prisma.company.findMany({\n168:             where: query ? {\n169:                 OR: [\n170:                     { name: { contains: query, mode: 'insensitive' as const } },\n171:                     ...(query.length >= 3 ? [{ cnpj: { contains: query, mode: 'insensitive' as const } }] : []),\n172:                 ],\n173:             } : {},\n174:             select: { id: true, name: true, cnpj: true },\n175:             orderBy: { name: 'asc' },"
+        }
+      ]
+    },
+    {
+      "id": "A02",
+      "severity": "alta",
+      "category": 1,
+      "title": "Autocadastro apropria OS sem empresa por correspondência parcial de nome",
+      "problem": "Depois de cadastrar um cliente, o serviço busca todas as OS sem companyId e vincula à empresa recém-selecionada/criada aquelas cujo clientName contém o nome da empresa ou é contido por ele. O solicitante controla esse nome; a semelhança textual vira autorização para alterar a posse das OS.",
+      "condition": "Existem OS com companyId nulo e clientName preenchido. Um nome curto aceito pelo schema, por exemplo SA, coincide com SALA PRIVADA na reprodução sintética. Não depende de conhecer o UUID da OS nem de reivindicar uma empresa existente (A01).",
+      "impact": "Transferência indevida de OS legadas para empresa do atacante e posterior acesso via portal. Trata-se de escrita entre inquilinos na operação de cadastro, não apenas de uma listagem sem filtro.",
+      "proof": "Teste do serviço real confirmou updateMany de uma OS sintética SALA PRIVADA para uma empresa sintética SA criada no cadastro público.",
+      "fix": "Remover a reconciliação automática do fluxo público. Executar vinculação legada em operação interna autorizada, com relação explícita e revisão por responsável. Registrar antes/depois na auditoria e preservar os dados existentes.",
+      "acceptance": [
+        "Cadastro público não altera companyId de nenhuma OS existente.",
+        "Nomes curtos, parciais ou coincidentes não conferem posse.",
+        "Reconciliação exige permissão interna, IDs aprovados e log de auditoria.",
+        "Plano de revisão dos vínculos já efetuados não apaga nem reatribui dados sem aprovação."
+      ],
+      "refs": [
+        {
+          "file": "apps/api/src/modules/registration/registration.service.ts",
+          "start": 90,
+          "end": 101,
+          "note": "",
+          "code": "90:         // Auto-link existing OS whose clientName matches this company (exact or partial)\n91:         if (company) {\n92:             // Exact match (case-insensitive)\n93:             await this.prisma.maintenanceOS.updateMany({\n94:                 where: { companyId: null, clientName: { equals: company.name, mode: 'insensitive' } },\n95:                 data: { companyId: company.id },\n96:             });\n97:             // Partial match: clientName is contained in company name or vice versa\n98:             // Load unlinked OS and match in memory to avoid complex DB queries\n99:             const unlinked = await this.prisma.maintenanceOS.findMany({\n100:                 where: { companyId: null, clientName: { not: null } },\n101:                 select: { id: true, clientName: true },"
+        },
+        {
+          "file": "apps/api/src/modules/registration/registration.service.ts",
+          "start": 103,
+          "end": 114,
+          "note": "",
+          "code": "103:             const companyLower = company.name.toLowerCase();\n104:             const toLink = unlinked\n105:                 .filter((os) => {\n106:                     const nameLower = os.clientName!.toLowerCase().trim();\n107:                     return companyLower.includes(nameLower) || nameLower.includes(companyLower);\n108:                 })\n109:                 .map((os) => os.id);\n110:             if (toLink.length > 0) {\n111:                 await this.prisma.maintenanceOS.updateMany({\n112:                     where: { id: { in: toLink } },\n113:                     data: { companyId: company.id },\n114:                 });"
+        },
+        {
+          "file": "packages/shared/src/zod/index.ts",
+          "start": 83,
+          "end": 86,
+          "note": "Nome com apenas dois caracteres é aceito.",
+          "code": "83:     companyId: z.string().uuid('Company ID inválido').optional(),\n84:     companyName: z.string().min(2, 'Nome da empresa é obrigatório').optional(),\n85:     companyCnpj: z.string().optional(),\n86:     projectId: z.string().uuid('Project ID inválido').optional(),"
+        }
+      ]
+    },
+    {
+      "id": "A03",
+      "severity": "alta",
+      "category": 3,
+      "title": "Anexos privados acessíveis por sete rotas públicas e por /uploads",
+      "problem": "Sete handlers de entrega de arquivos usam @Public(). Validam que o anexo pertence ao ID pai da URL, mas não autenticam o leitor nem verificam empresa/dono/permissão. Além disso, ServeStaticModule publica todo o diretório uploads sem JWT. O caminho Supabase também é afetado: um chamador anônimo pode obter uma nova URL assinada por meio do handler público.",
+      "condition": "Atacante possui os IDs opacos da URL ou o nome/caminho do arquivo. A auditoria não demonstrou enumeração de UUIDs. Para /uploads, deve haver arquivo no armazenamento local; para as rotas principais de manutenção, o problema existe também com Supabase Storage.",
+      "impact": "Leitura não autorizada de fotos, vídeos, assinaturas e anexos de OS, acompanhamentos e chamados. A URL externa assinada pode expirar, mas o endpoint público pode renová-la.",
+      "proof": "Todos os sete handlers foram lidos; JwtAuthGuard libera @Public antes da autenticação. O teste de navegador confirmou a disponibilidade de um arquivo sintético no mesmo middleware estático, sem credenciais.",
+      "fix": "Exigir autenticação e política de leitura do recurso pai antes de servir/assinar arquivos. Cobrir interno, cliente e terceirizado sem autorizar apenas pela existência dos IDs. Retirar mídias privadas da raiz estática; se necessário, emitir links temporários vinculados à autorização, sem endpoint público que os renove indefinidamente.",
+      "acceptance": [
+        "Leitor anônimo recebe 401/403 em todas as sete rotas e na antiga URL estática privada.",
+        "Cliente de outra empresa e terceirizado não proprietário recebem 403/404.",
+        "Leitores autorizados continuam recebendo mídias locais e Supabase.",
+        "Links temporários expiram e não podem ser renovados anonimamente.",
+        "Testes verificam anexo, bloco e objeto pai nas três audiências."
+      ],
+      "refs": [
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+          "start": 169,
+          "end": 178,
+          "note": "",
+          "code": "169:     @Get(':id/attachments/:attachmentId/file')\n170:     @Public()\n171:     async serveFile(\n172:         @Param('id') id: string,\n173:         @Param('attachmentId') attachmentId: string,\n174:         @Res() res: Response,\n175:     ) {\n176:         const attachments = await this.maintenanceService.findAttachments(id);\n177:         const att = attachments.find((a) => a.id === attachmentId);\n178:         if (!att) throw new BadRequestException('Anexo não encontrado');"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+          "start": 285,
+          "end": 297,
+          "note": "",
+          "code": "285:     @Get(':id/followup-blocks/:blockId/attachments/:attId/file')\n286:     @Public()\n287:     async serveFollowupFile(\n288:         @Param('id') id: string,\n289:         @Param('blockId') blockId: string,\n290:         @Param('attId') attId: string,\n291:         @Res() res: Response,\n292:     ) {\n293:         const blocks = await this.maintenanceService.findFollowupBlocks(id);\n294:         const block = blocks.find((b: any) => b.id === blockId);\n295:         if (!block) throw new BadRequestException('Bloco não encontrado');\n296:         const att = block.attachments.find((a: any) => a.id === attId);\n297:         if (!att) throw new BadRequestException('Anexo não encontrado');"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+          "start": 220,
+          "end": 229,
+          "note": "",
+          "code": "220:     @Get(':id/attachments/:attachmentId/file')\n221:     @Public()\n222:     async serveFile(\n223:         @Param('id') id: string,\n224:         @Param('attachmentId') attachmentId: string,\n225:         @Res() res: Response,\n226:     ) {\n227:         const attachments = await this.maintenanceService.findAttachments(id);\n228:         const att = attachments.find((a) => a.id === attachmentId);\n229:         if (!att) throw new BadRequestException('Anexo não encontrado');"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+          "start": 356,
+          "end": 368,
+          "note": "",
+          "code": "356:     @Get(':id/followup-blocks/:blockId/attachments/:attId/file')\n357:     @Public()\n358:     async serveFollowupFile(\n359:         @Param('id') id: string,\n360:         @Param('blockId') blockId: string,\n361:         @Param('attId') attId: string,\n362:         @Res() res: Response,\n363:     ) {\n364:         const blocks = await this.maintenanceService.findFollowupBlocks(id);\n365:         const block = blocks.find((b: any) => b.id === blockId);\n366:         if (!block) throw new BadRequestException('Bloco não encontrado');\n367:         const att = block.attachments.find((a: any) => a.id === attId);\n368:         if (!att) throw new BadRequestException('Anexo não encontrado');"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+          "start": 119,
+          "end": 128,
+          "note": "",
+          "code": "119:     @Get(':id/attachments/:attachmentId/file')\n120:     @Public()\n121:     async serveFile(\n122:         @Param('id') id: string,\n123:         @Param('attachmentId') attachmentId: string,\n124:         @Res() res: Response,\n125:     ) {\n126:         const attachments = await this.maintenanceService.findAttachments(id);\n127:         const att = attachments.find((a) => a.id === attachmentId);\n128:         if (!att) throw new BadRequestException('Anexo não encontrado');"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+          "start": 145,
+          "end": 157,
+          "note": "",
+          "code": "145:     @Get(':id/followup-blocks/:blockId/attachments/:attId/file')\n146:     @Public()\n147:     async serveFollowupFile(\n148:         @Param('id') id: string,\n149:         @Param('blockId') blockId: string,\n150:         @Param('attId') attId: string,\n151:         @Res() res: Response,\n152:     ) {\n153:         const blocks = await this.maintenanceService.findFollowupBlocks(id);\n154:         const block = blocks.find((b: any) => b.id === blockId);\n155:         if (!block) throw new BadRequestException('Bloco não encontrado');\n156:         const att = block.attachments.find((a: any) => a.id === attId);\n157:         if (!att) throw new BadRequestException('Anexo não encontrado');"
+        },
+        {
+          "file": "apps/api/src/modules/followups/followups.controller.ts",
+          "start": 183,
+          "end": 196,
+          "note": "",
+          "code": "183:     @Get(':id/blocks/:blockId/attachments/:attId/file')\n184:     @Public()\n185:     async serveFile(\n186:         @Param('id') id: string,\n187:         @Param('blockId') blockId: string,\n188:         @Param('attId') attId: string,\n189:         @Res() res: Response,\n190:     ) {\n191:         // Simple serve from disk\n192:         const block = await this.followupsService.findById(id);\n193:         const blk = block.blocks.find((b) => b.id === blockId);\n194:         if (!blk) throw new BadRequestException('Bloco não encontrado');\n195:         const att = blk.attachments.find((a) => a.id === attId);\n196:         if (!att) throw new BadRequestException('Anexo não encontrado');"
+        },
+        {
+          "file": "apps/api/src/app.module.ts",
+          "start": 42,
+          "end": 46,
+          "note": "",
+          "code": "42:         ServeStaticModule.forRoot({\n43:             rootPath: join(__dirname, '..', 'uploads'),\n44:             serveRoot: '/uploads',\n45:             serveStaticOptions: { index: false },\n46:         }),"
+        },
+        {
+          "file": "apps/api/src/modules/auth/jwt-auth.guard.ts",
+          "start": 12,
+          "end": 18,
+          "note": "",
+          "code": "12:     canActivate(context: ExecutionContext) {\n13:         const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [\n14:             context.getHandler(),\n15:             context.getClass(),\n16:         ]);\n17:         if (isPublic) return true;\n18:         return super.canActivate(context);"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance-media-storage.service.ts",
+          "start": 97,
+          "end": 103,
+          "note": "",
+          "code": "97:         }\n98: \n99:         const { data, error } = await this.supabaseClient.storage\n100:             .from(this.bucket)\n101:             .createSignedUrl(objectPath, this.signedUrlExpiresIn);\n102: \n103:         if (error || !data?.signedUrl) {"
+        }
+      ]
+    },
+    {
+      "id": "A04",
+      "severity": "alta",
+      "category": 3,
+      "title": "Terceirizado altera patrimônio alheio usando assetId ao abrir OS",
+      "problem": "A criação de OS no portal terceirizado aceita assetId do corpo. MaintenanceService verifica somente a existência do patrimônio e o associa à OS; em seguida muda seu status para EM_MANUTENCAO. Não há vínculo de autorização entre o terceirizado e esse patrimônio.",
+      "condition": "Conta de terceirizado ativa e UUID de patrimônio existente. O patrimônio não precisa estar relacionado ao solicitante. O cadastro público de terceirizados existe, mas nenhum cadastro real foi feito.",
+      "impact": "Mudança não autorizada de estado operacional e associação de patrimônio de terceiros à OS do atacante. A resposta de criação/detalhe inclui o patrimônio relacionado, expondo informações internas desse recurso.",
+      "proof": "Teste do serviço real com dependências sintéticas confirmou asset.update no UUID alheio e status EM_MANUTENCAO.",
+      "fix": "Não aceitar assetId livre no portal terceirizado. Se o negócio exigir essa associação, consultar uma atribuição explícita autorizada ao chamador antes de criar a OS e atualizar o patrimônio, dentro de uma transação coerente.",
+      "acceptance": [
+        "UUID existente, mas não atribuído ao terceirizado, não cria relação nem altera o patrimônio.",
+        "Objeto autorizado mantém o fluxo válido.",
+        "Resposta não inclui detalhes de patrimônio sem autorização.",
+        "Teste compara estado antes/depois em caso de rejeição."
+      ],
+      "refs": [
+        {
+          "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+          "start": 83,
+          "end": 87,
+          "note": "",
+          "code": "83:     async openOS(\n84:         @Request() req: any,\n85:         @Body(new ZodValidationPipe(createMaintenanceSchema)) body: {\n86:             assetId?: string;\n87:             notes?: string;"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+          "start": 99,
+          "end": 103,
+          "note": "",
+          "code": "99:         this.assertContractor(req);\n100:         const data = await this.maintenanceService.openOS({\n101:             assetId: body.assetId,\n102:             openedByContractorId: req.user.id,\n103:             notes: body.notes,"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance.service.ts",
+          "start": 59,
+          "end": 64,
+          "note": "",
+          "code": "59:         // Validate asset if provided\n60:         let asset: any = null;\n61:         if (data.assetId) {\n62:             asset = await this.prisma.asset.findUnique({ where: { id: data.assetId } });\n63:             if (!asset) throw new NotFoundException('Patrimônio não encontrado');\n64:         }"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance.service.ts",
+          "start": 109,
+          "end": 124,
+          "note": "",
+          "code": "109:                 include: {\n110:                     asset: { include: { sku: { select: { skuCode: true, name: true } } } },\n111:                     company: { select: { id: true, name: true } },\n112:                     project: { select: { id: true, name: true } },\n113:                     openedBy: { select: { name: true } },\n114:                     openedByContractor: { select: { name: true } },\n115:                 },\n116:             }),\n117:         );\n118: \n119:         // Update asset status if asset provided\n120:         if (data.assetId && asset) {\n121:             await this.prisma.asset.update({\n122:                 where: { id: data.assetId },\n123:                 data: { status: 'EM_MANUTENCAO' },\n124:             });"
+        }
+      ]
+    },
+    {
+      "id": "A05",
+      "severity": "média",
+      "category": 2,
+      "title": "Rota de assumir chamado contorna restrição de transferência de responsável",
+      "problem": "A UI só mostra Assumir quando não existe responsável e reserva Mover para Administrador/Gestor. O backend restringe reassign, mas assign-with-pin aceita tickets.view e sobrescreve assignedToInternalUserId sem rejeitar um chamado já atribuído. O PIN próprio comprova identidade, não autoriza retirar o chamado de outro técnico.",
+      "condition": "Usuário interno não gestor com tickets.view e PIN válido; chamado ainda não encerrado já atribuído a outra pessoa. Não precisa conhecer o PIN do responsável atual.",
+      "impact": "Apropriação de chamados em execução, alteração de responsabilidade e possibilidade de usar o fluxo de fechamento que passa a reconhecer o atacante como responsável.",
+      "proof": "Reprodução de TicketsService.assignWithPin confirmou a substituição de um responsável sintético pelo chamador não gestor.",
+      "fix": "Permitir autoatribuição apenas se o responsável estiver vazio, em atualização atômica. Qualquer troca de responsável existente deve passar pela política de transferência, inclusive por rotas alternativas. Manter validação de PIN e auditoria.",
+      "acceptance": [
+        "Autoatribuição de chamado ocupado é negada a não gestores.",
+        "Duas requisições concorrentes não conseguem assumir o mesmo chamado.",
+        "Transferência exige o privilégio apropriado em todos os endpoints.",
+        "Chamado disponível ainda pode ser assumido com PIN válido."
+      ],
+      "refs": [
+        {
+          "file": "apps/web/src/app/dashboard/chamados/page.tsx",
+          "start": 611,
+          "end": 625,
+          "note": "",
+          "code": "611:                                                     {!d.assignedToInternalUserId && (\n612:                                                         <Button size=\"sm\" variant=\"highlight\" onClick={() => setPinModal({ type: \"assign\", ticketId: d.id })}>\n613:                                                             <Shield size={14} className=\"mr-1\" /> Assumir\n614:                                                         </Button>\n615:                                                     )}\n616:                                                     {!d.assignedToInternalUserId && isAdminOrGestor && (\n617:                                                         <Button size=\"sm\" variant=\"outline\" className=\"text-white border-[var(--zyllen-border)]\"\n618:                                                             onClick={() => { setDelegateUserId(\"\"); setPinModal({ type: \"delegate\", ticketId: d.id }); }}>\n619:                                                             <User size={14} className=\"mr-1\" /> Delegar\n620:                                                         </Button>\n621:                                                     )}\n622:                                                     {d.assignedToInternalUserId && isAdminOrGestor && (\n623:                                                         <Button size=\"sm\" variant=\"outline\" className=\"text-white border-[var(--zyllen-border)]\"\n624:                                                             onClick={() => { setDelegateUserId(\"\"); setPinModal({ type: \"reassign\", ticketId: d.id }); }}>\n625:                                                             <ArrowRightLeft size={14} className=\"mr-1\" /> Mover"
+        },
+        {
+          "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+          "start": 175,
+          "end": 184,
+          "note": "",
+          "code": "175:     @Put(':id/assign-with-pin')\n176:     @RequirePermission('tickets.view')\n177:     async assignWithPin(\n178:         @Param('id') id: string,\n179:         @Request() req: any,\n180:         @Body(new ZodValidationPipe(assignTicketWithPinSchema)) body: { pin: string; assignedToId?: string },\n181:     ) {\n182:         const data = await this.ticketsService.assignWithPin(\n183:             id, req.user.id, req.user.role.name, body.pin, body.assignedToId,\n184:         );"
+        },
+        {
+          "file": "apps/api/src/modules/tickets/tickets.service.ts",
+          "start": 229,
+          "end": 246,
+          "note": "",
+          "code": "229:     async assignWithPin(ticketId: string, userId: string, roleName: string, pin: string, assignedToId?: string) {\n230:         const ticket = await this.findById(ticketId);\n231:         if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException('Chamado encerrado não pode ser alterado');\n232: \n233:         // Only admin/gestor can delegate to another user\n234:         const targetId = assignedToId && this.isAdminOrGestor(roleName) ? assignedToId : userId;\n235: \n236:         const valid = await this.authService.validatePin(userId, pin);\n237:         if (!valid) throw new ForbiddenException('PIN inválido');\n238: \n239:         const user = await this.prisma.internalUser.findUnique({ where: { id: targetId } });\n240:         if (!user) throw new NotFoundException('Usuário interno não encontrado');\n241: \n242:         return this.prisma.ticket.update({\n243:             where: { id: ticketId },\n244:             data: {\n245:                 assignedToInternalUserId: targetId,\n246:                 status: TicketStatus.IN_PROGRESS,"
+        },
+        {
+          "file": "apps/api/src/modules/tickets/tickets.service.ts",
+          "start": 283,
+          "end": 287,
+          "note": "A rota alternativa de reassign já protege o papel.",
+          "code": "283:     async reassign(ticketId: string, userId: string, roleName: string, pin: string, newAssignedToId: string) {\n284:         if (!this.isAdminOrGestor(roleName)) {\n285:             throw new ForbiddenException('Apenas administradores e gestores podem mover chamados');\n286:         }\n287: "
+        }
+      ]
+    },
+    {
+      "id": "A06",
+      "severity": "média",
+      "category": 2,
+      "title": "Bloqueios de assinatura podem ser contornados por exclusão ou substituição",
+      "problem": "A UI impede excluir bloco isLocked e deixa de oferecer nova assinatura quando witnessSignature já existe. A API rejeita editar um bloco bloqueado, mas removeFollowupBlock o exclui sem verificar isLocked. clientSignWitness verifica empresa e status, porém sobrescreve uma assinatura de testemunha preexistente.",
+      "condition": "Exclusão: colaborador com maintenance.execute ou terceirizado dono da OS. Substituição: cliente da empresa da OS, ainda não encerrada. Não é acesso a objeto alheio; é bypass das regras de imutabilidade em objetos acessíveis ao chamador.",
+      "impact": "Perda ou troca de evidência de aceite, comprometendo integridade e rastreabilidade das assinaturas confirmadas.",
+      "proof": "Dois testes do serviço real confirmaram exclusão de bloco SIGNATURE isLocked=true e sobrescrita de witnessSignature. Um teste de controle confirmou que a edição comum do bloco bloqueado é rejeitada.",
+      "fix": "Centralizar a política de imutabilidade e aplicá-la a edição, exclusão, anexos e assinatura. Impedir sobrescrita concorrente de assinatura existente. Correções legítimas devem gerar revisão auditável, sem destruir o aceite original.",
+      "acceptance": [
+        "Bloco confirmado não pode ser excluído ou alterado por nenhuma audiência.",
+        "Segunda assinatura não sobrescreve witnessSignature existente.",
+        "Duas assinaturas concorrentes preservam um único aceite original.",
+        "Revisões autorizadas preservam histórico e registram autor/motivo."
+      ],
+      "refs": [
+        {
+          "file": "apps/web/src/components/os-forms/os-followup-section.tsx",
+          "start": 252,
+          "end": 256,
+          "note": "",
+          "code": "252:     const canDelete = !readOnly && !clientMode && !isLocked;\n253:     // Can sign a SIGNATURE block: not readOnly, not locked, (full edit or clientMode)\n254:     const canSign = !readOnly && !isLocked && block.type === \"SIGNATURE\";\n255:     // Can confirm/lock: not readOnly, not locked, block is SIGNATURE and has content\n256:     const canConfirm = !readOnly && !isLocked && block.type === \"SIGNATURE\" && !!block.content;"
+        },
+        {
+          "file": "apps/web/src/app/portal-cliente/manutencao/page.tsx",
+          "start": 186,
+          "end": 195,
+          "note": "",
+          "code": "186:                         {witnessSignature ? (\n187:                             <div className=\"space-y-2\">\n188:                                 <div className=\"rounded-md border border-green-500/30 bg-white p-2\">\n189:                                     <img src={witnessSignature} alt=\"Assinatura\" className=\"w-full h-24 object-contain\" />\n190:                                 </div>\n191:                                 <p className=\"text-xs text-green-400 flex items-center gap-1\">\n192:                                     <Lock size={11} /> Assinatura registrada — não pode ser alterada\n193:                                 </p>\n194:                             </div>\n195:                         ) : !signingWitness ? ("
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance.service.ts",
+          "start": 456,
+          "end": 461,
+          "note": "",
+          "code": "456:     async removeFollowupBlock(osId: string, blockId: string) {\n457:         const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({\n458:             where: { id: blockId, maintenanceOSId: osId },\n459:         });\n460:         if (!block) throw new NotFoundException('Bloco não encontrado');\n461:         await this.prisma.maintenanceOSFollowupBlock.delete({ where: { id: blockId } });"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance.service.ts",
+          "start": 326,
+          "end": 340,
+          "note": "",
+          "code": "326:     async clientSignWitness(osId: string, companyId: string, signature: string) {\n327:         if (!signature || !signature.startsWith('data:image/')) {\n328:             throw new BadRequestException('Assinatura inválida');\n329:         }\n330:         const os = await this.findById(osId);\n331:         if (os.companyId !== companyId) throw new ForbiddenException('OS não pertence à sua empresa');\n332:         if (os.status === MaintenanceStatus.CLOSED) throw new BadRequestException('OS já encerrada');\n333: \n334:         const existingFormData = (os.formData as Record<string, unknown>) || {};\n335:         const newFormData = { ...existingFormData, witnessSignature: signature };\n336:         validateFormData(newFormData);\n337: \n338:         return this.prisma.maintenanceOS.update({\n339:             where: { id: osId },\n340:             data: { formData: newFormData as Prisma.InputJsonValue },"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+          "start": 306,
+          "end": 316,
+          "note": "",
+          "code": "306:     @Delete(':id/followup-blocks/:blockId')\n307:     async removeFollowupBlock(\n308:         @Request() req: any,\n309:         @Param('id') id: string,\n310:         @Param('blockId') blockId: string,\n311:     ) {\n312:         this.assertContractor(req);\n313:         const os = await this.maintenanceService.findById(id);\n314:         if (os.openedByContractorId !== req.user.id) throw new ForbiddenException('OS não pertence a este terceirizado');\n315:         await this.maintenanceService.removeFollowupBlock(id, blockId);\n316:         return { message: 'Bloco removido' };"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/client-maintenance.controller.ts",
+          "start": 93,
+          "end": 102,
+          "note": "",
+          "code": "93:     @Put(':id/witness-signature')\n94:     async signWitness(\n95:         @Request() req: any,\n96:         @Param('id') id: string,\n97:         @Body() body: { signature: string },\n98:     ) {\n99:         this.assertCompany(req);\n100:         if (!body.signature) throw new BadRequestException('Assinatura é obrigatória');\n101:         const data = await this.maintenanceService.clientSignWitness(id, req.user.companyId, body.signature);\n102:         return { data, message: 'Assinatura salva com sucesso' };"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance.service.ts",
+          "start": 427,
+          "end": 433,
+          "note": "Controle correto de edição, ausente na exclusão.",
+          "code": "427:     async updateFollowupBlock(osId: string, blockId: string, data: { content?: string; order?: number }) {\n428:         const block = await this.prisma.maintenanceOSFollowupBlock.findFirst({\n429:             where: { id: blockId, maintenanceOSId: osId },\n430:         });\n431:         if (!block) throw new NotFoundException('Bloco não encontrado');\n432:         if (block.isLocked) throw new ForbiddenException('Este bloco está confirmado e não pode ser alterado');\n433:         return this.prisma.maintenanceOSFollowupBlock.update({"
+        }
+      ]
+    },
+    {
+      "id": "A07",
+      "severity": "média",
+      "category": 2,
+      "title": "Encerrar OS ignora a permissão específica maintenance.close",
+      "problem": "O contrato de permissões define maintenance.execute e maintenance.close separadamente, mas PUT /maintenance/:id/status exige somente execute. O schema aceita CLOSED e o serviço encerra a OS sem consultar close. A revogação de close não restringe essa operação.",
+      "condition": "Papel personalizado com maintenance.execute e sem maintenance.close. Os papéis operacionais padrão do seed concedem as duas em conjunto; a separação só se manifesta quando as permissões são configuradas de forma diferente. O portal terceirizado tem política própria e não foi considerado sujeito ao RBAC interno.",
+      "impact": "Fechamento de OS e efeitos operacionais associados por usuário sem o privilégio específico de encerramento.",
+      "proof": "Teste isolado autorizou somente maintenance.execute no guard e confirmou que MaintenanceService.updateStatus ainda persiste CLOSED.",
+      "fix": "Exigir maintenance.close quando o estado desejado for CLOSED, mantendo a política adequada às outras transições. Fazer a decisão no servidor e testar combinações de permissões, não apenas os papéis padrão.",
+      "acceptance": [
+        "Usuário com execute, mas sem close, não encerra OS.",
+        "Revogar close tem efeito na requisição seguinte.",
+        "Transições não finais continuam respeitando execute.",
+        "Matriz de testes inclui papéis personalizados e as três audiências."
+      ],
+      "refs": [
+        {
+          "file": "apps/api/prisma/seed.ts",
+          "start": 87,
+          "end": 90,
+          "note": "",
+          "code": "87:         { screen: 'maintenance', action: 'view' },\n88:         { screen: 'maintenance', action: 'open' },\n89:         { screen: 'maintenance', action: 'execute' },\n90:         { screen: 'maintenance', action: 'close' },"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+          "start": 90,
+          "end": 98,
+          "note": "",
+          "code": "90:     @Put(':id/status')\n91:     @RequirePermission('maintenance.execute')\n92:     async updateStatus(\n93:         @Param('id') id: string,\n94:         @Request() req: any,\n95:         @Body(new ZodValidationPipe(updateMaintenanceStatusSchema)) body: { status: string; notes?: string },\n96:     ) {\n97:         const data = await this.maintenanceService.updateStatus(id, body.status, req.user.id, body.notes);\n98:         return { data, message: 'OS atualizada' };"
+        },
+        {
+          "file": "packages/shared/src/zod/index.ts",
+          "start": 424,
+          "end": 426,
+          "note": "",
+          "code": "424: export const updateMaintenanceStatusSchema = z.object({\n425:     status: z.enum(['OPEN', 'IN_PROGRESS', 'CLOSED']),\n426:     notes: z.string().optional(),"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance.service.ts",
+          "start": 225,
+          "end": 234,
+          "note": "",
+          "code": "225:             const prevTag = os.notes?.match(/\\[previousStatus:\\w+\\]/);\n226:             updateData.notes = prevTag ? `${prevTag[0]} ${notes}` : notes;\n227:         }\n228:         if (status === MaintenanceStatus.CLOSED) {\n229:             updateData.closedById = userId;\n230:             updateData.completedAt = new Date();\n231:             // Restore previous asset status from the notes field (only if asset exists)\n232:             if (os.assetId) {\n233:                 const previousStatusMatch = os.notes?.match(/\\[previousStatus:(\\w+)\\]/);\n234:                 const previousStatus = previousStatusMatch ? previousStatusMatch[1] : 'ATIVO';"
+        }
+      ]
+    },
+    {
+      "id": "A08",
+      "severity": "alta",
+      "category": 4,
+      "title": "Seed e documentação publicam credenciais fixas de administrador",
+      "problem": "O seed calcula hashes de senha e PIN literais conhecidos, cria o usuário administrador ativo e não exige substituição no bootstrap. A documentação divulga as mesmas credenciais. Hashing em repouso não protege uma senha cujo valor inicial é público. update: {} conserva uma conta preexistente, mas a criação continua insegura.",
+      "condition": "Seed executado quando a conta padrão não existe e credenciais não trocadas depois. Não foi testado login nem verificado se o administrador de produção conserva esses valores. O risco é de bootstrap/configuração, não uma afirmação de invasão atual.",
+      "impact": "Acesso administrativo integral às funções protegidas pelo bypass Administrador, se a conta ainda aceitar as credenciais padrão.",
+      "proof": "Literais encontrados no código atual e no histórico desde o commit ae56108d26d255f6ed35746eed5d7776707cbeef (10/02/2026), seed.ts:130-131. Valores de senha/PIN foram redigidos neste relatório para não ampliar sua circulação.",
+      "fix": "Remover senha/PIN padrão do seed, logs e documentação. Exigir bootstrap explícito com segredo aleatório de uso único e troca obrigatória. Verificar e rotacionar credenciais eventualmente derivadas desses valores; tratar o histórico como exposição permanente, sem depender de apagar commits.",
+      "acceptance": [
+        "Sem segredo de bootstrap explícito, seed não cria administrador com credencial previsível.",
+        "Nenhum log/documento publica senha ou PIN reais.",
+        "Primeiro acesso exige troca de senha e criação de PIN.",
+        "Responsável verifica a conta existente e registra a rotação sem divulgar valores."
+      ],
+      "refs": [
+        {
+          "file": "apps/api/prisma/seed.ts",
+          "start": 218,
+          "end": 233,
+          "note": "",
+          "code": "218:     const adminPasswordHash = await bcrypt.hash('[CREDENCIAL_PADRAO_REDIGIDA]', 10);\n219:     const adminPinHash = await bcrypt.hash('[CREDENCIAL_PADRAO_REDIGIDA]', 10);\n220: \n221:     const adminUser = await prisma.internalUser.upsert({\n222:         where: { email: 'admin@zyllen.com' },\n223:         update: {},\n224:         create: {\n225:             name: 'Administrador',\n226:             email: 'admin@zyllen.com',\n227:             passwordHash: adminPasswordHash,\n228:             pin4Hash: adminPinHash,\n229:             roleId: adminRole.id,\n230:             isActive: true,\n231:         },\n232:     });\n233:     console.log('  ✅ Admin user created:', adminUser.email, '(PIN: [PIN_REDIGIDO])');"
+        },
+        {
+          "file": "PROJETO.md",
+          "start": 887,
+          "end": 887,
+          "note": "",
+          "code": "887: | **Usuário admin** | `admin@zyllen.com` / senha: `[CREDENCIAL_REDIGIDA]` / PIN: `[CREDENCIAL_REDIGIDA]` |"
+        }
+      ]
+    },
+    {
+      "id": "A09",
+      "severity": "alta",
+      "category": 4,
+      "title": "Docker fornece segredo JWT público e startup aceita o valor padrão",
+      "problem": "docker-compose.yml define JWT_SECRET com fallback público. O módulo JWT e a estratégia usam getOrThrow, que rejeita ausência, mas não rejeita um valor conhecido/fraco presente. ConfigModule não contém validador que bloqueie esse default.",
+      "condition": "Deployment recebe o fallback do Compose ou copia esse literal para sua configuração. O Compose atual também contém uma DATABASE_URL SQLite desatualizada: não se afirma que ele sobe como está; a exploração depende de corrigir a conexão PostgreSQL e conservar o JWT inseguro. A configuração real da produção não foi inspecionada.",
+      "impact": "Conhecer a chave permite forjar JWTs para IDs de usuários ativos conhecidos. A estratégia reconsulta usuários no banco, portanto inventar um ID ou apenas escrever role=Administrador no token não basta; ainda assim, a assinatura deixa de provar autenticidade.",
+      "proof": "Fallback atual em docker-compose.yml:12. Histórico também contém fallback no código JWT, por exemplo blob 60b0cecf4d99db928ce8394a8542900a821940d1, auth.module.ts:14. O código atual removeu esse fallback local, mas o Compose e a falta de validação permanecem.",
+      "fix": "Exigir JWT_SECRET explicitamente no deployment e validar no startup comprimento/qualidade mínima e uma denylist dos defaults históricos. Rotacionar qualquer chave implantada derivada do literal e invalidar tokens correspondentes de forma planejada.",
+      "acceptance": [
+        "Compose falha de forma clara se JWT_SECRET não estiver definido.",
+        "Startup rejeita o valor histórico e demais placeholders públicos.",
+        "Configuração válida de alta entropia permite iniciar.",
+        "Há procedimento seguro de rotação e invalidação de sessões afetadas."
+      ],
+      "refs": [
+        {
+          "file": "docker-compose.yml",
+          "start": 11,
+          "end": 14,
+          "note": "",
+          "code": "11:       - DATABASE_URL=file:./dev.db\n12:       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}\n13:       - API_PORT=3001\n14:       - NODE_ENV=production"
+        },
+        {
+          "file": "apps/api/src/modules/auth/auth.module.ts",
+          "start": 17,
+          "end": 20,
+          "note": "",
+          "code": "17:             useFactory: (cfg: ConfigService) => ({\n18:                 secret: cfg.getOrThrow<string>('JWT_SECRET'),\n19:                 signOptions: { expiresIn: '1d' },\n20:             }),"
+        },
+        {
+          "file": "apps/api/src/modules/auth/jwt.strategy.ts",
+          "start": 18,
+          "end": 23,
+          "note": "",
+          "code": "18:                 ExtractJwt.fromAuthHeaderAsBearerToken(),\n19:                 (req: Request) => (req.query?.token as string) ?? null,\n20:             ]),\n21:             ignoreExpiration: false,\n22:             secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),\n23:         });"
+        },
+        {
+          "file": "apps/api/src/app.module.ts",
+          "start": 26,
+          "end": 29,
+          "note": "",
+          "code": "26:         ConfigModule.forRoot({\n27:             isGlobal: true,\n28:             envFilePath: '.env',\n29:         }),"
+        }
+      ]
+    },
+    {
+      "id": "A10",
+      "severity": "média",
+      "category": 5,
+      "title": "Upload de HTML disfarçado de imagem executa JavaScript na origem da API",
+      "problem": "Uploads locais confiam no MIME informado no multipart e preservam a extensão original do nome. Um arquivo .html com Content-Type image/png passa pelo fileFilter; o servidor estático determina text/html pela extensão. Ao abrir o link diretamente, o navegador executa o HTML persistido.",
+      "condition": "Usuário autenticado com acesso a um fluxo de upload, inclusive cliente em chamado próprio; vítima abre o arquivo como documento. Confirmado no fluxo local de chamados, independentemente de o storage principal de OS usar Supabase. Não executa simplesmente ao aparecer dentro de uma tag img.",
+      "impact": "XSS persistente na origem da API e conteúdo enganoso servido pelo domínio confiável. A API e o frontend estão em origens distintas: esse vetor, sozinho, não lê o localStorage do frontend. Não foi afirmado roubo de token do site por esse caminho.",
+      "proof": "Teste do FilesInterceptor real aceitou MIME image/png e preservou .html. Chrome headless em servidor loopback sintético usando o mesmo express.static recebeu text/html e executou marcador JavaScript inofensivo.",
+      "fix": "Detectar formato pelos bytes, decodificar/recodificar imagens quando aplicável e derivar extensão de um tipo realmente validado. Rejeitar HTML e formatos ativos, servir anexos em origem isolada sem credenciais e aplicar Content-Disposition/CSP adequados. Fechar o acesso público conforme A03.",
+      "acceptance": [
+        "Arquivo HTML declarado image/png é rejeitado e não fica publicamente armazenado.",
+        "Extensão final é derivada do formato verificado, nunca do nome original.",
+        "Arquivo rejeitado é removido e não deixa registro/arquivo órfão.",
+        "Abertura direta de anexos não executa conteúdo ativo na origem autenticada.",
+        "Testes cobrem todos os controladores que compartilham o padrão."
+      ],
+      "refs": [
+        {
+          "file": "apps/api/src/modules/tickets/client-tickets.controller.ts",
+          "start": 17,
+          "end": 23,
+          "note": "",
+          "code": "17: const ticketStorage = diskStorage({\n18:     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),\n19:     filename: (_req, file, cb) => {\n20:         const unique = randomUUID();\n21:         const ext = extname(file.originalname) || '.bin';\n22:         cb(null, `${unique}${ext}`);\n23:     },"
+        },
+        {
+          "file": "apps/api/src/modules/tickets/client-tickets.controller.ts",
+          "start": 85,
+          "end": 93,
+          "note": "",
+          "code": "85:     @UseInterceptors(FilesInterceptor('files', 10, {\n86:         storage: ticketStorage,\n87:         limits: { fileSize: MAX_FILE_SIZE },\n88:         fileFilter: (_req, file, cb) => {\n89:             if (ALLOWED_MIME.test(file.mimetype)) {\n90:                 cb(null, true);\n91:             } else {\n92:                 cb(new BadRequestException(`Tipo de arquivo não permitido: ${file.mimetype}`), false);\n93:             }"
+        },
+        {
+          "file": "apps/api/src/app.module.ts",
+          "start": 42,
+          "end": 46,
+          "note": "",
+          "code": "42:         ServeStaticModule.forRoot({\n43:             rootPath: join(__dirname, '..', 'uploads'),\n44:             serveRoot: '/uploads',\n45:             serveStaticOptions: { index: false },\n46:         }),"
+        },
+        {
+          "file": "apps/api/src/modules/tickets/tickets.controller.ts",
+          "start": 26,
+          "end": 32,
+          "note": "",
+          "code": "26: const ticketStorage = diskStorage({\n27:     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),\n28:     filename: (_req, file, cb) => {\n29:         const unique = randomUUID();\n30:         const ext = extname(file.originalname) || '.bin';\n31:         cb(null, `${unique}${ext}`);\n32:     },"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/maintenance.controller.ts",
+          "start": 24,
+          "end": 30,
+          "note": "",
+          "code": "24: const maintenanceStorage = diskStorage({\n25:     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),\n26:     filename: (_req, file, cb) => {\n27:         const unique = randomUUID();\n28:         const ext = extname(file.originalname) || '.bin';\n29:         cb(null, `${unique}${ext}`);\n30:     },"
+        },
+        {
+          "file": "apps/api/src/modules/maintenance/contractor-maintenance.controller.ts",
+          "start": 22,
+          "end": 28,
+          "note": "",
+          "code": "22: const maintenanceStorage = diskStorage({\n23:     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),\n24:     filename: (_req, file, cb) => {\n25:         const unique = randomUUID();\n26:         const ext = extname(file.originalname) || '.bin';\n27:         cb(null, `${unique}${ext}`);\n28:     },"
+        },
+        {
+          "file": "apps/api/src/modules/followups/followups.controller.ts",
+          "start": 31,
+          "end": 37,
+          "note": "",
+          "code": "31: const followupStorage = diskStorage({\n32:     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),\n33:     filename: (_req, file, cb) => {\n34:         const unique = randomUUID();\n35:         const ext = extname(file.originalname) || '.bin';\n36:         cb(null, `${unique}${ext}`);\n37:     },"
+        },
+        {
+          "file": "apps/api/src/modules/catalog/catalog.controller.ts",
+          "start": 32,
+          "end": 37,
+          "note": "",
+          "code": "32: const mediaStorage = diskStorage({\n33:     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),\n34:     filename: (_req, file, cb) => {\n35:         const ext = extname(file.originalname) || '.bin';\n36:         cb(null, `${randomUUID()}${ext}`);\n37:     },"
+        },
+        {
+          "file": "apps/api/src/modules/inventory/inventory.controller.ts",
+          "start": 43,
+          "end": 48,
+          "note": "",
+          "code": "43: const mediaStorage = diskStorage({\n44:     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),\n45:     filename: (_req, file, cb) => {\n46:         const ext = extname(file.originalname) || '.bin';\n47:         cb(null, `${randomUUID()}${ext}`);\n48:     },"
+        }
+      ]
+    },
+    {
+      "id": "A11",
+      "severity": "alta",
+      "category": 5,
+      "title": "Template de etiqueta injeta script no HTML de impressão do frontend",
+      "problem": "O backend persiste layout como string sem validar sua estrutura. parseTemplate apenas exige elements como array e faz spread do objeto. widthMm/heightMm não são números garantidos em runtime. openPrintWindow interpola heightMm sem escape dentro de style via document.write; uma string que fecha style e abre script executa na origem do frontend.",
+      "condition": "Atacante pode gravar template via settings.manage. Uma vítima usa esse template e chega à impressão HTML de fallback, com popup permitido. Não é vetor anônimo. O payload de prova continha apenas um marcador em window.opener, sem coleta de dados ou tráfego externo.",
+      "impact": "XSS persistente na origem do frontend. O popup herda a origem e acessa seu opener; scripts nessa origem podem acessar tokens guardados no localStorage e agir como a vítima, inclusive outra conta com mais permissões.",
+      "proof": "Chrome headless executou as funções reais parseTemplate e openPrintWindow extraídas do código. heightMm malicioso permaneceu string e o marcador foi escrito no opener. O CSP atual permite scripts inline, portanto não bloqueia esse caminho.",
+      "fix": "Validar o JSON do layout no backend e no parser com schema estrito: dimensões finitas e limitadas, columns inteiro, tipos/elementos permitidos. Construir a impressão com APIs DOM e propriedades tipadas, sem interpolar valores não confiáveis em document.write. Reduzir scripts inline no CSP como defesa adicional.",
+      "acceptance": [
+        "POST/PUT de template rejeita dimensões string, NaN, infinitas e valores fora dos limites.",
+        "Template legado inválido é recusado de forma segura, sem quebrar impressão válida.",
+        "Payload que fecha style não executa no popup nem no opener.",
+        "Teste de impressão cobre fallback do Browser Print e configurações persistidas."
+      ],
+      "refs": [
+        {
+          "file": "packages/shared/src/zod/index.ts",
+          "start": 456,
+          "end": 459,
+          "note": "",
+          "code": "456: export const createLabelTemplateSchema = z.object({\n457:     name: z.string().min(1, 'Nome é obrigatório'),\n458:     layout: z.string().min(1, 'Layout é obrigatório'),\n459: });"
+        },
+        {
+          "file": "apps/api/src/modules/labels/labels.controller.ts",
+          "start": 52,
+          "end": 63,
+          "note": "",
+          "code": "52:     @Post('templates')\n53:     @RequirePermission('settings.manage')\n54:     async createTemplate(@Body(new ZodValidationPipe(createLabelTemplateSchema)) body: { name: string; layout: string }) {\n55:         const data = await this.labelsService.createTemplate(body);\n56:         return { data, message: 'Template criado' };\n57:     }\n58: \n59:     @Put('templates/:id')\n60:     @RequirePermission('settings.manage')\n61:     async updateTemplate(@Param('id') id: string, @Body(new ZodValidationPipe(updateLabelTemplateSchema)) body: { name?: string; layout?: string }) {\n62:         const data = await this.labelsService.updateTemplate(id, body);\n63:         return { data, message: 'Template atualizado' };"
+        },
+        {
+          "file": "apps/api/src/modules/labels/labels.service.ts",
+          "start": 170,
+          "end": 177,
+          "note": "",
+          "code": "170:     async createTemplate(data: { name: string; layout: string }) {\n171:         return this.prisma.labelTemplate.create({ data });\n172:     }\n173: \n174:     async updateTemplate(id: string, data: { name?: string; layout?: string }) {\n175:         const existing = await this.prisma.labelTemplate.findUnique({ where: { id } });\n176:         if (!existing) throw new NotFoundException('Template não encontrado');\n177:         return this.prisma.labelTemplate.update({ where: { id }, data });"
+        },
+        {
+          "file": "apps/web/src/lib/label-template.ts",
+          "start": 168,
+          "end": 175,
+          "note": "",
+          "code": "168: export function parseTemplate(layout: string): LabelTemplate | null {\n169:     try {\n170:         const obj = JSON.parse(layout);\n171:         if (!obj || !Array.isArray(obj.elements)) return null;\n172:         return { ...blankTemplate(), ...obj, elements: obj.elements };\n173:     } catch {\n174:         return null;\n175:     }"
+        },
+        {
+          "file": "apps/web/src/app/dashboard/etiquetas/page.tsx",
+          "start": 210,
+          "end": 219,
+          "note": "",
+          "code": "210:     const openPrintWindow = (labelsHtml: string, columns: number) => {\n211:         const origin = window.location.origin;\n212:         const fixedHtml = labelsHtml.replace(/src=\"\\/brand\\//g, `src=\"${origin}/brand/`);\n213:         const popup = window.open(\"\", \"_blank\", \"width=900,height=700\");\n214:         if (!popup) { toast.error(\"Habilite popups para este site para imprimir etiquetas.\"); return; }\n215:         const labelWidth = activeTemplate.widthMm;\n216:         const labelHeight = activeTemplate.heightMm;\n217:         const pageW = labelWidth * columns;\n218:         const qrPx = Math.max(Math.round((labelHeight - 8) * 3.78), 20);\n219:         popup.document.write(`<!DOCTYPE html>"
+        },
+        {
+          "file": "apps/web/src/app/dashboard/etiquetas/page.tsx",
+          "start": 224,
+          "end": 229,
+          "note": "",
+          "code": "224: <style>\n225: * { box-sizing: border-box; }\n226: html, body { margin: 0; padding: 0; background: white; font-family: Arial, sans-serif; }\n227: @page { size: ${pageW}mm ${labelHeight}mm; margin: 0; }\n228: .sheet { display: grid; grid-template-columns: repeat(${columns}, ${labelWidth}mm); gap: 0; width: ${pageW}mm; }\n229: .sheet > div { width: ${labelWidth}mm !important; height: ${labelHeight}mm !important; overflow: hidden !important; padding: 1.5mm !important; background: white !important; }"
+        },
+        {
+          "file": "apps/web/src/app/dashboard/etiquetas/page.tsx",
+          "start": 310,
+          "end": 315,
+          "note": "",
+          "code": "310:             try {\n311:                 printer = await getDefaultPrinter();\n312:             } catch (e: any) {\n313:                 toast.error(`${browserPrintErrorMsg(e?.message)} Usando navegador.`);\n314:                 setTimeout(() => handleHtmlPrint(), 300);\n315:                 return;"
+        },
+        {
+          "file": "apps/web/next.config.ts",
+          "start": 14,
+          "end": 14,
+          "note": "",
+          "code": "14:       \"script-src 'self' 'unsafe-inline' 'unsafe-eval'\","
+        },
+        {
+          "file": "apps/web/src/lib/auth-context.tsx",
+          "start": 151,
+          "end": 154,
+          "note": "",
+          "code": "151: \n152:         localStorage.setItem(\"accessToken\", res.accessToken);\n153:         localStorage.setItem(\"refreshToken\", res.refreshToken);\n154:         localStorage.setItem(\"userType\", type);"
+        }
+      ]
+    },
+    {
+      "id": "A12",
+      "severity": "média",
+      "category": 6,
+      "title": "Listagem de clientes devolve passwordHash sem necessidade",
+      "problem": "GET /clients/users permite settings.view e retorna o resultado integral de externalUser.findMany. include seleciona as relações, mas não exclui campos escalares do modelo, como passwordHash. O interceptor de resposta não faz remoção desses campos.",
+      "condition": "Conta interna com settings.view, como o papel Gestor do seed. Não é exposição anônima nem ausência do guard; é excesso de dados na resposta para um privilégio de consulta.",
+      "impact": "Vazamento de hashes de senha de clientes e possibilidade de tentativas offline contra senhas fracas. O hash não equivale a senha em texto puro e a auditoria não tentou quebrá-lo.",
+      "proof": "Teste do ClientsService real confirmou consulta sem select/omit e retorno de passwordHash sintético. Este achado é adicional aos cinco temas pedidos: exposição de credencial, não segredo hardcoded.",
+      "fix": "Usar select explícito/DTO de saída com somente os campos administrativos necessários. Excluir passwordHash e quaisquer tokens/PIN de todas as respostas de cadastro e consulta; manter hashes apenas no caminho de autenticação.",
+      "acceptance": [
+        "GET /clients/users não contém passwordHash em nenhum nível.",
+        "Contrato de resposta é allowlist de campos necessários.",
+        "Teste automatizado bloqueia vazamento de campos de credenciais.",
+        "Listagens e detalhes de usuários internos/externos/terceirizados são verificados para a mesma classe de erro."
+      ],
+      "refs": [
+        {
+          "file": "apps/api/src/modules/clients/clients.controller.ts",
+          "start": 157,
+          "end": 168,
+          "note": "",
+          "code": "157:     @Get('users')\n158:     @UseGuards(JwtAuthGuard, PermissionsGuard)\n159:     @RequirePermission('settings.view')\n160:     async findAllExternalUsers(\n161:         @Query('companyId') companyId?: string,\n162:         @Query('page') page?: string,\n163:         @Query('limit') limit?: string,\n164:     ) {\n165:         const p = Math.max(1, parseInt(page ?? '1', 10) || 1);\n166:         const l = Math.min(200, Math.max(1, parseInt(limit ?? '50', 10) || 50));\n167:         const result = await this.clientsService.findAllExternalUsers({ companyId, skip: (p - 1) * l, take: l });\n168:         return { data: result.data, total: result.total, page: p, limit: l };"
+        },
+        {
+          "file": "apps/api/src/modules/clients/clients.service.ts",
+          "start": 192,
+          "end": 207,
+          "note": "",
+          "code": "192:     async findAllExternalUsers(params?: { companyId?: string; skip?: number; take?: number }) {\n193:         const where = params?.companyId ? { companyId: params.companyId } : {};\n194:         const [data, total] = await Promise.all([\n195:             this.prisma.externalUser.findMany({\n196:                 where,\n197:                 include: {\n198:                     company: { select: { id: true, name: true } },\n199:                     project: { select: { id: true, name: true } },\n200:                 },\n201:                 orderBy: [{ company: { name: 'asc' } }, { name: 'asc' }],\n202:                 skip: params?.skip ?? 0,\n203:                 take: params?.take ?? 200,\n204:             }),\n205:             this.prisma.externalUser.count({ where }),\n206:         ]);\n207:         return { data, total };"
+        },
+        {
+          "file": "apps/api/prisma/schema.prisma",
+          "start": 55,
+          "end": 60,
+          "note": "",
+          "code": "55: model ExternalUser {\n56:   id           String   @id @default(uuid())\n57:   name         String\n58:   email        String   @unique\n59:   passwordHash String\n60:   cpf          String?  @unique // CPF do usuário externo"
+        },
+        {
+          "file": "apps/api/src/interceptors/response.interceptor.ts",
+          "start": 14,
+          "end": 24,
+          "note": "",
+          "code": "14:             map((data) => {\n15:                 // 204 No Content — pass through null/undefined unchanged\n16:                 if (data === null || data === undefined) return data;\n17:                 // Plain objects: spread existing keys + add success flag\n18:                 if (typeof data === 'object' && !Array.isArray(data)) {\n19:                     return { success: true, ...data };\n20:                 }\n21:                 // Unexpected array at root: wrap it\n22:                 return { success: true, data };\n23:             }),\n24:         );"
+        }
+      ]
+    }
+  ]
+}

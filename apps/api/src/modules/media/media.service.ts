@@ -6,11 +6,11 @@ import { resolve, sep } from 'path';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { Request, Response } from 'express';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { AccessService } from '../access/access.service';
 import { isManager } from '../auth/manager.guard';
-import { MaintenanceMediaStorageService } from '../maintenance/maintenance-media-storage.service';
-import { detectMedia } from './media-storage';
+import { MaintenanceMediaStorageService } from '../../infrastructure/storage/maintenance-media-storage.service';
+import { detectMedia } from '../../infrastructure/storage/verified-media-storage';
 
 export const MEDIA_KINDS = ['maintenance', 'os-followup', 'ticket', 'followup', 'item'] as const;
 export type MediaKind = typeof MEDIA_KINDS[number];

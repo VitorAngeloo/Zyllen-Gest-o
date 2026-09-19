@@ -1,0 +1,15 @@
+{
+  "pages": 61,
+  "a4": true,
+  "findings": 12,
+  "severity": {
+    "alta": 7,
+    "média": 5
+  },
+  "handlers": 198,
+  "controllers": 20,
+  "complete_issue_blocks": 12,
+  "all_pages_have_text": true,
+  "visual_qa": "Aprovado: 61 páginas rasterizadas e inspecionadas; ver visual-qa.json.",
+  "pdf_sha256": "07854b621921424fe4104e7e0d9ce2e3dfe9bc1de2f0c05212390895820c40a4"
+}

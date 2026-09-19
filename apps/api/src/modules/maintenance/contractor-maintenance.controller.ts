@@ -3,13 +3,13 @@ import {
     ForbiddenException, UseInterceptors, UploadedFiles, BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { verifiedMediaStorage, mediaUploadDirectory } from '../media/media-storage';
+import { verifiedMediaStorage, mediaUploadDirectory } from '../../infrastructure/storage/verified-media-storage';
 import { join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MaintenanceService } from './maintenance.service';
-import { MaintenanceMediaStorageService } from './maintenance-media-storage.service';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { MaintenanceMediaStorageService } from '../../infrastructure/storage/maintenance-media-storage.service';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { createMaintenanceSchema, updateOsFormDataSchema, updateMaintenanceStatusSchema } from '@zyllen/shared';
 
 // Reuse same upload dir as internal controller

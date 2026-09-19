@@ -1,3 +1,7 @@
+import { InventoryQueriesService } from './inventory-queries.service';
+import { InventorySettingsService } from './inventory-settings.service';
+import { InventoryCustodyService } from './inventory-custody.service';
+import { Prisma } from '@prisma/client';
 import {
     Injectable,
     NotFoundException,
@@ -6,11 +10,18 @@ import {
     ConflictException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../../prisma/prisma.service';
+import { randomUUID } from 'crypto';
+import { PrismaService } from '../../infrastructure/database/prisma.service';
+import type { CreateBatchEntryInput, CreateBatchExitInput } from '@zyllen/shared';
 
 @Injectable()
 export class InventoryService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly queries: InventoryQueriesService,
+        private readonly settings: InventorySettingsService,
+        private readonly custody: InventoryCustodyService,
+    ) {}
 
     // ── Validate PIN ──
     private async validatePin(userId: string, pin: string): Promise<void> {
@@ -93,6 +104,7 @@ export class InventoryService {
         userId: string;
         pin: string;
         reason?: string;
+        eventDescription?: string;
         assetId?: string;
         attachments?: { fileName: string; filePath: string; mimeType: string; mediaType: string; uploadedById: string; }[];
     }) {
@@ -116,6 +128,15 @@ export class InventoryService {
         if (!location) throw new NotFoundException('Local não encontrado');
 
         return this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT id FROM "Location" WHERE id = ${resolvedToLocationId} FOR SHARE`;
+            const destination = await tx.location.findUniqueOrThrow({ where: { id: resolvedToLocationId } });
+            if (destination.kind === 'CLIENT') throw new BadRequestException('Use o envio ao cliente para registrar o destino dos patrimônios');
+            if (data.assetId) {
+                await tx.$queryRaw`SELECT id FROM "Asset" WHERE id = ${data.assetId} FOR UPDATE`;
+                const asset = await tx.asset.findUnique({ where: { id: data.assetId }, include: { currentLocation: { select: { kind: true } } } });
+                if (!asset || asset.skuId !== data.skuId || data.qty !== 1) throw new BadRequestException('Patrimônio/SKU ou quantidade inválidos');
+                if (asset.currentLocation?.kind === 'CLIENT') throw new BadRequestException('Use a devolução do cliente para preservar a custódia');
+            }
             const movement = await tx.stockMovement.create({
                 data: {
                     typeId: data.movementTypeId,
@@ -163,6 +184,17 @@ export class InventoryService {
                 ? await this.autoCreateAssets(tx, { skuId: data.skuId, locationId: resolvedToLocationId, quantity: data.qty })
                 : [];
 
+            if (data.eventDescription) {
+                const eventAssetIds = data.assetId
+                    ? [data.assetId]
+                    : (await tx.asset.findMany({ where: { assetCode: { in: createdAssetCodes } }, select: { id: true } })).map(asset => asset.id);
+                if (eventAssetIds.length) {
+                    await tx.assetEvent.createMany({
+                        data: eventAssetIds.map(assetId => ({ assetId, description: data.eventDescription!, createdByInternalUserId: data.userId })),
+                    });
+                }
+            }
+
             await tx.auditLog.create({
                 data: {
                     action: 'STOCK_ENTRY',
@@ -207,6 +239,7 @@ export class InventoryService {
         if (!moveType) throw new NotFoundException('Tipo de movimentação não encontrado');
         if (!sku) throw new NotFoundException('Item não encontrado');
         if (!location) throw new NotFoundException('Local não encontrado');
+        if (location.kind === 'CLIENT') throw new BadRequestException('Use a devolução do cliente para preservar o destino e a custódia');
 
         // Check available assets at location
         const availableCount = await this.prisma.asset.count({
@@ -249,6 +282,14 @@ export class InventoryService {
         sku: any, location: any, moveType: any,
     ) {
         return this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT id FROM "Location" WHERE id = ${data.fromLocationId} FOR SHARE`;
+            const source = await tx.location.findUniqueOrThrow({ where: { id: data.fromLocationId } });
+            if (source.kind === 'CLIENT') throw new BadRequestException('Use a devolução do cliente para preservar o destino e a custódia');
+            if (data.assetId) {
+                await tx.$queryRaw`SELECT id FROM "Asset" WHERE id = ${data.assetId} FOR UPDATE`;
+                const asset = await tx.asset.findUnique({ where: { id: data.assetId } });
+                if (!asset || asset.skuId !== data.skuId || data.qty !== 1 || asset.currentLocationId !== data.fromLocationId || asset.status === 'BAIXADO') throw new ConflictException('Patrimônio indisponível na origem; nada foi aplicado');
+            }
             const movement = await tx.stockMovement.create({
                 data: {
                     typeId: data.movementTypeId,
@@ -291,45 +332,94 @@ export class InventoryService {
     // Tudo-ou-nada: valida todos os patrimônios ANTES e aplica numa única
     // transação. Para cada item: movimentação de Saída, sai do saldo com o
     // motivo, aplica o status escolhido e cria um evento na timeline.
-    async createBatchExit(data: {
-        assetIds: string[];
-        reason: string;
-        newStatus: string;
-        eventDescription: string;
-        pin: string;
-        userId: string;
-    }) {
+    async createBatchEntry(data: CreateBatchEntryInput & { userId: string }) {
         await this.validatePin(data.userId, data.pin);
+        const [moveType, destination] = await Promise.all([
+            this.prisma.movementType.findUnique({ where: { id: data.movementTypeId } }),
+            this.prisma.location.findUnique({ where: { id: data.toLocationId } }),
+        ]);
+        if (!moveType || moveType.isFinalWriteOff) throw new BadRequestException('Selecione um tipo de movimentacao valido para entrada');
+        if (moveType.requiresApproval) throw new BadRequestException('Entradas em lote nao podem usar um tipo que exige aprovacao');
+        if (moveType.setsAssetStatus && moveType.setsAssetStatus !== data.returnStatus) throw new BadRequestException('O status do tipo de movimentacao e incompativel com a condicao informada');
+        if (!destination || destination.kind !== 'INTERNAL') throw new BadRequestException('Selecione um estoque interno da Skyline como destino');
+
+        const uniqueIds = [...new Set(data.assetIds)].sort();
+        const processed = await this.prisma.$transaction(async tx => {
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${data.requestId}))`;
+            const previous = await tx.auditLog.findFirst({ where: { action: 'STOCK_ENTRY_BATCH', entityType: 'InventoryBatchEntry', entityId: data.requestId }, orderBy: { createdAt: 'desc' } });
+            if (previous) {
+                const details = previous.details as { assetIds?: string[]; toLocationId?: string; processed?: number } | null;
+                if (previous.userId !== data.userId || details?.toLocationId !== data.toLocationId || [...(details?.assetIds ?? [])].sort().join() !== uniqueIds.join()) throw new ConflictException('Identificador ja utilizado em outra entrada em lote');
+                return details?.processed ?? uniqueIds.length;
+            }
+            const initial = await tx.asset.findMany({ where: { id: { in: uniqueIds } }, select: { id: true, currentLocationId: true } });
+            const locationIds = [...new Set([data.toLocationId, ...initial.map(asset => asset.currentLocationId).filter((id): id is string => Boolean(id))])].sort();
+            if (locationIds.length) await tx.$queryRaw`SELECT id FROM "Location" WHERE id IN (${Prisma.join(locationIds)}) ORDER BY id FOR SHARE`;
+            await tx.$queryRaw`SELECT id FROM "Asset" WHERE id IN (${Prisma.join(uniqueIds)}) ORDER BY id FOR UPDATE`;
+            const assets = await tx.asset.findMany({ where: { id: { in: uniqueIds } }, include: { currentLocation: { select: { kind: true } } }, orderBy: { id: 'asc' } });
+            if (assets.length !== uniqueIds.length) throw new BadRequestException('Um ou mais patrimonios nao existem');
+            if (assets.some(asset => asset.currentLocationId !== initial.find(previousAsset => previousAsset.id === asset.id)?.currentLocationId)) throw new ConflictException('Patrimonio alterado por outra operacao; recarregue');
+            if (assets.some(asset => asset.status === 'BAIXADO')) throw new ConflictException('Patrimonio baixado nao pode retornar ao estoque');
+            if (assets.some(asset => asset.currentLocationId === data.toLocationId)) throw new ConflictException('Um patrimonio ja esta no estoque de destino');
+            const now = new Date();
+            await tx.stockMovement.createMany({ data: assets.map(asset => ({
+                typeId: moveType.id, skuId: asset.skuId, assetId: asset.id,
+                fromLocationId: asset.currentLocationId, toLocationId: data.toLocationId, qty: 1, reason: data.reason,
+                referenceType: asset.currentLocation?.kind === 'CLIENT' ? 'CLIENT_RETURN' : asset.currentLocation?.kind === 'INTERNAL' ? 'INTERNAL_TRANSFER' : 'STOCK_ENTRY',
+                referenceId: data.requestId, createdByInternalUserId: data.userId, pinValidatedAt: now,
+            })) });
+            await tx.asset.updateMany({ where: { id: { in: uniqueIds } }, data: { currentLocationId: data.toLocationId, status: data.returnStatus, lastExitReason: null } });
+            await tx.assetEvent.createMany({ data: assets.map(asset => ({ assetId: asset.id, description: data.eventDescription, createdByInternalUserId: data.userId })) });
+            await tx.auditLog.create({ data: { action: 'STOCK_ENTRY_BATCH', entityType: 'InventoryBatchEntry', entityId: data.requestId, userId: data.userId, details: { assetIds: uniqueIds, toLocationId: data.toLocationId, reason: data.reason, returnStatus: data.returnStatus, processed: uniqueIds.length } } });
+            return uniqueIds.length;
+        }, { timeout: 60000, maxWait: 15000 });
+        return { processed };
+    }
+
+    async createBatchExit(data: CreateBatchExitInput & { userId: string }) {
+        await this.validatePin(data.userId, data.pin);
+        const requestId = data.requestId ?? randomUUID();
 
         const moveType = await this.prisma.movementType.findFirst({ where: { name: 'Saída' } });
         if (!moveType) throw new NotFoundException('Tipo de movimentação "Saída" não encontrado');
-
-        const uniqueIds = [...new Set(data.assetIds)];
-        const assets = await this.prisma.asset.findMany({
-            where: { id: { in: uniqueIds } },
-            include: { sku: { select: { skuCode: true } } },
-        });
-
-        const foundIds = new Set(assets.map((a) => a.id));
-        if (uniqueIds.some((id) => !foundIds.has(id))) {
-            throw new BadRequestException('Um ou mais patrimônios da lista não existem mais. Recarregue e tente novamente.');
-        }
-        const notInStock = assets.filter((a) => !a.currentLocationId || a.status === 'BAIXADO');
-        if (notInStock.length > 0) {
-            throw new BadRequestException(`Fora do estoque (nada foi aplicado): ${notInStock.map((a) => a.assetCode).join(', ')}`);
+        const destination = data.destinationLocationId
+            ? await this.prisma.location.findUnique({ where: { id: data.destinationLocationId } })
+            : null;
+        if (data.destinationLocationId && (!destination || destination.kind !== 'CLIENT' || !destination.companyId || !destination.projectId)) {
+            throw new BadRequestException('Selecione um cliente e um projeto com estoque identificado');
         }
 
-        // Operações em MASSA (4 queries no total, independente da quantidade de
-        // itens) — evita estourar o pool/timeout com lotes grandes.
+        const uniqueIds = [...new Set(data.assetIds)].sort();
         const now = new Date();
-        await this.prisma.$transaction(async (tx) => {
+        const processed = await this.prisma.$transaction(async (tx) => {
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${requestId}))`;
+            const previous = await tx.auditLog.findFirst({ where: { action: 'STOCK_EXIT_BATCH_REQUEST', entityType: 'InventoryBatchExit', entityId: requestId }, orderBy: { createdAt: 'desc' } });
+            if (previous) {
+                const details = previous.details as { assetIds?: string[]; destinationLocationId?: string | null; processed?: number } | null;
+                if (previous.userId !== data.userId || (details?.destinationLocationId ?? null) !== (data.destinationLocationId ?? null) || [...(details?.assetIds ?? [])].sort().join() !== uniqueIds.join()) throw new ConflictException('Identificador já utilizado em outra saída em lote');
+                return details?.processed ?? uniqueIds.length;
+            }
+            const initial = await tx.asset.findMany({ where: { id: { in: uniqueIds } }, select: { id: true, currentLocationId: true } });
+            const locations = [...new Set([...initial.map(a => a.currentLocationId).filter((id): id is string => Boolean(id)), ...(data.destinationLocationId ? [data.destinationLocationId] : [])])].sort();
+            if (locations.length) await tx.$queryRaw`SELECT id FROM "Location" WHERE id IN (${Prisma.join(locations)}) ORDER BY id FOR SHARE`;
+            await tx.$queryRaw`SELECT id FROM "Asset" WHERE id IN (${Prisma.join(uniqueIds)}) ORDER BY id FOR UPDATE`;
+            const assets = await tx.asset.findMany({ where: { id: { in: uniqueIds } }, include: { sku: { select: { skuCode: true } }, currentLocation: { select: { kind: true } } } });
+            if (assets.length !== uniqueIds.length) throw new BadRequestException('Um ou mais patrimônios não existem mais');
+            if (assets.some(a => a.currentLocationId !== initial.find(previous => previous.id === a.id)?.currentLocationId)) throw new ConflictException('Patrimônio alterado por outra operação; recarregue');
+            if (assets.some(a => !a.currentLocationId || a.status === 'BAIXADO')) throw new ConflictException('Patrimônio fora do estoque; nada foi aplicado');
+            if (assets.some(a => a.currentLocation?.kind === 'CLIENT')) throw new BadRequestException('Use a devolução do cliente para preservar a custódia');
+            if (data.destinationLocationId && assets.some(a => a.currentLocation?.kind !== 'INTERNAL' || a.status !== 'ATIVO')) throw new ConflictException('Somente patrimônios disponíveis em estoques internos podem ser enviados ao cliente');
+            if (moveType.requiresApproval) throw new BadRequestException('Este tipo exige aprovação. Registre a saída individual ou um envio com destino.');
             await tx.stockMovement.createMany({
                 data: assets.map((a) => ({
                     typeId: moveType.id,
                     skuId: a.skuId,
                     fromLocationId: a.currentLocationId,
+                    toLocationId: data.destinationLocationId ?? null,
                     qty: 1,
                     reason: data.reason,
+                    referenceType: data.destinationLocationId ? 'CLIENT_SHIPMENT' : null,
+                    referenceId: requestId,
                     createdByInternalUserId: data.userId,
                     pinValidatedAt: now,
                     assetId: a.id,
@@ -337,27 +427,33 @@ export class InventoryService {
             });
             await tx.asset.updateMany({
                 where: { id: { in: assets.map((a) => a.id) } },
-                data: { currentLocationId: null, lastExitReason: data.reason, status: data.newStatus },
+                data: data.destinationLocationId
+                    ? { currentLocationId: data.destinationLocationId, lastExitReason: null, status: 'EM_USO' }
+                    : { currentLocationId: null, lastExitReason: data.reason, status: data.newStatus },
             });
-            await (tx as any).assetEvent.createMany({
+            await tx.assetEvent.createMany({
                 data: assets.map((a) => ({ assetId: a.id, description: data.eventDescription, createdByInternalUserId: data.userId })),
             });
             await tx.auditLog.createMany({
                 data: assets.map((a) => ({
-                    action: 'STOCK_EXIT_BATCH',
+                    action: data.destinationLocationId ? 'CLIENT_SHIPMENT_BATCH' : 'STOCK_EXIT_BATCH',
                     entityType: 'Asset',
                     entityId: a.id,
                     userId: data.userId,
-                    details: { assetCode: a.assetCode, sku: a.sku.skuCode, reason: data.reason, status: data.newStatus },
+                    details: { assetCode: a.assetCode, sku: a.sku.skuCode, reason: data.reason, status: data.destinationLocationId ? 'EM_USO' : data.newStatus, destinationLocationId: data.destinationLocationId ?? null },
                 })),
             });
+            await tx.auditLog.create({ data: { action: 'STOCK_EXIT_BATCH_REQUEST', entityType: 'InventoryBatchExit', entityId: requestId, userId: data.userId, details: { assetIds: uniqueIds, destinationLocationId: data.destinationLocationId ?? null, reason: data.reason, processed: assets.length } } });
+            return assets.length;
         }, { timeout: 60000, maxWait: 15000 });
 
-        return { processed: assets.length };
+        return { processed };
     }
 
     // ── Approve exit ──
     async approveExit(approvalRequestId: string, approverId: string, pin: string) {
+        const kind = await this.prisma.approvalRequest.findUnique({ where: { id: approvalRequestId }, select: { requestType: true } });
+        if (kind?.requestType === 'CUSTODY_TRANSFER') return this.custody.processApproval(approvalRequestId, approverId, pin, true);
         await this.validatePin(approverId, pin);
         const request = await this.prisma.approvalRequest.findUnique({ where: { id: approvalRequestId } });
         if (!request) throw new NotFoundException('Solicitação não encontrada');
@@ -390,6 +486,8 @@ export class InventoryService {
 
     // ── Reject exit ──
     async rejectExit(approvalRequestId: string, approverId: string, pin: string) {
+        const kind = await this.prisma.approvalRequest.findUnique({ where: { id: approvalRequestId }, select: { requestType: true } });
+        if (kind?.requestType === 'CUSTODY_TRANSFER') return this.custody.processApproval(approvalRequestId, approverId, pin, false);
         await this.validatePin(approverId, pin);
         const request = await this.prisma.approvalRequest.findUnique({ where: { id: approvalRequestId } });
         if (!request) throw new NotFoundException('Solicitação não encontrada');
@@ -425,246 +523,73 @@ export class InventoryService {
     // ── Approve Reversal ──
     async approveReversal(approvalRequestId: string, approverId: string, pin: string) {
         await this.validatePin(approverId, pin);
-        const request = await this.prisma.approvalRequest.findUnique({ where: { id: approvalRequestId } });
-        if (!request) throw new NotFoundException('Solicitação não encontrada');
-        if (request.status !== 'PENDING') throw new BadRequestException('Já processada');
-        if (request.requestType !== 'REVERSAL') throw new BadRequestException('Tipo inválido');
-        if (request.requestedById === approverId) throw new BadRequestException('Você não pode aprovar sua própria solicitação');
-
-        const payload = request.payloadJson as any;
-        const original = await this.prisma.stockMovement.findUnique({ where: { id: payload.movementId }, include: { type: true } });
-        if (!original) throw new NotFoundException('Movimentação original não encontrada');
-        if (original.revertedByMovementId) throw new BadRequestException('Já revertida');
-
-        return this.prisma.$transaction(async (tx) => {
-            const reverse = await tx.stockMovement.create({
-                data: {
-                    typeId: original.typeId,
-                    skuId: original.skuId,
-                    fromLocationId: original.toLocationId,
-                    toLocationId: original.fromLocationId,
-                    qty: original.qty,
-                    reason: `Reversão: ${request.reason ?? 'sem motivo'}`,
-                    createdByInternalUserId: approverId,
-                    pinValidatedAt: new Date(),
-                },
-            });
-            await tx.stockMovement.update({ where: { id: original.id }, data: { revertedByMovementId: reverse.id } });
-
-            // Reverse asset location/status if applicable
-            if (original.assetId) {
-                const asset = await tx.asset.findUnique({ where: { id: original.assetId } });
-                if (asset) {
-                    await tx.asset.update({
-                        where: { id: original.assetId },
-                        data: { currentLocationId: original.fromLocationId ?? asset.currentLocationId },
-                    });
-                }
+        return this.prisma.$transaction(async tx => {
+            await tx.$queryRaw`SELECT id FROM "ApprovalRequest" WHERE id = ${approvalRequestId} FOR UPDATE`;
+            const request = await tx.approvalRequest.findUnique({ where: { id: approvalRequestId } });
+            if (!request || request.requestType !== 'REVERSAL') throw new BadRequestException('Solicitação de reversão não encontrada');
+            if (request.status !== 'PENDING') throw new ConflictException('Solicitação já processada');
+            if (request.requestedById === approverId) throw new BadRequestException('Você não pode aprovar sua própria solicitação');
+            const movementId = (request.payloadJson as { movementId?: string }).movementId;
+            if (!movementId) throw new BadRequestException('Solicitação inválida');
+            const initial = await tx.stockMovement.findUnique({ where: { id: movementId } });
+            if (!initial) throw new NotFoundException('Movimentação não encontrada');
+            if (initial.assetId) await tx.$queryRaw`SELECT id FROM "Asset" WHERE id = ${initial.assetId} FOR UPDATE`;
+            await tx.$queryRaw`SELECT id FROM "StockMovement" WHERE id = ${movementId} FOR UPDATE`;
+            const original = await tx.stockMovement.findUniqueOrThrow({ where: { id: movementId } });
+            if (original.revertedByMovementId) throw new ConflictException('Movimentação já revertida');
+            const structured = ['CLIENT_SHIPMENT', 'CLIENT_RETURN', 'INTERNAL_TRANSFER'].includes(original.referenceType ?? '');
+            const asset = original.assetId ? await tx.asset.findUniqueOrThrow({ where: { id: original.assetId } }) : null;
+            const expectedLocation = original.toLocationId ?? null;
+            if (asset) {
+                const later = await tx.stockMovement.count({ where: { assetId: asset.id, id: { not: original.id }, createdAt: { gte: original.createdAt } } });
+                if (later || asset.currentLocationId !== expectedLocation) throw new ConflictException('O patrimônio foi movimentado depois desta operação. Registre uma nova transferência/devolução.');
             }
-
-            await tx.approvalRequest.update({ where: { id: approvalRequestId }, data: { status: 'APPROVED', approvedById: approverId } });
-            await tx.auditLog.create({
-                data: { action: 'REVERSAL_APPROVED', entityType: 'StockMovement', entityId: reverse.id, userId: approverId, details: { originalId: original.id, reason: request.reason } },
-            });
-
+            const item = structured && original.assetId && original.referenceId ? await tx.inventoryTransferItem.findUnique({ where: { transferId_assetId: { transferId: original.referenceId, assetId: original.assetId } } }) : null;
+            if (structured && (!asset || !item || !original.fromLocationId || !original.toLocationId)) throw new BadRequestException('Histórico de custódia incompleto');
+            const transfer = item ? await tx.inventoryTransfer.findUniqueOrThrow({ where: { id: item.transferId } }) : null;
+            const expectedStatus = transfer?.kind === 'SHIPMENT' ? 'EM_USO' : transfer?.kind === 'RETURN' ? transfer.returnStatus ?? 'ATIVO' : 'ATIVO';
+            if (structured && asset!.status !== expectedStatus) throw new ConflictException('A condição do patrimônio mudou; registre uma nova operação');
+            const reverse = await tx.stockMovement.create({ data: {
+                typeId: original.typeId, skuId: original.skuId, assetId: original.assetId,
+                fromLocationId: original.toLocationId, toLocationId: original.fromLocationId, qty: original.qty,
+                reason: 'Reversão: ' + (request.reason ?? 'sem motivo'), createdByInternalUserId: approverId,
+                pinValidatedAt: new Date(), referenceType: 'REVERSAL', referenceId: original.id,
+            } });
+            await tx.stockMovement.update({ where: { id: original.id }, data: { revertedByMovementId: reverse.id } });
+            if (asset) await tx.asset.update({ where: { id: asset.id }, data: { currentLocationId: original.fromLocationId, ...(item ? { status: item.previousStatus, lastExitReason: null } : {}) } });
+            await tx.approvalRequest.update({ where: { id: request.id }, data: { status: 'APPROVED', approvedById: approverId } });
+            await tx.auditLog.create({ data: { action: 'REVERSAL_APPROVED', entityType: 'StockMovement', entityId: reverse.id, userId: approverId, details: { originalId: original.id, reason: request.reason, fromLocationId: original.toLocationId, toLocationId: original.fromLocationId } } });
             return { reverseMovement: reverse, message: 'Reversão aprovada e executada' };
         });
     }
 
     // ── List movements ──
-    async findAllMovements(params?: { skuId?: string; locationId?: string; typeId?: string; search?: string; skip?: number; take?: number }) {
-        const filters: any[] = [];
-        if (params?.skuId) filters.push({ skuId: params.skuId });
-        if (params?.locationId) filters.push({ OR: [{ fromLocationId: params.locationId }, { toLocationId: params.locationId }] });
-        if (params?.typeId) filters.push({ typeId: params.typeId });
-        if (params?.search?.trim()) {
-            const s = params.search.trim();
-            filters.push({
-                OR: [
-                    { sku: { skuCode: { contains: s, mode: 'insensitive' as const } } },
-                    { sku: { name: { contains: s, mode: 'insensitive' as const } } },
-                    { asset: { assetCode: { contains: s, mode: 'insensitive' as const } } },
-                    { reason: { contains: s, mode: 'insensitive' as const } },
-                    { createdBy: { name: { contains: s, mode: 'insensitive' as const } } },
-                    { type: { name: { contains: s, mode: 'insensitive' as const } } },
-                    { fromLocation: { name: { contains: s, mode: 'insensitive' as const } } },
-                    { toLocation: { name: { contains: s, mode: 'insensitive' as const } } },
-                ],
-            });
-        }
-        const where = filters.length ? { AND: filters } : {};
-        const [data, total] = await Promise.all([
-            this.prisma.stockMovement.findMany({
-                where,
-                include: {
-                    type: { select: { name: true } },
-                    sku: { select: { skuCode: true, name: true } },
-                    asset: { select: { assetCode: true } },
-                    fromLocation: { select: { name: true } },
-                    toLocation: { select: { name: true } },
-                    createdBy: { select: { name: true } },
-                    mediaAttachments: {
-                        select: { id: true, fileName: true, filePath: true, mimeType: true, mediaType: true, createdAt: true },
-                        orderBy: { createdAt: 'desc' },
-                    },
-                },
-                orderBy: { createdAt: 'desc' },
-                ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
-            }),
-            this.prisma.stockMovement.count({ where }),
-        ]);
-        return { data, total };
-    }
+    async findAllMovements(params?: { skuId?: string; locationId?: string; typeId?: string; search?: string; skip?: number; take?: number }) { return this.queries.findAllMovements(params); }
 
     // ── Balances — count of active assets per SKU per location ──
-    async getBalances(params?: { locationId?: string; skuId?: string }) {
-        const where: any = {
-            status: { notIn: ['BAIXADO'] },
-            currentLocationId: { not: null },
-            ...(params?.locationId ? { currentLocationId: params.locationId } : {}),
-            ...(params?.skuId ? { skuId: params.skuId } : {}),
-        };
-
-        const grouped = await this.prisma.asset.groupBy({
-            by: ['skuId', 'currentLocationId'],
-            where,
-            _count: { id: true },
-        });
-
-        const skuIdsInStock = new Set(grouped.map((g) => g.skuId));
-        const locationIds = [...new Set(grouped.map((g) => g.currentLocationId).filter(Boolean) as string[])];
-
-        // Sem filtro: traz TODOS os itens cadastrados (os sem estoque entram com
-        // quantidade 0), para o usuário ver o catálogo completo em Saldos.
-        const includeZero = !params?.locationId && !params?.skuId;
-
-        const [skus, locations] = await Promise.all([
-            this.prisma.skuItem.findMany({
-                where: includeZero ? {} : { id: { in: [...skuIdsInStock] } },
-                select: { id: true, skuCode: true, name: true, brand: true, category: { select: { name: true } } },
-            }),
-            this.prisma.location.findMany({ where: { id: { in: locationIds } }, select: { id: true, name: true } }),
-        ]);
-
-        const skuMap = new Map(skus.map((s) => [s.id, s]));
-        const locMap = new Map(locations.map((l) => [l.id, l]));
-
-        const rows: any[] = grouped.map((g) => ({
-            skuId: g.skuId,
-            locationId: g.currentLocationId,
-            quantity: (g._count as any).id ?? 0,
-            sku: skuMap.get(g.skuId),
-            location: locMap.get(g.currentLocationId!),
-        }));
-
-        if (includeZero) {
-            for (const s of skus) {
-                if (!skuIdsInStock.has(s.id)) {
-                    rows.push({ skuId: s.id, locationId: null, quantity: 0, sku: s, location: null });
-                }
-            }
-        }
-
-        return rows.sort((a, b) => b.quantity - a.quantity);
-    }
+    async getBalances(params?: { locationId?: string; skuId?: string }) { return this.queries.getBalances(params); }
 
     // ── Pending approvals ──
-    async getPendingApprovals() {
-        return this.prisma.approvalRequest.findMany({
-            where: { status: 'PENDING' },
-            include: { requestedBy: { select: { name: true, email: true } } },
-            orderBy: { createdAt: 'desc' },
-        });
-    }
+    async getPendingApprovals() { return this.queries.getPendingApprovals(); }
 
     // ── Stats ──
-    async getStats() {
-        const now = new Date();
-        const last7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        const last30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-        const [totalSkus, totalAssets, assetsByStatusRaw, movementsLast7, movementsLast30, locationDistRaw] = await Promise.all([
-            this.prisma.skuItem.count(),
-            this.prisma.asset.count(),
-            this.prisma.asset.groupBy({ by: ['status'], _count: { id: true } }),
-            this.prisma.stockMovement.count({ where: { createdAt: { gte: last7 } } }),
-            this.prisma.stockMovement.count({ where: { createdAt: { gte: last30 } } }),
-            this.prisma.$queryRaw<any[]>`
-                SELECT l.id, l.name,
-                       COUNT(a.id)::int AS "totalQuantity",
-                       COUNT(DISTINCT a."skuId")::int AS "itemCount"
-                FROM "Location" l
-                LEFT JOIN "Asset" a ON a."currentLocationId" = l.id AND a.status != 'BAIXADO'
-                GROUP BY l.id, l.name
-                ORDER BY "totalQuantity" DESC
-            `,
-        ]);
-
-        const assetsByStatus: Record<string, number> = { ATIVO: 0, EM_USO: 0, EM_MANUTENCAO: 0, BAIXADO: 0 };
-        for (const row of assetsByStatusRaw) assetsByStatus[row.status] = (row._count as any).id ?? 0;
-
-        const locationDistribution = locationDistRaw.map((r) => ({
-            name: r.name,
-            totalQuantity: Number(r.totalQuantity),
-            itemCount: Number(r.itemCount),
-        }));
-
-        return { totalSkus, totalAssets, assetsByStatus, locationDistribution, movements: { last7: movementsLast7, last30: movementsLast30 } };
-    }
+    async getStats() { return this.queries.getStats(); }
 
     // ── Movement Types CRUD ──
-    async findAllMovementTypes() { return this.prisma.movementType.findMany({ orderBy: { name: 'asc' } }); }
+    async findAllMovementTypes() { return this.settings.findAllMovementTypes(); }
 
-    async createMovementType(data: { name: string; requiresApproval?: boolean; isFinalWriteOff?: boolean; setsAssetStatus?: string }) {
-        return this.prisma.movementType.create({ data });
-    }
+    async createMovementType(data: { name: string; requiresApproval?: boolean; isFinalWriteOff?: boolean; setsAssetStatus?: string }) { return this.settings.createMovementType(data); }
 
-    async updateMovementType(id: string, data: { name?: string; requiresApproval?: boolean; isFinalWriteOff?: boolean; setsAssetStatus?: string }) {
-        const existing = await this.prisma.movementType.findUnique({ where: { id } });
-        if (!existing) throw new NotFoundException('Tipo não encontrado');
-        return this.prisma.movementType.update({ where: { id }, data });
-    }
+    async updateMovementType(id: string, data: { name?: string; requiresApproval?: boolean; isFinalWriteOff?: boolean; setsAssetStatus?: string }) { return this.settings.updateMovementType(id, data); }
 
-    async deleteMovementType(id: string) {
-        const existing = await this.prisma.movementType.findUnique({ where: { id } });
-        if (!existing) throw new NotFoundException('Tipo não encontrado');
-        const count = await this.prisma.stockMovement.count({ where: { typeId: id } });
-        if (count > 0) throw new BadRequestException('Tipo com movimentações vinculadas');
-        return this.prisma.movementType.delete({ where: { id } });
-    }
+    async deleteMovementType(id: string) { return this.settings.deleteMovementType(id); }
 
     // ── Exit Reasons CRUD (motivos de saída configuráveis) ──
-    async findAllExitReasons(params?: { onlyActive?: boolean }) {
-        return this.prisma.exitReason.findMany({
-            where: params?.onlyActive ? { active: true } : {},
-            orderBy: { name: 'asc' },
-        });
-    }
+    async findAllExitReasons(params?: { onlyActive?: boolean }) { return this.settings.findAllExitReasons(params); }
 
-    async createExitReason(data: { name?: string }) {
-        const name = (data.name ?? '').trim();
-        if (!name) throw new BadRequestException('Nome é obrigatório');
-        const existing = await this.prisma.exitReason.findUnique({ where: { name } });
-        if (existing) throw new ConflictException('Já existe um motivo de saída com esse nome');
-        return this.prisma.exitReason.create({ data: { name } });
-    }
+    async createExitReason(data: { name?: string }) { return this.settings.createExitReason(data); }
 
-    async updateExitReason(id: string, data: { name?: string; active?: boolean }) {
-        const existing = await this.prisma.exitReason.findUnique({ where: { id } });
-        if (!existing) throw new NotFoundException('Motivo não encontrado');
-        if (data.name) {
-            const dup = await this.prisma.exitReason.findFirst({ where: { name: data.name.trim(), NOT: { id } } });
-            if (dup) throw new ConflictException('Já existe um motivo de saída com esse nome');
-        }
-        return this.prisma.exitReason.update({
-            where: { id },
-            data: { ...(data.name ? { name: data.name.trim() } : {}), ...(data.active !== undefined ? { active: data.active } : {}) },
-        });
-    }
+    async updateExitReason(id: string, data: { name?: string; active?: boolean }) { return this.settings.updateExitReason(id, data); }
 
-    async deleteExitReason(id: string) {
-        const existing = await this.prisma.exitReason.findUnique({ where: { id } });
-        if (!existing) throw new NotFoundException('Motivo não encontrado');
-        return this.prisma.exitReason.delete({ where: { id } });
-    }
+    async deleteExitReason(id: string) { return this.settings.deleteExitReason(id); }
 }

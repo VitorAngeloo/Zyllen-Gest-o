@@ -30,6 +30,10 @@ Thumbs.db
 # Debug
 npm-debug.log*
 pnpm-debug.log*
+*.log
+
+# Local validation artifacts
+tmp/
 
 # Prisma
 apps/api/prisma/migrations/**/migration_lock.toml

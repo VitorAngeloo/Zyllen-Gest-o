@@ -2,9 +2,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { Toaster } from "sonner";
-import { AuthProvider } from "@web/lib/auth-context";
+import { AuthProvider } from "@web/features/auth/context/auth-context";
+import { usePathname } from 'next/navigation';
 
 export function Providers({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
     const [queryClient] = useState(
         () =>
             new QueryClient({
@@ -16,7 +18,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <AuthProvider>
+            <AuthProvider anonymous={pathname.startsWith('/painel/espelho/')}>
                 {children}
                 <Toaster
                     position="top-right"

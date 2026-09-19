@@ -49,7 +49,42 @@ model InternalUser {
   mediaAttachments    ItemMediaAttachment[]
   schedulesCreated    Schedule[]        @relation("ScheduleCreatedBy")
   scheduleInstallations ScheduleInstaller[]
+  projectServiceAssignments ProjectServiceInternal[]
   assetEvents         AssetEvent[]
+  custodyTransfers    InventoryTransfer[]
+  panelMirror         PanelMirror?
+  vehicleReservations VehicleReservation[] @relation("VehicleResponsible")
+  vehicleBookingsCreated VehicleReservation[] @relation("VehicleBookingCreator")
+}
+
+// Carros e reservas têm agenda própria, sem depender de projeto/viagem.
+model Vehicle {
+  id String @id @default(uuid())
+  name String
+  plate String? @unique
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  reservations VehicleReservation[]
+}
+
+model VehicleReservation {
+  id String @id @default(uuid())
+  vehicleId String
+  title String
+  responsibleId String
+  createdById String
+  startDate DateTime
+  endDate DateTime
+  notes String?
+  cancelledAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  responsible InternalUser @relation("VehicleResponsible", fields: [responsibleId], references: [id], onDelete: Restrict)
+  createdBy InternalUser @relation("VehicleBookingCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  @@index([vehicleId, startDate, endDate])
+  @@index([responsibleId])
 }
 
 model ExternalUser {
@@ -128,6 +163,8 @@ model ContractorUser {
   updatedAt    DateTime @updatedAt
 
   maintenanceOrders MaintenanceOS[] @relation("OpenedByContractor")
+  projectServiceAssignments ProjectServiceContractor[]
+  tripAssignments TripContractor[]
 }
 
 model Role {
@@ -183,6 +220,8 @@ model Company {
   followups         Followup[]
   schedules         Schedule[]
   maintenanceOrders MaintenanceOS[]
+  inventoryLocations Location[]
+  operationalStructures OperationalStructure[]
 }
 
 model Project {
@@ -202,6 +241,8 @@ model Project {
   schedules         Schedule[]
   followups         Followup[]
   maintenanceOrders MaintenanceOS[]
+  operationalService ProjectService?
+  inventoryLocations Location[]
 }
 
 // ─── Catalog & Assets ─────────────────────────
@@ -233,6 +274,7 @@ model SkuItem {
   stockMovements  StockMovement[]
   purchaseItems   PurchaseOrderItem[]
   receivingItems  ReceivingItem[]
+  stockMinimums    StockMinimum[]
   mediaAttachments ItemMediaAttachment[]
 }
 
@@ -252,6 +294,7 @@ model Asset {
   maintenanceOrders MaintenanceOS[]
   labelPrintJobs  LabelPrintJob[]
   events          AssetEvent[]
+  transferItems   InventoryTransferItem[]
 }
 
 model AssetEvent {
@@ -277,12 +320,76 @@ model Location {
   id          String  @id @default(uuid())
   name        String  @unique
   description String?
+  kind        String? // INTERNAL | CLIENT; null means legacy/unclassified
+  companyId   String?
+  projectId   String?
+  isMainWarehouse Boolean? @unique // true for the selected existing warehouse, null elsewhere
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   assets            Asset[]
   movementsFrom     StockMovement[] @relation("FromLocation")
   movementsTo       StockMovement[] @relation("ToLocation")
+  company           Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  project           Project? @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  transfersFrom     InventoryTransfer[] @relation("TransferFrom")
+  transfersTo       InventoryTransfer[] @relation("TransferTo")
+
+  @@index([companyId])
+  @@index([projectId])
+  stockMinimums     StockMinimum[]
+}
+
+// A request UUID identifies an immutable, retry-safe shipment or partial return.
+model InventoryTransfer {
+  id                  String @id
+  kind                String // SHIPMENT | RETURN | INTERNAL
+  status              String @default("PENDING") // PENDING | COMPLETED | REJECTED
+  fromLocationId      String
+  toLocationId        String
+  movementTypeId      String
+  requestedById       String
+  approvalRequestId   String? @unique
+  reason              String
+  returnStatus        String?
+  createdAt           DateTime @default(now())
+  completedAt         DateTime?
+
+  fromLocation        Location @relation("TransferFrom", fields: [fromLocationId], references: [id], onDelete: Restrict)
+  toLocation          Location @relation("TransferTo", fields: [toLocationId], references: [id], onDelete: Restrict)
+  requestedBy         InternalUser @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  movementType        MovementType @relation(fields: [movementTypeId], references: [id], onDelete: Restrict)
+  approvalRequest     ApprovalRequest? @relation(fields: [approvalRequestId], references: [id], onDelete: Restrict)
+  items               InventoryTransferItem[]
+
+  @@index([requestedById, createdAt])
+  @@index([status])
+}
+
+model InventoryTransferItem {
+  transferId          String
+  assetId             String
+  previousStatus      String
+  movementId          String? @unique
+  transfer            InventoryTransfer @relation(fields: [transferId], references: [id], onDelete: Restrict)
+  asset               Asset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  movement            StockMovement? @relation(fields: [movementId], references: [id], onDelete: Restrict)
+
+  @@id([transferId, assetId])
+  @@index([assetId])
+}
+
+model StockMinimum {
+  id                  String @id @default(uuid())
+  skuId               String
+  locationId          String
+  minimum             Int
+  highOutputThreshold Int?
+  updatedAt           DateTime @updatedAt
+  sku                 SkuItem @relation(fields: [skuId], references: [id], onDelete: Restrict)
+  location            Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  @@unique([skuId, locationId])
+  @@index([locationId])
 }
 
 model StockMovement {
@@ -309,6 +416,8 @@ model StockMovement {
   createdBy   InternalUser  @relation(fields: [createdByInternalUserId], references: [id])
   mediaAttachments ItemMediaAttachment[]
 
+  custodyItem InventoryTransferItem?
+
   @@index([createdByInternalUserId])
   @@index([skuId])
   @@index([createdAt])
@@ -325,6 +434,7 @@ model MovementType {
   updatedAt            DateTime @updatedAt
 
   stockMovements StockMovement[]
+  custodyTransfers InventoryTransfer[]
 }
 
 // Motivos de saída configuráveis (por que um item saiu do estoque).
@@ -352,6 +462,7 @@ model ApprovalRequest {
 
   requestedBy InternalUser @relation("RequestedBy", fields: [requestedById], references: [id])
   approvedBy  InternalUser? @relation("ApprovedBy", fields: [approvedById], references: [id])
+  custodyTransfer InventoryTransfer?
 }
 
 // ─── Tickets ──────────────────────────────────
@@ -731,6 +842,9 @@ model Schedule {
   createdById      String
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  startedAt        DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
 
   company        Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
   project        Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -739,11 +853,134 @@ model Schedule {
   createdBy      InternalUser       @relation("ScheduleCreatedBy", fields: [createdById], references: [id])
   installers     ScheduleInstaller[]
   recurrence     ScheduleRecurrence?
+  projectService ProjectService?
+  trip           Trip?
 
   @@index([startDate, endDate])
   @@index([status])
   @@index([companyId])
   @@index([createdById])
+}
+
+// One operational service per client project; legacy projects remain outside this management.
+model ProjectService {
+  id             String @id @default(uuid())
+  projectId      String @unique
+  scheduleId     String? @unique
+  markerId       String?
+  tripId         String?
+  removalCycleId String?
+  type           String // INSTALLATION | REMOVAL
+  urgency        Int @default(0) // 0 normal | 1 high | 2 urgent
+  color          String @default("#ABFF10")
+  mapsUrl        String?
+  notes          String?
+  sectors        String[] @default([])
+  requiresTravel Boolean @default(false)
+  relevant       Boolean @default(false)
+  cancelledAt    DateTime? // Cancellation before scheduling only.
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  schedule    Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  marker      ProjectServiceMarker? @relation(fields: [markerId], references: [id], onDelete: Restrict)
+  trip        Trip? @relation(fields: [tripId], references: [id], onDelete: Restrict)
+  internalAssignees ProjectServiceInternal[]
+  contractors ProjectServiceContractor[]
+  installationCycle StructureCycle? @relation("CycleInstallation")
+  removalCycle StructureCycle? @relation("CycleRemovals", fields: [removalCycleId], references: [id], onDelete: Restrict)
+  @@index([urgency, createdAt])
+  @@index([tripId])
+  @@index([removalCycleId])
+}
+
+// Persistent identity within the operational domain; no automatic asset/stock links.
+model OperationalStructure {
+  id String @id @default(uuid())
+  companyId String
+  name String
+  nameKey String
+  kind String // ROOM | TOTEM | OTHER
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cycles StructureCycle[]
+  @@unique([companyId, nameKey])
+}
+
+// A revocable bearer link restricted to selected read-only dashboards, never an account token.
+model PanelMirror {
+  id String @id @default(uuid())
+  ownerId String @unique
+  tokenHash String @unique
+  views String[]
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  owner InternalUser @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+}
+
+// Cancelled removal attempts remain attached; a later attempt is a separate project/service.
+model StructureCycle {
+  id String @id @default(uuid())
+  structureId String
+  installationId String @unique
+  createdAt DateTime @default(now())
+  structure OperationalStructure @relation(fields: [structureId], references: [id], onDelete: Restrict)
+  installation ProjectService @relation("CycleInstallation", fields: [installationId], references: [id], onDelete: Restrict)
+  removals ProjectService[] @relation("CycleRemovals")
+  @@index([structureId, createdAt])
+}
+
+// A shared displacement; dates/status/actual events remain canonical in Schedule.
+model Trip {
+  id               String @id @default(uuid())
+  scheduleId       String @unique
+  originCity       String
+  originState      String
+  destinationCity  String
+  destinationState String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  schedule         Schedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  services         ProjectService[]
+  contractors      TripContractor[]
+}
+
+model TripContractor {
+  tripId String
+  userId String
+  trip   Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user   ContractorUser @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@id([tripId, userId])
+  @@index([userId])
+}
+
+model ProjectServiceMarker {
+  id        String @id @default(uuid())
+  name      String
+  nameKey   String @unique
+  createdAt DateTime @default(now())
+  services  ProjectService[]
+}
+
+model ProjectServiceInternal {
+  serviceId String
+  userId    String
+  service ProjectService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  user InternalUser @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@id([serviceId, userId])
+  @@index([userId])
+}
+
+model ProjectServiceContractor {
+  serviceId String
+  userId    String
+  service ProjectService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  user ContractorUser @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@id([serviceId, userId])
+  @@index([userId])
 }
 
 model ScheduleInstaller {

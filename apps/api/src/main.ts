@@ -2,8 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
-import { GlobalExceptionFilter } from './filters/global-exception.filter';
-import { ResponseInterceptor } from './interceptors/response.interceptor';
+import { GlobalExceptionFilter } from './common/http/filters/global-exception.filter';
+import { ResponseInterceptor } from './common/http/interceptors/response.interceptor';
 import { MediaService } from './modules/media/media.service';
 
 async function bootstrap() {

@@ -2,9 +2,14 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
+import { PROJECTS_AGENDA_COPY, VEHICLES_COPY } from "@web/lib/brand-voice";
 
 const LABELS: Record<string, string> = {
     dashboard: "Dashboard",
+    painel: 'Indicadores',
+    projetos: PROJECTS_AGENDA_COPY.title,
+    carros: VEHICLES_COPY.title,
+    agenda: PROJECTS_AGENDA_COPY.title,
     equipamentos: "Equipamentos",
     saidas: "Saídas",
     estoque: "Estoque",

@@ -1,0 +1,26 @@
+.attention {
+    border-color: rgba(239, 68, 68, 0.75);
+    background-color: rgba(239, 68, 68, 0.1);
+    animation: ticket-attention 2s ease-in-out infinite;
+}
+
+@keyframes ticket-attention {
+    0%, 100% {
+        border-color: rgba(239, 68, 68, 0.65);
+        background-color: rgba(239, 68, 68, 0.08);
+        box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.1);
+    }
+    50% {
+        border-color: rgb(248, 113, 113);
+        background-color: rgba(239, 68, 68, 0.22);
+        box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .attention {
+        animation: none;
+        border-color: rgb(248, 113, 113);
+        background-color: rgba(239, 68, 68, 0.15);
+    }
+}

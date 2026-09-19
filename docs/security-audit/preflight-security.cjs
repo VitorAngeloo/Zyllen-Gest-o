@@ -9,7 +9,7 @@ const file = path.resolve(root, process.argv[2] || 'apps/api/.env');
 if (!fs.existsSync(file)) throw new Error('Arquivo de configuração não encontrado. Informe o caminho sem expor os valores.');
 const config = { ...dotenv.parse(fs.readFileSync(file)), ...process.env };
 fromApi('ts-node').register({ transpileOnly: true, project: path.join(root, 'apps/api/tsconfig.json') });
-const { validateSecurityConfig } = require(path.join(root, 'apps/api/src/lib/security-config.ts'));
+const { validateSecurityConfig } = require(path.join(root, 'apps/api/src/config/security-config.ts'));
 let startup = false;
 let startupIssue;
 try { validateSecurityConfig(config); startup = true; } catch (error) { startupIssue = error.message; }

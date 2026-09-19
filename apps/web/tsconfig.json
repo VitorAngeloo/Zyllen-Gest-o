@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@web/*": ["./src/*"]
+      "@web/*": ["./src/*"],
+      "@zyllen/shared": ["../../packages/shared/src/index.ts"]
     }
   },
   "include": [

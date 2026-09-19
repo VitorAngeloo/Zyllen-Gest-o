@@ -4,17 +4,17 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@web/lib/utils"
 
 const buttonVariants = cva(
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive cursor-pointer",
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-[var(--zyllen-highlight)]/60 focus-visible:ring-[var(--zyllen-highlight)]/20 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive cursor-pointer",
     {
         variants: {
             variant: {
-                default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-                destructive: "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
-                outline: "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
-                secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
-                ghost: "hover:bg-accent hover:text-accent-foreground",
+                default: "border border-white/10 bg-white/[0.08] text-white hover:bg-white/[0.12]",
+                destructive: "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
+                outline: "border border-white/15 bg-transparent text-white/80 hover:border-white/25 hover:bg-white/[0.05] hover:text-white",
+                secondary: "border border-white/10 bg-white/[0.06] text-white/80 hover:bg-white/[0.1] hover:text-white",
+                ghost: "text-white/75 hover:bg-white/[0.05] hover:text-white",
                 link: "text-primary underline-offset-4 hover:underline",
-                highlight: "bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg-dark)] font-semibold hover:brightness-110 shadow-md shadow-[var(--zyllen-highlight)]/15",
+                highlight: "bg-[var(--zyllen-highlight)] text-[var(--zyllen-bg-dark)] font-semibold hover:brightness-105",
                 "highlight-outline": "border border-[var(--zyllen-highlight)] text-[var(--zyllen-highlight)] bg-transparent hover:bg-[var(--zyllen-highlight)]/10 font-medium",
                 "highlight-ghost": "text-[var(--zyllen-highlight)] hover:bg-[var(--zyllen-highlight)]/10 font-medium",
             },

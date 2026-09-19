@@ -7,14 +7,14 @@ const { createRequire } = require('node:module');
 
 async function buildPrintHarness({ root, scratch, apiRequire }) {
     const ts = apiRequire('typescript');
-    const source = fs.readFileSync(path.join(root, 'apps/web/src/app/dashboard/etiquetas/page.tsx'), 'utf8');
+    const source = fs.readFileSync(path.join(root, 'apps/web/src/features/labels/screens/labels-screen.tsx'), 'utf8');
     const ast = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     let printer;
     function visit(node) { if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'openPrintWindow') printer = node.initializer.getText(ast); ts.forEachChild(node, visit); }
     visit(ast); assert(printer);
     const compile = text => ts.transpileModule(text, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
     const template = path.join(scratch, 'print-template.js');
-    fs.writeFileSync(template, compile(fs.readFileSync(path.join(root, 'apps/web/src/lib/label-template.ts'), 'utf8')));
+    fs.writeFileSync(template, compile(fs.readFileSync(path.join(root, 'apps/web/src/features/labels/utils/label-template.ts'), 'utf8')));
     const entry = path.join(scratch, 'print-harness.js');
     fs.writeFileSync(entry, compile(`const { parseTemplate } = require(${JSON.stringify(template)}); const toast = { error: (text) => window.__printErrors.push(text) }; window.runPrintHarness = (activeTemplate) => { const print = ${printer}; const label = document.createElement('div'); label.textContent = '</div><img src=x onerror=window.__xss=1>'; print([label], activeTemplate.columns); };`));
     const webpack = createRequire(apiRequire.resolve('@nestjs/cli/package.json'))('webpack');
@@ -24,7 +24,7 @@ async function buildPrintHarness({ root, scratch, apiRequire }) {
     }, (error, stats) => error || stats.hasErrors() ? reject(error || new Error(stats.toString({ all: false, errors: true }))) : resolve()));
     return path.join(scratch, 'print-harness.bundle.js');
 }
-module.exports = async ({ run, origin, admin, manager, tech, client, owner, os, resources, scratch, root, apiRequire }) => {
+module.exports = async ({ run, origin, admin, manager, tech, client, owner, os, resources, scratch, root, apiRequire, inventory, companyName }) => {
     const runtime = process.env.AUDIT_RUNTIME_ROOT || 'C:/Users/SERVIDOR ZYLLEN/.cache/codex-runtimes/codex-primary-runtime/dependencies';
     const { chromium } = require(path.join(runtime, 'node/node_modules/playwright'));
     const next = require.resolve('next/dist/bin/next', { paths: [path.join(root, 'apps/web')] });
@@ -222,6 +222,7 @@ module.exports = async ({ run, origin, admin, manager, tech, client, owner, os, 
             } catch(error) { fs.writeFileSync(path.join(shots, `${portal}-failure.txt`), (await page.locator('body').innerText()).slice(0, 12000)); throw error; }
             finally { await context.close(); }
         });
+        if (inventory) await require('../../scripts/quality/test-feature-browser.cjs')({ run, contextFor, base, admin, shots, inventory, companyName });
     } finally {
         if (browser) await browser.close();
         web.kill(); // Only the test process created above, never the production API.

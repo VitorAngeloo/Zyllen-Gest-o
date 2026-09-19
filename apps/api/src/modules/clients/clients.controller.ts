@@ -7,7 +7,7 @@ import { ManagerGuard } from '../auth/manager.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { ClientsService } from './clients.service';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
     loginExternalSchema,
     createCompanySchema,

@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { validateSecurityConfig } from './lib/security-config';
+import { validateSecurityConfig } from './config/security-config';
 import { AppController } from './app.controller';
-import { PrismaModule } from './prisma/prisma.module';
+import { PrismaModule } from './infrastructure/database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AccessModule } from './modules/access/access.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
@@ -20,6 +20,10 @@ import { RegistrationModule } from './modules/registration/registration.module';
 import { FollowupsModule } from './modules/followups/followups.module';
 import { ScheduleModule } from './modules/schedule/schedule.module';
 import { MediaModule } from './modules/media/media.module';
+import { ProjectServicesModule } from './modules/project-services/project-services.module';
+import { TripsModule } from './modules/trips/trips.module';
+import { PanelsModule } from './modules/panels/panels.module';
+import { VehiclesModule } from './modules/vehicles/vehicles.module';
 
 @Module({
     imports: [
@@ -57,6 +61,10 @@ import { MediaModule } from './modules/media/media.module';
         FollowupsModule,
         ScheduleModule,
         MediaModule,
+        ProjectServicesModule,
+        TripsModule,
+        PanelsModule,
+        VehiclesModule,
     ],
     controllers: [AppController],
 })

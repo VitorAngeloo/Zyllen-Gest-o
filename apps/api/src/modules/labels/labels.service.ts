@@ -3,7 +3,7 @@ import {
     NotFoundException,
     BadRequestException,
 } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { labelLayoutJsonSchema } from '@zyllen/shared';
 
 type LabelDataContractV1 = {

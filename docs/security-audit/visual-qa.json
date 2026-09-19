@@ -1,0 +1,24 @@
+{
+  "pages": 61,
+  "all_pages_rasterized": true,
+  "missing_glyph_text_pages": [],
+  "contact_sheets": [
+    "tmp\\pdfs\\security-audit-preview\\contact-01.jpg",
+    "tmp\\pdfs\\security-audit-preview\\contact-02.jpg",
+    "tmp\\pdfs\\security-audit-preview\\contact-03.jpg",
+    "tmp\\pdfs\\security-audit-preview\\contact-04.jpg",
+    "tmp\\pdfs\\security-audit-preview\\contact-05.jpg",
+    "tmp\\pdfs\\security-audit-preview\\contact-06.jpg"
+  ],
+  "pdf_sha256": "07854b621921424fe4104e7e0d9ce2e3dfe9bc1de2f0c05212390895820c40a4",
+  "manual_visual_review": {
+    "status": "aprovado",
+    "pages_reviewed": "1-61, em seis folhas de contato da versão final",
+    "full_page_detail_checks": [2, 24, 43, 49],
+    "charts": "Rosca e barras renderizados; valores conferidos: 7 altos, 5 médios; categorias 2/3/2/2/2/1.",
+    "tables": "Cabeçalhos, chips, quebras de linha e números de linha legíveis; nenhuma coluna cortada observada.",
+    "issues": "12 blocos Markdown completos no final, delimitadores inicial/final verificados por extração de texto.",
+    "corrections": ["Ampliada coluna de linhas para não dividir números", "Fonte de símbolos para caractere presente no seed", "Ajustadas continuações e fundos dos blocos de evidência/issues"],
+    "limitations": "Inspeção visual do PDF rasterizado; não é certificação de acessibilidade PDF/UA."
+  }
+}

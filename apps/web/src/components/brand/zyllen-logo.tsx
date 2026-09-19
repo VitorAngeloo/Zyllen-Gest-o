@@ -179,10 +179,11 @@ export function PartnershipLogos({
   // horizontal (default)
   return (
     <div className={`flex items-center gap-4 ${className || ""}`}>
-      <ZyllenLogoFull height={height} />
-      <div className="flex flex-col items-center gap-0.5">
-        <div className="h-6 w-px bg-[var(--zyllen-border)]" />
+      <div className="flex items-center gap-2.5">
+        <ZyllenIcon height={height * 0.64} />
+        <ZyllenTextLogo size={height >= 56 ? "default" : "sm"} />
       </div>
+      <div className="h-6 w-px bg-[var(--zyllen-border)]" />
       <SkyLineLogo height={height * 0.65} />
     </div>
   );

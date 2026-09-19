@@ -1,0 +1,6 @@
+*.pdf binary
+
+# Historical generated audit artifacts preserve their original formatting.
+docs/security-audit/deployment-drift.sql -whitespace
+docs/security-audit/github-issues.md -whitespace
+docs/security-audit/relatorio-auditoria-seguranca.md -whitespace

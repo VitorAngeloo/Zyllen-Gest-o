@@ -32,8 +32,8 @@ function SelectNative({
                 onChange={(e) => onValueChange?.(e.target.value)}
                 style={{ colorScheme: 'dark' }}
                 className={cn(
-                    "flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs",
-                    "placeholder:text-muted-foreground focus:outline-none focus:ring-[3px] focus:ring-ring/50 focus:border-ring",
+                    "flex h-9 w-full items-center justify-between rounded-md border border-white/15 bg-white/[0.025] px-3 py-2 text-sm text-white transition-[background-color,border-color,box-shadow] hover:border-white/25",
+                    "placeholder:text-white/35 focus:border-[var(--zyllen-highlight)]/60 focus:outline-none focus:ring-[3px] focus:ring-[var(--zyllen-highlight)]/15",
                     "disabled:cursor-not-allowed disabled:opacity-50 appearance-none",
                     className
                 )}

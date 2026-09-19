@@ -3,7 +3,7 @@ import {
     ForbiddenException, UseInterceptors, UploadedFiles, BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { verifiedMediaStorage, mediaUploadDirectory } from '../media/media-storage';
+import { verifiedMediaStorage, mediaUploadDirectory } from '../../infrastructure/storage/verified-media-storage';
 import { existsSync, mkdirSync } from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TicketsService } from '../tickets/tickets.service';

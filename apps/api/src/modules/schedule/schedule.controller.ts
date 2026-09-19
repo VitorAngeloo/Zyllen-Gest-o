@@ -13,7 +13,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
     createScheduleSchema,
     updateScheduleSchema,
@@ -112,8 +112,9 @@ export class ScheduleController {
     async update(
         @Param('id') id: string,
         @Body(new ZodValidationPipe(updateScheduleSchema)) body: any,
+        @Request() req: any,
     ) {
-        const data = await this.scheduleService.update(id, body);
+        const data = await this.scheduleService.update(id, body, req.user.id);
         return { data, message: 'Agendamento atualizado com sucesso' };
     }
 
@@ -121,9 +122,10 @@ export class ScheduleController {
     @RequirePermission('schedule.delete')
     async cancel(
         @Param('id') id: string,
-        @Query('cancelSeries') cancelSeries?: string,
+        @Query('cancelSeries') cancelSeries: string | undefined,
+        @Request() req: any,
     ) {
-        const result = await this.scheduleService.cancel(id, cancelSeries === 'true');
+        const result = await this.scheduleService.cancel(id, cancelSeries === 'true', req.user.id);
         return result;
     }
 }

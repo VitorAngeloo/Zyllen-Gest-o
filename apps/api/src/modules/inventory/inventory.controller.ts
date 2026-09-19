@@ -17,23 +17,26 @@ import {
     ForbiddenException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { verifiedMediaStorage, mediaUploadDirectory } from '../media/media-storage';
+import { verifiedMediaStorage, mediaUploadDirectory } from '../../infrastructure/storage/verified-media-storage';
 import { existsSync, mkdirSync } from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { InventoryService } from './inventory.service';
-import { ZodValidationPipe } from '../../pipes/zod-validation.pipe';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
     createStockEntrySchema,
     createStockExitSchema,
     approvalActionSchema,
     createMovementTypeSchema,
     reversalReasonSchema,
+    createBatchEntrySchema,
+    createBatchExitSchema,
+    CreateBatchEntryInput,
+    CreateBatchExitInput,
 } from '@zyllen/shared';
 import { UpdateMovementTypeDto } from './dto/update-movement-type.dto';
 import { ExitReasonDto } from './dto/exit-reason.dto';
-import { ExitBatchDto } from './dto/exit-batch.dto';
 
 const UPLOAD_DIR = mediaUploadDirectory("media", "inventory-entry");
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -62,6 +65,7 @@ export class InventoryController {
             movementTypeId: string;
             pin: string;
             reason?: string;
+            eventDescription?: string;
             assetId?: string;
         },
         @UploadedFiles() files?: Express.Multer.File[],
@@ -92,6 +96,16 @@ export class InventoryController {
         return { data, message: 'Entrada registrada com sucesso' };
     }
 
+    @Post('entry-batch')
+    @RequirePermission('inventory.bipar_entrada')
+    async createBatchEntry(
+        @Request() req: any,
+        @Body(new ZodValidationPipe(createBatchEntrySchema)) body: CreateBatchEntryInput,
+    ) {
+        const data = await this.inventoryService.createBatchEntry({ ...body, userId: req.user.id });
+        return { data, message: `Entrada registrada em ${data.processed} patrimonio(s)` };
+    }
+
     // ── Stock Exit ──
     @Post('exit')
     @RequirePermission('inventory.bipar_saida')
@@ -114,7 +128,10 @@ export class InventoryController {
     // ── Batch Exit (saída em lote) ──
     @Post('exit-batch')
     @RequirePermission('inventory.bipar_saida')
-    async createBatchExit(@Request() req: any, @Body() body: ExitBatchDto) {
+    async createBatchExit(
+        @Request() req: any,
+        @Body(new ZodValidationPipe(createBatchExitSchema)) body: CreateBatchExitInput,
+    ) {
         const data = await this.inventoryService.createBatchExit({ ...body, userId: req.user.id });
         return { data, message: `Saída registrada em ${data.processed} patrimônio(s)` };
     }
