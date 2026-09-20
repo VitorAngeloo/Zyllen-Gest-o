@@ -17,7 +17,10 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Zyllen Systems — Gestão",
   description: "Sistema de gestão de estoque, patrimônio e chamados — Zyllen Systems",
-  icons: { icon: "/brand/logo-verde.svg" },
+  icons: {
+    icon: [{ url: "/brand/zyllen-favicon.svg", type: "image/svg+xml" }],
+    shortcut: "/brand/zyllen-favicon.svg",
+  },
 };
 
 export default function RootLayout({

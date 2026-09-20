@@ -17,7 +17,7 @@ import {
 import { useState, useEffect } from "react";
 import { cn } from "@web/lib/utils";
 import { PROJECTS_AGENDA_COPY, VEHICLES_COPY } from "@web/lib/brand-voice";
-import { ZyllenIcon, ZyllenTextLogo, SkyLineLogo } from "@web/components/brand/zyllen-logo";
+import { ZyllenSidebarBrand, ZyllenTextLogo, SkyLineLogo } from "@web/components/brand/zyllen-logo";
 
 interface PendingTicketRating {
     id: string;
@@ -189,22 +189,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         });
     };
 
+    const sidebarCollapsed = collapsed && !mobileOpen;
+
     const sidebarContent = (
         <>
             {/* Logo — Partnership */}
-            <div className="flex items-center gap-3 px-4 h-16 border-b border-[var(--zyllen-border)] shrink-0">
-                <ZyllenIcon height={collapsed && !mobileOpen ? 28 : 32} />
-                {(!collapsed || mobileOpen) && (
-                    <>
-                        <ZyllenTextLogo size="default" />
+            <div className={cn(
+                "flex h-16 shrink-0 items-center border-b border-[var(--zyllen-border)] transition-[gap,padding] duration-300 ease-[cubic-bezier(.22,1,.36,1)]",
+                sidebarCollapsed ? "gap-1 px-2" : "gap-3 px-4",
+            )}>
+                <ZyllenSidebarBrand collapsed={sidebarCollapsed} />
+                <div className={cn(
+                    "flex shrink-0 items-center gap-3 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(.22,1,.36,1)] motion-reduce:transition-none",
+                    sidebarCollapsed ? "w-0 opacity-0" : "w-[45px] opacity-100",
+                )}>
                         <div className="h-5 w-px bg-[var(--zyllen-border)]" />
-                        <SkyLineLogo height={32} />
-                    </>
-                )}
+                        <SkyLineLogo height={32} className="shrink-0" />
+                </div>
                 {/* Desktop collapse button */}
                 <button
                     onClick={() => mobileOpen ? setMobileOpen(false) : setCollapsed(!collapsed)}
-                    className="ml-auto text-[var(--zyllen-muted)] hover:text-white transition-colors"
+                    className="ml-auto shrink-0 text-[var(--zyllen-muted)] transition-colors hover:text-white"
                     aria-label={mobileOpen ? "Fechar menu" : collapsed ? "Expandir menu" : "Recolher menu"}
                 >
                     {mobileOpen ? <X size={18} /> : collapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
@@ -250,8 +255,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </nav>
 
             {/* User */}
-            <div className="border-t border-[var(--zyllen-border)] p-3 shrink-0">
-                <div className="flex items-center gap-3">
+            <div className={cn("shrink-0 border-t border-[var(--zyllen-border)]", sidebarCollapsed ? "p-2" : "p-3")}>
+                <div className={cn("flex items-center", sidebarCollapsed ? "gap-1" : "gap-3")}>
                     <Link
                         href="/dashboard/perfil"
                         className="flex items-center justify-center size-8 rounded-full bg-[var(--zyllen-highlight)]/20 text-[var(--zyllen-highlight)] font-bold text-xs hover:bg-[var(--zyllen-highlight)]/30 transition-colors"
@@ -375,7 +380,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <aside
                 className={cn(
                     "hidden lg:flex flex-col border-r border-white/10 bg-[var(--zyllen-bg)] transition-all duration-300",
-                    collapsed ? "w-16" : "w-68"
+                    collapsed ? "w-[72px]" : "w-68"
                 )}
             >
                 {sidebarContent}
@@ -393,7 +398,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <Menu size={22} />
                     </button>
                     <div className="flex items-center gap-2">
-                        <ZyllenIcon height={26} />
                         <ZyllenTextLogo size="sm" />
                         <div className="h-4 w-px bg-[var(--zyllen-border)]" />
                         <SkyLineLogo height={26} />

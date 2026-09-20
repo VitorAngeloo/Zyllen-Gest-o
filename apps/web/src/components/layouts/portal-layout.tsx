@@ -5,7 +5,7 @@ import { useAuth, type UserType } from "@web/features/auth/context/auth-context"
 import { LogOut, ChevronLeft, Menu, X } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 import { cn } from "@web/lib/utils";
-import { ZyllenIcon, ZyllenTextLogo, SkyLineLogo } from "@web/components/brand/zyllen-logo";
+import { ZyllenSidebarBrand, ZyllenTextLogo, SkyLineLogo } from "@web/components/brand/zyllen-logo";
 
 interface NavItem {
     label: string;
@@ -66,21 +66,26 @@ export default function PortalLayout({
         );
     }
 
+    const sidebarCollapsed = collapsed && !mobileOpen;
+
     const sidebarContent = (
         <>
             {/* Logo */}
-            <div className="flex items-center gap-3 px-4 h-16 border-b border-[var(--zyllen-border)] shrink-0">
-                <ZyllenIcon height={collapsed && !mobileOpen ? 28 : 32} />
-                {(!collapsed || mobileOpen) && (
-                    <>
-                        <ZyllenTextLogo size="default" />
+            <div className={cn(
+                "flex h-16 shrink-0 items-center border-b border-[var(--zyllen-border)] transition-[gap,padding] duration-300 ease-[cubic-bezier(.22,1,.36,1)]",
+                sidebarCollapsed ? "gap-1 px-2" : "gap-3 px-4",
+            )}>
+                <ZyllenSidebarBrand collapsed={sidebarCollapsed} />
+                <div className={cn(
+                    "flex shrink-0 items-center gap-3 overflow-hidden transition-[width,opacity] duration-300 ease-[cubic-bezier(.22,1,.36,1)] motion-reduce:transition-none",
+                    sidebarCollapsed ? "w-0 opacity-0" : "w-[45px] opacity-100",
+                )}>
                         <div className="h-5 w-px bg-[var(--zyllen-border)]" />
-                        <SkyLineLogo height={32} />
-                    </>
-                )}
+                        <SkyLineLogo height={32} className="shrink-0" />
+                </div>
                 <button
                     onClick={() => mobileOpen ? setMobileOpen(false) : setCollapsed(!collapsed)}
-                    className="ml-auto text-[var(--zyllen-muted)] hover:text-white transition-colors"
+                    className="ml-auto shrink-0 text-[var(--zyllen-muted)] transition-colors hover:text-white"
                     aria-label={mobileOpen ? "Fechar menu" : collapsed ? "Expandir menu" : "Recolher menu"}
                 >
                     {mobileOpen ? <X size={18} /> : collapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
@@ -117,8 +122,8 @@ export default function PortalLayout({
             </nav>
 
             {/* User */}
-            <div className="border-t border-[var(--zyllen-border)] p-3 shrink-0">
-                <div className="flex items-center gap-3">
+            <div className={cn("shrink-0 border-t border-[var(--zyllen-border)]", sidebarCollapsed ? "p-2" : "p-3")}>
+                <div className={cn("flex items-center", sidebarCollapsed ? "gap-1" : "gap-3")}>
                     <div className="flex size-8 items-center justify-center border border-[var(--zyllen-highlight)]/25 bg-[var(--zyllen-highlight)]/10 text-xs font-bold text-[var(--zyllen-highlight)]">
                         {user.name?.charAt(0).toUpperCase()}
                     </div>
@@ -165,7 +170,7 @@ export default function PortalLayout({
             <aside
                 className={cn(
                     "hidden lg:flex flex-col border-r border-white/10 bg-[var(--zyllen-bg)] transition-all duration-300",
-                    collapsed ? "w-16" : "w-68"
+                    collapsed ? "w-[72px]" : "w-68"
                 )}
             >
                 {sidebarContent}
@@ -183,7 +188,7 @@ export default function PortalLayout({
                         <Menu size={22} />
                     </button>
                     <div className="flex items-center gap-2">
-                        <ZyllenIcon height={28} />
+                        <ZyllenTextLogo size="sm" />
                         <div className="h-4 w-px bg-[var(--zyllen-border)]" />
                         <SkyLineLogo height={26} />
                     </div>
