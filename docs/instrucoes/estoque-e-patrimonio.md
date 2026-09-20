@@ -246,7 +246,7 @@ O cadastro de uma nova empresa cria, na mesma transação, um local vazio `CLIEN
 
 Esse local representa o estoque geral do cliente. Ele não elimina a separação por projeto: saídas de patrimônio continuam exigindo um local `CLIENT` vinculado ao projeto selecionado. A alteração não executa backfill nem cria locais para clientes antigos.
 
-A API foi publicada em 19/09/2026, às 11h24, sem migration ou escrita de teste. Health local/público e proteção da rota de empresas foram conferidos; a regra entra em ação somente nos próximos cadastros de empresa.
+A API foi publicada em 19/09/2026, às 11h24, e republicada a partir do commit `4f5ef70` após a consolidação no Git. Não houve migration ou escrita de teste. Health local/público e proteção da rota de empresas foram conferidos; a regra entra em ação somente nos próximos cadastros de empresa.
 
 ## Invariantes operacionais
 
