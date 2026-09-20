@@ -190,6 +190,22 @@ O lote usou plano imutável, backup, transação, nota e auditoria por patrimôn
 
 A consolidação dos planos e recibos confirmou **677 patrimônios regularizados sem ID repetido**: 143 do primeiro lote e os 534 que estavam pendentes, compostos por 495 de clientes e 39 internos. Os outros 66 registros internos/baixados do levantamento original permaneceram preservados fora dos lotes. Assim, os 743 patrimônios da revisão da timeline estão integralmente explicados entre regularizados e preservados. A repetição do lote interno reconheceu a aplicação existente sem escrever novamente.
 
+### Regularização complementar das saídas legadas — 19/09/2026, 13h40
+
+Uma consulta posterior encontrou 66 patrimônios `ATIVO` sem localização que não faziam parte do levantamento pela timeline: todos possuíam uma saída legada sem destino e sem referência estruturada, mas nenhum `AssetEvent`. O usuário confirmou seis destinos de cliente — quatro itens para Plano & Plano/projeto Plano & Plano, um para EBM/projeto Sala Espaço EBM e um para SOMOS/projeto SOMOS — e confirmou oito motivos genéricos de uso como uso interno. Os 14 itens passaram a `EM_USO` nos locais confirmados, com anotação e auditoria individual. As saídas históricas foram preservadas e não foi criado movimento com data atual.
+
+A regra operacional também foi confirmada: uso interno permanece `EM_USO` no local **Uso interno - Skyline**, fora do saldo disponível; baixa e perda encerram definitivamente a disponibilidade, mas não excluem o patrimônio nem sua timeline. Com base nessa regra, outros 12 itens explicitamente marcados como uso interno foram vinculados ao local interno, e 13 motivos legados iniciados por “Baixa” mais um motivo “Perda” foram corrigidos de `ATIVO` para `BAIXADO`. Todos receberam evento e auditoria, mantendo código, SKU, motivo e movimento anterior.
+
+As duas aplicações usaram plano imutável, backup privado anterior, bloqueio, transação e conferência independente. O local **Uso interno - Skyline** passou de 39 para **59 patrimônios**; os itens `BAIXADO` passaram de 12 para **26**; as **1.709 movimentações** permaneceram intactas. Restaram **26 patrimônios não baixados sem localização**: 16 saídas rápidas e dez registros de manutenção, ainda sem destino confirmado. Os arquivos privados das aplicações estão em `legacy-custody-20260919-133615` e `legacy-final-internal-20260919-134047`, fora do repositório.
+
+### Encerramento dos itens sem localização — 19/09/2026
+
+Após confirmação do usuário, foi criado o local interno **Manutenção** para os dez patrimônios com esse motivo. Eles passaram de `ATIVO` para `EM_MANUTENCAO` e continuam fora do saldo disponível enquanto estiverem nesse local. O estado não é definitivo: depois do reparo, a entrada individual ou em lote pode devolver o patrimônio a um almoxarifado Skyline e registrar o retorno na timeline.
+
+Também foi criado o local interno **Outros** para as 16 saídas rápidas legadas sem destino identificado. Esses patrimônios passaram a `EM_USO`, permanecem fora do saldo disponível e podem ser revisados individualmente depois. O local legado genérico **Cliente** foi excluído porque estava vazio e não possuía patrimônios, movimentos, transferências nem mínimos vinculados; os estoques estruturados de clientes e projetos não foram alterados.
+
+A aplicação utilizou prévia somente leitura, backup privado, plano imutável, bloqueio e uma única transação. Cada patrimônio recebeu evento de timeline e auditoria, sem criar uma nova saída ou alterar o movimento histórico. A conferência posterior confirmou **zero patrimônios não baixados sem localização**, dez itens em Manutenção, 16 em Outros e preservação das **1.709 movimentações**. O plano, o estado anterior e o recibo ficam em `remaining-stock-20260919-194954`, fora do repositório.
+
 ## Painel de estoque e reposição
 
 ### Mínimos preenchidos e aplicados — 18/09/2026, 18h48
@@ -224,9 +240,21 @@ Saídas individuais e em lote para cliente exigem empresa e projeto; o destino p
 
 A consulta de patrimônios sempre exige contexto explícito `CLIENT` ou `INTERNAL` na interface. “Todos os clientes” nunca inclui estoque Skyline; “Todos os estoques Skyline” nunca inclui locais de clientes. Transferências não são iniciadas na consulta de patrimônios: devoluções ficam em Entrada/Entrada em lote, e envios ficam em Saída/Saída em lote.
 
+### Estoque automático de novos clientes — 19/09/2026
+
+O cadastro de uma nova empresa cria, na mesma transação, um local vazio `CLIENT` chamado `Estoque - <nome do cliente>`, vinculado à empresa e sem projeto presumido. A regra vale para o cadastro interno e para a empresa nova criada durante a aprovação de uma solicitação. Selecionar uma empresa existente na aprovação não cria outro estoque. A operação grava auditoria e uma falha impede também a criação parcial da empresa.
+
+Esse local representa o estoque geral do cliente. Ele não elimina a separação por projeto: saídas de patrimônio continuam exigindo um local `CLIENT` vinculado ao projeto selecionado. A alteração não executa backfill nem cria locais para clientes antigos.
+
+A API foi publicada em 19/09/2026, às 11h24, sem migration ou escrita de teste. Health local/público e proteção da rota de empresas foram conferidos; a regra entra em ação somente nos próximos cadastros de empresa.
+
 ## Invariantes operacionais
 
 - Não apagar movimentos para corrigir saldo; alterações precisam preservar rastreabilidade e auditoria.
+- Baixa é definitiva para a disponibilidade, mas não exclui o cadastro: o patrimônio `BAIXADO`, seus movimentos e sua timeline permanecem consultáveis em Patrimônio. Perda é um motivo de encerramento definitivo e segue a mesma preservação histórica.
+- Item de uso interno permanece `EM_USO` em local interno específico e não compõe o saldo disponível dos almoxarifados.
+- Item em **Manutenção** permanece `EM_MANUTENCAO`, fora do saldo disponível, mas pode retornar por uma entrada individual ou em lote com registro na timeline.
+- O local **Outros** guarda saídas legadas ainda sem destino específico. Seus itens permanecem `EM_USO` e indisponíveis até revisão; esse local não representa cliente ou almoxarifado disponível.
 - Validar patrimônio/SKU/local, quantidade disponível e regras do tipo de movimento no caminho correspondente.
 - Código de patrimônio utiliza sequência por prefixo, com `SKY` como padrão e 5 dígitos. A sequência existente não pode ser decrementada/removida nem os códigos reutilizados.
 - Falhas de operações compostas não devem deixar movimentação/saldo parcialmente aplicados; preservar os limites transacionais existentes.

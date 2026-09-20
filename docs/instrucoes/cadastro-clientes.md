@@ -18,6 +18,8 @@ Após sucesso, o frontend usa `router.replace('/cadastro/solicitacao-enviada')` 
 
 Somente Administrador/Gestor aprovam/rejeitam solicitações ou criam diretamente contas de clientes. O servidor verifica o papel, confirma empresa/projeto, valida a relação em transação e grava auditoria. A tela **Aprovar clientes** não substitui a checagem da API.
 
+Ao cadastrar uma empresa diretamente, a mesma transação cria um estoque geral vazio `CLIENT`, vinculado à empresa e sem projeto presumido. Quando uma aprovação cria uma empresa nova, o estoque é criado durante a aprovação; aprovar acesso para uma empresa existente não duplica seus locais. Falha na criação do estoque desfaz também a nova empresa. O estoque automático recebe auditoria com o administrador ou gestor responsável.
+
 Clientes existentes mantêm seus vínculos. A correção não certifica a legitimidade dos cadastros antigos; revisão/vinculação histórica precisa de procedimento explícito, com prévia e auditoria. Não executar saneamento ou backfill automaticamente.
 
 Solicitação pendente não é conta desativada. Não conceder login de cliente antes da aprovação nem vincular OS por similaridade de nome.

@@ -94,9 +94,9 @@ export class ClientsController {
     @Post('companies')
     @UseGuards(JwtAuthGuard, PermissionsGuard)
     @RequirePermission('settings.manage')
-    async createCompany(@Body(new ZodValidationPipe(createCompanySchema)) body: { name: string; cnpj?: string; address?: string; city?: string; state?: string; phone?: string }) {
-        const data = await this.clientsService.createCompany(body);
-        return { data, message: 'Empresa criada com sucesso' };
+    async createCompany(@Body(new ZodValidationPipe(createCompanySchema)) body: { name: string; cnpj?: string; address?: string; city?: string; state?: string; phone?: string }, @Request() req: any) {
+        const data = await this.clientsService.createCompany(body, req.user.id);
+        return { data, message: 'Empresa e estoque criados com sucesso' };
     }
 
     @Put('companies/:id')

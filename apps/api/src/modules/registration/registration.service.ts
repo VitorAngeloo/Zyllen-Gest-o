@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { encryptCPF } from '../../infrastructure/security/cpf-crypto';
+import { createClientStock } from '../clients/client-stock';
 
 @Injectable()
 export class RegistrationService {
@@ -97,6 +98,7 @@ export class RegistrationService {
             } else {
                 if (!data.companyName?.trim()) throw new BadRequestException('Selecione uma empresa ou confirme os dados da nova empresa');
                 const company = await tx.company.create({ data: { name: data.companyName.trim(), cnpj: data.companyCnpj || null } });
+                await createClientStock(tx, company, reviewerId);
                 companyId = company.id;
             }
             if (data.projectId && !await tx.project.findFirst({ where: { id: data.projectId, companyId } })) {

@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { encryptCPF, decryptCPFSafe } from '../../infrastructure/security/cpf-crypto';
+import { createClientStock } from './client-stock';
 
 @Injectable()
 export class ClientsService {
@@ -41,12 +42,16 @@ export class ClientsService {
         return company;
     }
 
-    async createCompany(data: { name: string; cnpj?: string }) {
+    async createCompany(data: { name: string; cnpj?: string }, actorId: string) {
         if (data.cnpj) {
             const existing = await this.prisma.company.findUnique({ where: { cnpj: data.cnpj } });
             if (existing) throw new ConflictException('CNPJ já cadastrado');
         }
-        return this.prisma.company.create({ data });
+        return this.prisma.$transaction(async tx => {
+            const company = await tx.company.create({ data });
+            await createClientStock(tx, company, actorId);
+            return company;
+        });
     }
 
     async updateCompany(id: string, data: { name?: string; cnpj?: string }) {
@@ -63,7 +68,26 @@ export class ClientsService {
         if (company.externalUsers.length > 0) throw new ConflictException('Empresa com usuários vinculados');
         const ticketCount = await this.prisma.ticket.count({ where: { companyId: id } });
         if (ticketCount > 0) throw new ConflictException('Empresa com chamados vinculados');
-        return this.prisma.company.delete({ where: { id } });
+        return this.prisma.$transaction(async tx => {
+            await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${id} FOR UPDATE`;
+            const locationIds = (await tx.location.findMany({
+                where: { companyId: id },
+                select: { id: true },
+            })).map(location => location.id);
+            if (locationIds.length) {
+                const [assets, movements, transfers, minimums] = await Promise.all([
+                    tx.asset.count({ where: { currentLocationId: { in: locationIds } } }),
+                    tx.stockMovement.count({ where: { OR: [{ fromLocationId: { in: locationIds } }, { toLocationId: { in: locationIds } }] } }),
+                    tx.inventoryTransfer.count({ where: { OR: [{ fromLocationId: { in: locationIds } }, { toLocationId: { in: locationIds } }] } }),
+                    tx.stockMinimum.count({ where: { locationId: { in: locationIds } } }),
+                ]);
+                if (assets || movements || transfers || minimums) {
+                    throw new ConflictException('Empresa com estoque ou histórico de movimentações vinculado');
+                }
+                await tx.location.deleteMany({ where: { id: { in: locationIds } } });
+            }
+            return tx.company.delete({ where: { id } });
+        });
     }
 
     // ═══════════════════════════════════════════
