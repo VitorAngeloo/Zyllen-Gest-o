@@ -96,6 +96,14 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         assert.equal((await photoRequest('/vehicles/reservations/' + current.id + '/return', { odometerIn: 14999, sameDestination: 'true' })).status, 400);
         const returned = ok(await photoRequest('/vehicles/reservations/' + current.id + '/return', { odometerIn: 15031, sameDestination: 'false' }), 201);
         assert(returned.use.returnPhotoUrl); assert(returned.use.lateMinutes >= 30);
+        const month = new Date(returned.use.checkedOutAt).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).slice(0, 7);
+        const report = ok(await http('/vehicles/dashboard?month=' + month, 'GET', undefined, admin));
+        assert(report.journeys.some(item => item.id === current.id));
+        assert(report.totalKm >= 31); assert(report.byVehicle.some(item => item.id === other.id && item.km >= 31));
+        assert(report.bySector.some(item => item.trips >= 1));
+        assert.equal((await http('/vehicles/dashboard?month=2026-13', 'GET', undefined, admin)).status, 400);
+        assert(ok(await http('/vehicles/operations', 'GET', undefined, crew)).recent.some(item => item.id === current.id));
+        assert(!ok(await http('/vehicles/operations', 'GET', undefined, reader)).recent.some(item => item.id === current.id));
         assert.equal((await photoRequest('/vehicles/reservations/' + current.id + '/return', { odometerIn: 15032, sameDestination: 'false' })).status, 409);
         stats = ok(await http('/vehicles/statistics')); assert.equal(stats.occupiedVehicles, 0); assert.equal(stats.availableVehicles, 2);
         assert.equal(await prisma.auditLog.count({ where: { action: 'VEHICLE_CHECKOUT' } }), 1);

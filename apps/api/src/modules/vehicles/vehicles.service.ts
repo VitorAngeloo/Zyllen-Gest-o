@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { VehicleCheckoutInput, VehicleReturnInput, VehicleCreateInput, VehicleInput, VehicleReservationCreateInput, VehicleReservationInput, VehicleReservationQuery, VehicleReservationRecord, VehicleStatistics } from '@zyllen/shared';
+import type { VehicleCheckoutInput, VehicleReturnInput, VehicleCreateInput, VehicleInput, VehicleReservationCreateInput, VehicleReservationInput, VehicleReservationQuery, VehicleReservationRecord, VehicleStatistics, VehicleDashboard, VehicleDashboardQuery } from '@zyllen/shared';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { MaintenanceMediaStorageService } from '../../infrastructure/storage/maintenance-media-storage.service';
 import { mediaUploadDirectory } from '../../infrastructure/storage/verified-media-storage';
@@ -9,12 +9,15 @@ import { randomUUID } from 'crypto';
 import { extname } from 'path';
 
 const vehicleSelect = { id: true, name: true, plate: true, active: true } as const;
-const include = { vehicle: { select: vehicleSelect }, responsible: { select: { id: true, name: true } }, use: { include: { driver: { select: { id: true, name: true } } } } } satisfies Prisma.VehicleReservationInclude;
+const include = { vehicle: { select: vehicleSelect }, responsible: { select: { id: true, name: true } }, use: { include: {
+    driver: { select: { id: true, name: true, sector: true } }, checkedOutBy: { select: { id: true, name: true } }, returnedBy: { select: { id: true, name: true } },
+} } } satisfies Prisma.VehicleReservationInclude;
 type Row = Prisma.VehicleReservationGetPayload<{ include: typeof include }>;
 function record(row: Row): VehicleReservationRecord {
     return { id: row.id, title: row.title, vehicle: row.vehicle, responsible: row.responsible, notes: row.notes,
         startDate: row.startDate.toISOString(), endDate: row.endDate.toISOString(), cancelledAt: row.cancelledAt?.toISOString() ?? null,
-        use: row.use ? { id: row.use.id, reservationId: row.id, driver: row.use.driver, clientName: row.use.clientName,
+        use: row.use ? { id: row.use.id, reservationId: row.id, driver: row.use.driver, checkedOutBy: row.use.checkedOutBy,
+            returnedBy: row.use.returnedBy, clientName: row.use.clientName,
             destination: row.use.destination, purpose: row.use.purpose, odometerOut: row.use.odometerOut,
             fuelOut: row.use.fuelOut, hadDamageOut: row.use.hadDamageOut, checkedOutAt: row.use.checkedOutAt.toISOString(),
             checkoutPhotoUrl: `/media/vehicle-out/${row.use.id}/file`, odometerIn: row.use.odometerIn,
@@ -51,12 +54,44 @@ export class VehiclesService {
         return { generatedAt: now.toISOString(), activeVehicles, occupiedVehicles, availableVehicles: activeVehicles - occupiedVehicles,
             overdueVehicles: current.filter(row => row.endDate < now).length, current: current.map(record), upcoming: upcoming.map(record) };
     }
-    async operations() {
+    async managerDashboard(query: VehicleDashboardQuery): Promise<VehicleDashboard> {
+        const reportMonth = query.month ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).slice(0, 7);
+        const [year, month] = reportMonth.split('-').map(Number);
+        const start = new Date(`${reportMonth}-01T00:00:00-03:00`);
+        const nextMonth = new Date(Date.UTC(year, month, 1));
+        const end = new Date(`${nextMonth.toISOString().slice(0, 7)}-01T00:00:00-03:00`);
+        const rows = await this.prisma.retry(() => this.prisma.vehicleReservation.findMany({
+            where: { use: { is: { checkedOutAt: { gte: start, lt: end } } } }, include,
+            orderBy: [{ use: { checkedOutAt: 'desc' } }, { id: 'desc' }],
+        }));
+        const byVehicle = new Map<string, { id: string; name: string; trips: number; completedTrips: number; km: number }>();
+        const bySector = new Map<string, { name: string; trips: number; km: number }>();
+        let completedTrips = 0, totalKm = 0, lateReturns = 0;
+        for (const row of rows) {
+            const use = row.use!;
+            const km = use.returnedAt && use.odometerIn !== null ? Math.max(0, use.odometerIn - use.odometerOut) : 0;
+            const completed = !!use.returnedAt;
+            const car = byVehicle.get(row.vehicleId) ?? { id: row.vehicleId, name: row.vehicle.name, trips: 0, completedTrips: 0, km: 0 };
+            car.trips++; car.completedTrips += Number(completed); car.km += km; byVehicle.set(row.vehicleId, car);
+            const sectorName = use.driver.sector?.trim() || 'Não informado';
+            const sector = bySector.get(sectorName) ?? { name: sectorName, trips: 0, km: 0 };
+            sector.trips++; sector.km += km; bySector.set(sectorName, sector);
+            completedTrips += Number(completed); totalKm += km; lateReturns += Number(!!use.lateMinutes);
+        }
+        const statistics = await this.statistics();
+        return { ...statistics, month: reportMonth, page: query.page, limit: query.limit, total: rows.length,
+            completedTrips, totalKm, lateReturns,
+            byVehicle: [...byVehicle.values()].sort((a, b) => b.km - a.km || a.name.localeCompare(b.name)),
+            bySector: [...bySector.values()].sort((a, b) => b.trips - a.trips || a.name.localeCompare(b.name)),
+            journeys: rows.slice((query.page - 1) * query.limit, query.page * query.limit).map(record) };
+    }
+    async operations(actorId: string) {
         const now = new Date();
+        const mine: Prisma.VehicleReservationWhereInput = { OR: [{ responsibleId: actorId }, { use: { is: { driverId: actorId } } }] };
         const [inUse, ready, recent] = await this.prisma.retry(() => this.prisma.$transaction([
-            this.prisma.vehicleReservation.findMany({ where: { use: { is: { returnedAt: null } } }, include, orderBy: [{ endDate: 'asc' }, { id: 'asc' }] }),
-            this.prisma.vehicleReservation.findMany({ where: { cancelledAt: null, startDate: { lte: now }, endDate: { gt: now }, use: { is: null }, vehicle: { active: true } }, include, orderBy: [{ endDate: 'asc' }, { id: 'asc' }], take: 100 }),
-            this.prisma.vehicleReservation.findMany({ where: { use: { is: { returnedAt: { not: null } } } }, include, orderBy: { use: { returnedAt: 'desc' } }, take: 30 }),
+            this.prisma.vehicleReservation.findMany({ where: { AND: [mine, { use: { is: { returnedAt: null } } }] }, include, orderBy: [{ endDate: 'asc' }, { id: 'asc' }] }),
+            this.prisma.vehicleReservation.findMany({ where: { responsibleId: actorId, cancelledAt: null, startDate: { lte: now }, endDate: { gt: now }, use: { is: null }, vehicle: { active: true } }, include, orderBy: [{ endDate: 'asc' }, { id: 'asc' }], take: 100 }),
+            this.prisma.vehicleReservation.findMany({ where: { AND: [mine, { use: { is: { returnedAt: { not: null } } } }] }, include, orderBy: { use: { returnedAt: 'desc' } }, take: 30 }),
         ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }));
         return { inUse: inUse.map(record), ready: ready.map(record), recent: recent.map(record) };
     }

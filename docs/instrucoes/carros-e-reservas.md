@@ -2,6 +2,18 @@
 
 **Estado atual — 21/09/2026:** o fluxo reserva → retirada → devolução está publicado no domínio. A migration aditiva `20260921110000_vehicle_checkout_return`, a API e o frontend foram publicados nessa ordem. As notas de 18/09 abaixo documentam o comportamento anterior e sua publicação.
 
+## Refinamento em validação local — fotos, movimentações e painel
+
+Esta melhoria ainda **não foi publicada**. Nos formulários, **Tirar foto** aciona a entrada de arquivo com preferência pela câmera traseira no celular; **Escolher imagem** mantém a alternativa de galeria/arquivo. O navegador e o aparelho controlam a interface da câmera. A foto selecionada aparece como prévia e pode ser removida antes do envio; o formato e o limite de 20 MB continuam validados. Imagens HEIC são convertidas para JPG no navegador quando ele puder decodificá-las; falhas de conversão são explicadas antes do envio. As fotos já registradas abrem em diálogo na própria tela, com foco e Escape, usando a sessão de mídia privada existente.
+
+`GET /vehicles/operations` recebe a identidade autenticada e mostra somente reservas/percursos dos quais a pessoa é responsável ou condutora. Retiradas pendentes aparecem acima dos carros em uso e das devoluções recentes. Esse recorte pertence à API, além da interface. A agenda geral de reservas continua com suas permissões próprias.
+
+O painel de Administrador/Gestor passa a aceitar `month=AAAA-MM`, `page` e `limit`. O mês é o da **retirada real**, em horário de São Paulo. Mostra retiradas, quilômetros dos percursos já devolvidos, atrasos e ocupação atual; gráficos por carro e setor; tabela paginada com condutor, operador que registrou retirada/devolução, destino, finalidade, hodômetros, combustível, avarias, prazo e fotos. Usos ainda abertos contam como retiradas, mas não geram quilômetros. O setor vem do cadastro **atual** do condutor; mudança posterior de setor altera a classificação histórica até que se adote um setor congelado por uso. O endpoint e a rota seguem protegidos por `ManagerGuard`, além da permissão interna.
+
+Validação local sem escrita no banco compartilhado: build isolado de shared/API/web, tipos web, arquitetura, 22 cenários de API em PGlite descartável e 2 cenários em navegador com respostas sintéticas. A conferência da câmera em aparelho real e o teste operacional com conta real ainda dependem de uso da equipe antes da publicação desta melhoria.
+
+**Prévia local com API isolada:** a instância candidata na porta 3002 precisa iniciar com `MEDIA_UPLOAD_ROOT` apontando para a raiz privada de `apps/api/uploads` da API principal. Ambas leem o mesmo banco; sem essa configuração, o painel encontra os registros, mas procura as fotos em `tmp/architecture-validation/api-build/apps/api/uploads` e exibe erro no popup. Em 21/09, a prévia foi reiniciada com a raiz correta; as duas fotos locais do uso existente foram encontradas nessa raiz, e a API principal na porta 3001 permaneceu em execução. Não colocar essa pasta no repositório nem expor `/uploads` diretamente.
+
 ## Fluxo de uso e acesso
 
 **Reservas** (`/dashboard/carros`) definem carro, responsável e janela planejada. Uma reserva futura não marca o carro como em uso. Quando chega o horário inicial, **Retiradas e devoluções** (`/dashboard/carros/movimentacoes`) permite registrar a retirada com condutor, cliente ou uso interno, destino, finalidade, quilometragem, foto do hodômetro, combustível e indicação de avarias. A retirada só é aceita dentro do período reservado e se nenhum outro uso daquele carro estiver aberto. Ela grava o horário real do servidor, o operador e auditoria; só então o carro passa a **Em uso**.

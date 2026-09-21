@@ -18,6 +18,7 @@ const vehicle = { id: '40000000-0000-4000-8000-000000000021', name: 'Fiorino QA'
 const now = Date.now();
 const baseBooking = { id: reservationId, title: 'Visita QA', vehicle, responsible: { id: userId, name: 'Colaborador QA' }, startDate: new Date(now - 3600000).toISOString(), endDate: new Date(now + 3600000).toISOString(), notes: null, cancelledAt: null, use: null };
 const jpg = Buffer.from([255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 0, 0, 0]);
+const photoPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/8foAAAAASUVORK5CYII=', 'base64');
 const cases = [];
 let web, browser;
 async function setup(role, mobile = false) {
@@ -36,7 +37,8 @@ async function setup(role, mobile = false) {
         if (url.pathname.includes('pending-rating')) return respond({ data: null });
         if (url.pathname === '/vehicles/options') return respond({ data: { vehicles: [vehicle], responsibleUsers: [{ id: userId, name: 'Colaborador QA' }], reservationResponsibleUsers: [{ id: userId, name: 'Colaborador QA' }] } });
         if (url.pathname === '/vehicles/operations') return respond({ data: { ready: state.booking.use ? [] : [state.booking], inUse: state.booking.use && !state.booking.use.returnedAt ? [state.booking] : [], recent: state.booking.use?.returnedAt ? [state.booking] : [] } });
-        if (url.pathname === '/vehicles/dashboard') return role === 'Internos' ? respond({ error: { message: 'Sem acesso' } }, 403) : respond({ data: { generatedAt: new Date(now).toISOString(), activeVehicles: 1, occupiedVehicles: 0, availableVehicles: 1, overdueVehicles: 0, current: [], upcoming: [] } });
+        if (url.pathname.startsWith('/media/vehicle-')) return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': base, 'Access-Control-Allow-Credentials': 'true' }, body: photoPng });
+        if (url.pathname === '/vehicles/dashboard') return role === 'Internos' ? respond({ error: { message: 'Sem acesso' } }, 403) : respond({ data: { generatedAt: new Date(now).toISOString(), activeVehicles: 1, occupiedVehicles: 0, availableVehicles: 1, overdueVehicles: 0, current: [], upcoming: [], month: url.searchParams.get('month'), page: 1, limit: 20, total: state.booking.use ? 1 : 0, completedTrips: state.booking.use?.returnedAt ? 1 : 0, totalKm: state.booking.use?.returnedAt ? 20 : 0, lateReturns: 0, byVehicle: state.booking.use ? [{ id: vehicle.id, name: vehicle.name, trips: 1, completedTrips: state.booking.use.returnedAt ? 1 : 0, km: state.booking.use.returnedAt ? 20 : 0 }] : [], bySector: state.booking.use ? [{ name: 'Operações', trips: 1, km: state.booking.use.returnedAt ? 20 : 0 }] : [], journeys: state.booking.use ? [state.booking] : [] } });
         if (url.pathname.endsWith('/checkout') && request.method() === 'POST') {
             state.booking.use = { id: 'use-qa', reservationId, driver: { id: userId, name: 'Colaborador QA' }, clientName: 'Skyline', destination: 'Obra QA', purpose: 'INSTALACAO', odometerOut: 100, fuelOut: 'CHEIO', hadDamageOut: false, checkedOutAt: new Date(now).toISOString(), checkoutPhotoUrl: '/media/vehicle-out/use-qa/file', odometerIn: null, sameDestination: null, returnedAt: null, returnPhotoUrl: null, lateMinutes: null };
             return respond({ data: state.booking }, 201);
@@ -68,23 +70,35 @@ async function main() {
             await expect(page.getByRole('link', { name: 'Carros', exact: true })).toBeVisible();
             await page.getByRole('button', { name: 'Registrar retirada' }).click();
             const checkout = page.getByRole('form', { name: 'Retirada de Fiorino QA' });
+            await page.screenshot({ path: path.join(shots, 'vehicle-checkout-mobile.png'), fullPage: true, animations: 'disabled' });
+            await checkout.getByRole('button', { name: 'Tirar foto', exact: true }).scrollIntoViewIfNeeded();
+            await page.screenshot({ path: path.join(shots, 'vehicle-photo-mobile.png'), animations: 'disabled' });
             await checkout.getByLabel(/Cliente ou uso interno/).fill('Skyline');
             await checkout.getByLabel(/Destino/).fill('Obra QA');
             await checkout.getByLabel(/Finalidade da utilização/).selectOption('INSTALACAO');
             await checkout.getByLabel(/Quilometragem na retirada/).fill('100');
             await checkout.getByLabel(/Combustível na retirada/).selectOption('CHEIO');
-            await checkout.getByLabel(/Foto do hodômetro na retirada/).setInputFiles({ name: 'painel.jpg', mimeType: 'image/jpeg', buffer: jpg });
+            await expect(checkout.getByRole('button', { name: 'Tirar foto', exact: true })).toBeVisible();
+            const checkoutPhoto = page.waitForEvent('filechooser');
+            await checkout.getByRole('button', { name: 'Tirar foto', exact: true }).click();
+            await (await checkoutPhoto).setFiles({ name: 'painel.jpg', mimeType: 'image/jpeg', buffer: jpg });
             await checkout.getByRole('radio', { name: 'Não' }).check();
             await checkout.getByRole('button', { name: 'Confirmar retirada' }).click();
             await expect(page.getByRole('button', { name: 'Registrar devolução' })).toBeVisible();
             await page.getByRole('button', { name: 'Registrar devolução' }).click();
             const returned = page.getByRole('form', { name: 'Devolução de Fiorino QA' });
             await returned.getByLabel(/Quilometragem na devolução/).fill('120');
-            await returned.getByLabel(/Foto do hodômetro na devolução/).setInputFiles({ name: 'retorno.jpg', mimeType: 'image/jpeg', buffer: jpg });
+            const returnPhoto = page.waitForEvent('filechooser');
+            await returned.getByRole('button', { name: 'Tirar foto', exact: true }).click();
+            await (await returnPhoto).setFiles({ name: 'retorno.jpg', mimeType: 'image/jpeg', buffer: jpg });
             await returned.getByRole('radio', { name: 'Sim' }).check();
             await returned.getByRole('button', { name: 'Confirmar devolução' }).click();
-            await expect(page.getByRole('heading', { name: 'Devoluções recentes' })).toBeVisible();
+            await expect(page.getByRole('heading', { name: 'Minhas devoluções recentes' })).toBeVisible();
             await expect(page.getByText('100 → 120 km')).toBeVisible();
+            await page.getByRole('button', { name: 'Foto da retirada' }).click();
+            await expect(page.getByRole('dialog', { name: 'Foto da retirada' })).toBeVisible();
+            await expect(page.getByRole('img', { name: 'Foto da retirada' })).toBeVisible();
+            await page.getByRole('button', { name: 'Fechar' }).click();
             assert.equal(state.requests.filter(item => item.method === 'POST' && item.path.endsWith('/checkout')).length, 1);
             assert.equal(state.requests.filter(item => item.method === 'POST' && item.path.endsWith('/return')).length, 1);
             assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -97,7 +111,8 @@ async function main() {
         try { await internal.page.goto(base + '/dashboard/carros/painel'); await expect(internal.page).toHaveURL(base + '/dashboard'); assert(!internal.state.requests.some(item => item.path === '/vehicles/dashboard')); }
         finally { await internal.context.close(); }
         const manager = await setup('Gestor');
-        try { await manager.page.goto(base + '/dashboard/carros/painel'); await expect(manager.page.getByRole('heading', { name: 'Painel de carros' })).toBeVisible(); await expect(manager.page.getByText('Disponíveis agora')).toBeVisible(); assert(manager.state.requests.some(item => item.path === '/vehicles/dashboard')); assert.deepEqual(manager.state.errors, []); }
+        manager.state.booking.use = { id: 'use-manager-qa', reservationId, driver: { id: userId, name: 'Colaborador QA', sector: 'Operações' }, checkedOutBy: { id: userId, name: 'Colaborador QA' }, returnedBy: { id: userId, name: 'Colaborador QA' }, clientName: 'Skyline', destination: 'Obra QA', purpose: 'INSTALACAO', odometerOut: 100, fuelOut: 'CHEIO', hadDamageOut: false, checkedOutAt: new Date(now).toISOString(), checkoutPhotoUrl: '/media/vehicle-out/use-manager-qa/file', odometerIn: 120, sameDestination: true, returnedAt: new Date(now).toISOString(), returnPhotoUrl: '/media/vehicle-in/use-manager-qa/file', lateMinutes: 0 };
+        try { await manager.page.goto(base + '/dashboard/carros/painel'); await expect(manager.page.getByRole('heading', { name: 'Painel de carros' })).toBeVisible(); await expect(manager.page.getByText('Km percorridos')).toBeVisible(); await expect(manager.page.getByText('Uso por setor')).toBeVisible(); await manager.page.getByRole('button', { name: 'Ver registro' }).click(); await expect(manager.page.getByText('Destino: Obra QA')).toBeVisible(); assert(manager.state.requests.some(item => item.path === '/vehicles/dashboard')); assert.deepEqual(manager.state.errors, []); await manager.page.screenshot({ path: path.join(shots, 'vehicle-dashboard-manager.png'), fullPage: true, animations: 'disabled' }); }
         finally { await manager.context.close(); }
     });
 }

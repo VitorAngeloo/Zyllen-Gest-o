@@ -37,9 +37,17 @@ export const vehicleReturnSchema = z.object({
 }).strict();
 export type VehicleCheckoutInput = z.infer<typeof vehicleCheckoutSchema>;
 export type VehicleReturnInput = z.infer<typeof vehicleReturnSchema>;
+export const vehicleDashboardQuerySchema = z.object({
+    month: z.string().regex(/^(20\d{2})-(0[1-9]|1[0-2])$/, 'Informe um mês válido').optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+}).strict();
+export type VehicleDashboardQuery = z.infer<typeof vehicleDashboardQuerySchema>;
 export interface VehicleRecord { id: string; name: string; plate: string | null; active: boolean }
 export interface VehicleUseRecord {
-    id: string; reservationId: string; driver: { id: string; name: string }; clientName: string; destination: string;
+    id: string; reservationId: string; driver: { id: string; name: string; sector?: string | null };
+    checkedOutBy?: { id: string; name: string }; returnedBy?: { id: string; name: string } | null;
+    clientName: string; destination: string;
     purpose: string; odometerOut: number; fuelOut: string; hadDamageOut: boolean; checkedOutAt: string;
     checkoutPhotoUrl: string; odometerIn: number | null; sameDestination: boolean | null;
     returnedAt: string | null; returnPhotoUrl: string | null; lateMinutes: number | null;
@@ -50,3 +58,10 @@ export interface VehicleReservationRecord {
     use: VehicleUseRecord | null;
 }
 export interface VehicleStatistics { generatedAt: string; activeVehicles: number; occupiedVehicles: number; availableVehicles: number; overdueVehicles: number; upcoming: VehicleReservationRecord[]; current: VehicleReservationRecord[] }
+export interface VehicleDashboard extends VehicleStatistics {
+    month: string; page: number; limit: number; total: number;
+    completedTrips: number; totalKm: number; lateReturns: number;
+    byVehicle: { id: string; name: string; trips: number; completedTrips: number; km: number }[];
+    bySector: { name: string; trips: number; km: number }[];
+    journeys: VehicleReservationRecord[];
+}

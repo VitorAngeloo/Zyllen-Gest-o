@@ -1,8 +1,8 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Request, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { vehicleCreateSchema, vehicleInputSchema, vehicleReservationCreateSchema, vehicleReservationQuerySchema, vehicleReservationSchema,
-    vehicleCheckoutSchema, vehicleReturnSchema,
-    type VehicleCreateInput, type VehicleInput, type VehicleReservationCreateInput, type VehicleReservationInput, type VehicleReservationQuery } from '@zyllen/shared';
+    vehicleCheckoutSchema, vehicleReturnSchema, vehicleDashboardQuerySchema,
+    type VehicleCreateInput, type VehicleInput, type VehicleReservationCreateInput, type VehicleReservationInput, type VehicleReservationQuery, type VehicleDashboardQuery } from '@zyllen/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
@@ -18,9 +18,9 @@ export class VehiclesController {
     @Get('statistics') @RequirePermission(['vehicles.view', 'schedule.view'])
     async statistics() { return { data: await this.vehicles.statistics() }; }
     @Get('dashboard') @UseGuards(ManagerGuard) @RequirePermission(['vehicles.view', 'schedule.view'])
-    async dashboard() { return { data: await this.vehicles.statistics() }; }
+    async dashboard(@Query(new ZodValidationPipe(vehicleDashboardQuerySchema)) query: VehicleDashboardQuery) { return { data: await this.vehicles.managerDashboard(query) }; }
     @Get('operations') @RequirePermission(['vehicles.view', 'schedule.view'])
-    async operations() { return { data: await this.vehicles.operations() }; }
+    async operations(@Request() req: any) { return { data: await this.vehicles.operations(req.user.id) }; }
     @Get('options') @RequirePermission(['vehicles.view', 'schedule.view'])
     async options() { return { data: await this.vehicles.options() }; }
     @Get('reservations') @RequirePermission(['vehicles.view', 'schedule.view'])

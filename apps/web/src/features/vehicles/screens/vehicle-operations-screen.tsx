@@ -10,10 +10,11 @@ import { Input } from '@web/components/ui/input';
 import { SearchableSelect } from '@web/components/ui/searchable-select';
 import { ListSectionHeader, EmptyState } from '@web/components/ui/workspace';
 import { VehicleWorkspaceNav } from '../components/vehicle-workspace-nav';
+import { VehiclePhotoInput } from '../components/vehicle-photo-input';
+import { VehiclePhotoViewer } from '../components/vehicle-photo-viewer';
 import { vehicleApi, shouldRetryVehicleQuery } from '../api/vehicle-api';
 
 const date = (value: string) => new Date(value).toLocaleString('pt-BR');
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const purposes = [
     ['VISITA_CLIENTE', 'Visita ao cliente'], ['INSTALACAO', 'Instalação'], ['DESINSTALACAO', 'Desinstalação'],
     ['MANUTENCAO', 'Manutenção'], ['CAPTACAO', 'Captação'], ['OUTRO', 'Outro'],
@@ -38,11 +39,12 @@ function CheckoutForm({ booking, users, onDone }: { booking: VehicleReservationR
     const [fuel, setFuel] = useState('');
     const [damage, setDamage] = useState('');
     const [photo, setPhoto] = useState<File | null>(null);
+    const [photoBusy, setPhotoBusy] = useState(false);
     const [error, setError] = useState('');
     const [pending, setPending] = useState(false);
     const submit = async (event: React.FormEvent) => {
         event.preventDefault(); setError('');
-        if (pending) return;
+        if (pending || photoBusy) return;
         if (!driverId || !purpose || !fuel || !damage || !photo) { setError('Preencha todos os campos e anexe a foto do hodômetro.'); return; }
         if (!['image/jpeg', 'image/png', 'image/webp'].includes(photo.type) || photo.size > 20 * 1024 * 1024) { setError('Use uma foto JPG, PNG ou WebP de até 20 MB.'); return; }
         const form = new FormData();
@@ -62,11 +64,11 @@ function CheckoutForm({ booking, users, onDone }: { booking: VehicleReservationR
             <label className={labelClass}>Finalidade da utilização *<select className={selectClass} value={purpose} onChange={event => setPurpose(event.target.value)} required><option value="">Selecione</option>{purposes.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
             <label className={labelClass}>Quilometragem na retirada (km) *<Input type="number" min="0" max="9999999" step="1" inputMode="numeric" value={odometer} onChange={event => setOdometer(event.target.value)} required /></label>
             <label className={labelClass}>Combustível na retirada *<select className={selectClass} value={fuel} onChange={event => setFuel(event.target.value)} required><option value="">Selecione</option>{fuels.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
-            <label className={labelClass}>Foto do hodômetro na retirada *<Input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={event => setPhoto(event.target.files?.[0] ?? null)} required aria-describedby="checkout-photo-help" /><span id="checkout-photo-help" className="text-xs text-[var(--zyllen-muted)]">Fotografe o painel com a quilometragem legível. Até 20 MB.</span></label>
+            <VehiclePhotoInput label="Foto do hodômetro na retirada" value={photo} onChange={setPhoto} onBusyChange={setPhotoBusy} disabled={pending} />
             <fieldset className="space-y-2 text-sm text-white"><legend>O veículo apresenta avarias na saída? *</legend><div className="flex gap-5"><label className="flex items-center gap-2"><input type="radio" name="damage" value="true" checked={damage === 'true'} onChange={event => setDamage(event.target.value)} required /> Sim</label><label className="flex items-center gap-2"><input type="radio" name="damage" value="false" checked={damage === 'false'} onChange={event => setDamage(event.target.value)} required /> Não</label></div></fieldset>
         </div>
         {error && <p role="alert" className="text-sm text-red-200">{error}</p>}
-        <Button type="submit" variant="highlight" disabled={pending}>{pending ? 'Registrando retirada…' : 'Confirmar retirada'}</Button>
+        <Button type="submit" variant="highlight" disabled={pending || photoBusy}>{pending ? 'Registrando retirada…' : 'Confirmar retirada'}</Button>
     </form>;
 }
 
@@ -75,11 +77,12 @@ function ReturnForm({ booking, onDone }: { booking: VehicleReservationRecord; on
     const [odometer, setOdometer] = useState('');
     const [sameDestination, setSameDestination] = useState('');
     const [photo, setPhoto] = useState<File | null>(null);
+    const [photoBusy, setPhotoBusy] = useState(false);
     const [error, setError] = useState('');
     const [pending, setPending] = useState(false);
     const submit = async (event: React.FormEvent) => {
         event.preventDefault(); setError('');
-        if (pending) return;
+        if (pending || photoBusy) return;
         if (!sameDestination || !photo) { setError('Informe o destino e anexe a foto do hodômetro.'); return; }
         if (Number(odometer) < (booking.use?.odometerOut ?? 0)) { setError('A quilometragem não pode ser menor que a registrada na retirada.'); return; }
         if (!['image/jpeg', 'image/png', 'image/webp'].includes(photo.type) || photo.size > 20 * 1024 * 1024) { setError('Use uma foto JPG, PNG ou WebP de até 20 MB.'); return; }
@@ -95,11 +98,11 @@ function ReturnForm({ booking, onDone }: { booking: VehicleReservationRecord; on
         {Date.parse(booking.endDate) < Date.now() && <p role="status" className="text-sm text-amber-200">Prazo da reserva encerrado. O atraso será registrado na devolução.</p>}
         <div className="grid gap-4 sm:grid-cols-2">
             <label className={labelClass}>Quilometragem na devolução (km) *<Input type="number" min={booking.use?.odometerOut ?? 0} max="9999999" step="1" inputMode="numeric" value={odometer} onChange={event => setOdometer(event.target.value)} required /></label>
-            <label className={labelClass}>Foto do hodômetro na devolução *<Input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={event => setPhoto(event.target.files?.[0] ?? null)} required /><span className="text-xs text-[var(--zyllen-muted)]">Fotografe o painel com a quilometragem legível. Até 20 MB.</span></label>
+            <VehiclePhotoInput label="Foto do hodômetro na devolução" value={photo} onChange={setPhoto} onBusyChange={setPhotoBusy} disabled={pending} />
         </div>
         <fieldset className="space-y-2 text-sm text-white"><legend>O veículo foi usado para o destino inicial? *</legend><div className="flex gap-5"><label className="flex items-center gap-2"><input type="radio" name="sameDestination" value="true" checked={sameDestination === 'true'} onChange={event => setSameDestination(event.target.value)} required /> Sim</label><label className="flex items-center gap-2"><input type="radio" name="sameDestination" value="false" checked={sameDestination === 'false'} onChange={event => setSameDestination(event.target.value)} required /> Não</label></div></fieldset>
         {error && <p role="alert" className="text-sm text-red-200">{error}</p>}
-        <Button type="submit" variant="highlight" disabled={pending}>{pending ? 'Registrando devolução…' : 'Confirmar devolução'}</Button>
+        <Button type="submit" variant="highlight" disabled={pending || photoBusy}>{pending ? 'Registrando devolução…' : 'Confirmar devolução'}</Button>
     </form>;
 }
 
@@ -123,11 +126,11 @@ export default function VehicleOperationsScreen() {
         {people.isError && <div role="alert" className="border-l-2 border-amber-400 bg-amber-400/5 px-4 py-3 text-sm text-amber-200">Não foi possível carregar os colaboradores para a retirada. <Button variant="ghost" size="sm" onClick={() => void people.refetch()}>Tentar novamente</Button></div>}
         {operations.isLoading && <p className="text-sm text-[var(--zyllen-muted)]">Carregando movimentações…</p>}
         {selectedBooking && !selectedBooking.use && canOperate && people.isSuccess && <section className="space-y-3"><ListSectionHeader title="Registrar retirada" description="Confira os dados do veículo antes de sair." /><CheckoutForm key={selectedBooking.id} booking={selectedBooking} users={people.data?.responsibleUsers ?? []} onDone={afterSave} /><Button variant="ghost" size="sm" onClick={() => setSelected(null)}>Fechar formulário</Button></section>}
-        {selectedBooking?.use && !selectedBooking.use.returnedAt && canOperate && <section className="space-y-3"><ListSectionHeader title="Registrar devolução" description="O carro permanecerá em uso até confirmar esta etapa." /><ReturnForm key={selectedBooking.id} booking={selectedBooking} onDone={afterSave} /><Button variant="ghost" size="sm" onClick={() => setSelected(null)}>Fechar formulário</Button></section>}
         {data && <>
-            <section className="space-y-3"><ListSectionHeader title="Em uso" count={data.inUse.length} description="O carro só volta a ficar disponível após a devolução registrada." />{data.inUse.length ? <ul className="divide-y divide-white/10 border-y border-white/10">{data.inUse.map(booking => <li key={booking.id} className="flex flex-wrap items-center justify-between gap-4 px-4 py-4"><div><BookingSummary booking={booking} /><p className="mt-2 text-xs text-[var(--zyllen-muted)]">Condutor: {booking.use?.driver.name} · Retirado em {booking.use && date(booking.use.checkedOutAt)}</p>{Date.parse(booking.endDate) < Date.now() && <p className="mt-1 text-xs font-medium text-amber-200">Devolução atrasada</p>}</div>{canOperate && <Button size="sm" variant="outline" onClick={() => setSelected({ id: booking.id, action: 'return' })}>Registrar devolução</Button>}</li>)}</ul> : <EmptyState title="Nenhum carro em uso" description="Os carros retirados aparecerão aqui até a devolução." />}</section>
             <section className="space-y-3"><ListSectionHeader title="Aguardando retirada" count={data.ready.length} description="Reservas cujo período já começou e ainda não tiveram retirada." />{data.ready.length ? <ul className="divide-y divide-white/10 border-y border-white/10">{data.ready.map(booking => <li key={booking.id} className="flex flex-wrap items-center justify-between gap-4 px-4 py-4"><BookingSummary booking={booking} />{canOperate && <Button size="sm" variant="outline" onClick={() => setSelected({ id: booking.id, action: 'checkout' })}>Registrar retirada</Button>}</li>)}</ul> : <EmptyState title="Nenhuma retirada pendente" description="Quando começar o período de uma reserva, ela aparecerá aqui." />}</section>
-            <section className="space-y-3"><ListSectionHeader title="Devoluções recentes" count={data.recent.length} />{data.recent.length ? <ul className="divide-y divide-white/10 border-y border-white/10">{data.recent.map(booking => <li key={booking.id} className="space-y-2 px-4 py-4"><BookingSummary booking={booking} /><p className="text-xs text-[var(--zyllen-muted)]">Devolvido em {booking.use?.returnedAt && date(booking.use.returnedAt)} · {booking.use?.odometerOut} → {booking.use?.odometerIn} km · {booking.use?.lateMinutes ? `${booking.use.lateMinutes} min de atraso` : 'No prazo'}</p><div className="flex gap-4 text-xs"><a className="text-[var(--zyllen-highlight)] underline" href={`${apiUrl}${booking.use?.checkoutPhotoUrl}`} target="_blank" rel="noreferrer">Foto da retirada</a>{booking.use?.returnPhotoUrl && <a className="text-[var(--zyllen-highlight)] underline" href={`${apiUrl}${booking.use.returnPhotoUrl}`} target="_blank" rel="noreferrer">Foto da devolução</a>}</div></li>)}</ul> : <EmptyState title="Nenhuma devolução recente" />}</section>
+            {selectedBooking?.use && !selectedBooking.use.returnedAt && canOperate && <section className="space-y-3"><ListSectionHeader title="Registrar devolução" description="O carro permanecerá em uso até confirmar esta etapa." /><ReturnForm key={selectedBooking.id} booking={selectedBooking} onDone={afterSave} /><Button variant="ghost" size="sm" onClick={() => setSelected(null)}>Fechar formulário</Button></section>}
+            <section className="space-y-3"><ListSectionHeader title="Em uso" count={data.inUse.length} description="O carro só volta a ficar disponível após a devolução registrada." />{data.inUse.length ? <ul className="divide-y divide-white/10 border-y border-white/10">{data.inUse.map(booking => <li key={booking.id} className="flex flex-wrap items-center justify-between gap-4 px-4 py-4"><div><BookingSummary booking={booking} /><p className="mt-2 text-xs text-[var(--zyllen-muted)]">Condutor: {booking.use?.driver.name} · Retirado em {booking.use && date(booking.use.checkedOutAt)}</p>{Date.parse(booking.endDate) < Date.now() && <p className="mt-1 text-xs font-medium text-amber-200">Devolução atrasada</p>}</div>{canOperate && <Button size="sm" variant="outline" onClick={() => setSelected({ id: booking.id, action: 'return' })}>Registrar devolução</Button>}</li>)}</ul> : <EmptyState title="Nenhum carro em uso" description="Os carros retirados aparecerão aqui até a devolução." />}</section>
+            <section className="space-y-3"><ListSectionHeader title="Minhas devoluções recentes" count={data.recent.length} />{data.recent.length ? <ul className="divide-y divide-white/10 border-y border-white/10">{data.recent.map(booking => <li key={booking.id} className="space-y-2 px-4 py-4"><BookingSummary booking={booking} /><p className="text-xs text-[var(--zyllen-muted)]">Devolvido em {booking.use?.returnedAt && date(booking.use.returnedAt)} · {booking.use?.odometerOut} → {booking.use?.odometerIn} km · {booking.use?.lateMinutes ? `${booking.use.lateMinutes} min de atraso` : 'No prazo'}</p><div className="flex flex-wrap gap-2"><VehiclePhotoViewer label="Foto da retirada" path={booking.use?.checkoutPhotoUrl} /><VehiclePhotoViewer label="Foto da devolução" path={booking.use?.returnPhotoUrl} /></div></li>)}</ul> : <EmptyState title="Nenhuma devolução recente" />}</section>
         </>}
     </div>;
 }
