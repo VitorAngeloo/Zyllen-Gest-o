@@ -6,9 +6,9 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     const runtime = process.env.AUDIT_RUNTIME_ROOT || 'C:/Users/SERVIDOR ZYLLEN/.cache/codex-runtimes/codex-primary-runtime/dependencies';
     const { expect } = require(path.join(runtime, 'node/node_modules/playwright/test'));
     const token = 'P'.repeat(43), all = ['atendimentos', 'projetos', 'operacoes', 'estoque'];
-    async function setup({ query = '', permissions = ['dashboard.view', 'tickets.view', 'schedule.view', 'inventory.view'], role = 'Gestor', views = all, mirror = false, mobile = false, loggedOut = false, fail = {}, empty = false, malformed = false, legacy = false, former = false } = {}) {
-        const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 }, timezoneId: 'America/Sao_Paulo', reducedMotion: 'reduce', permissions: ['clipboard-read', 'clipboard-write'] });
-        const requests = [], errors = [], state = { fail, empty, malformed, bonus: 0, active: false, generatedViews: all, views };
+    async function setup({ query = '', permissions = ['dashboard.view', 'tickets.view', 'schedule.view', 'inventory.view'], role = 'Gestor', views = all, mirror = false, mobile = false, loggedOut = false, fail = {}, empty = false, malformed = false, legacy = false, former = false, viewport, dense = false } = {}) {
+        const context = await browser.newContext({ viewport: viewport ?? (mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 }), timezoneId: 'America/Sao_Paulo', reducedMotion: 'reduce', permissions: ['clipboard-read', 'clipboard-write'] });
+        const requests = [], errors = [], state = { fail, empty, malformed, dense, bonus: 0, active: false, generatedViews: all, views };
         await context.addCookies([{ name: 'mirrorMustOmit', value: 'synthetic-cookie', domain: '127.0.0.1', path: '/', httpOnly: true }]);
         await context.addInitScript(({ loggedOut }) => { if (!loggedOut) { localStorage.setItem('accessToken', 'synthetic-personal-panel-qa'); localStorage.setItem('userType', 'internal'); } }, { loggedOut });
         const ticket = { id: '10000000-0000-4000-8000-000000000001', title: 'Chamado completo no painel QA', description: 'Descrição integral do chamado QA', source: 'INTERNAL', status: 'OPEN', priority: 'HIGH', createdAt: new Date(fixedNow - 80 * 60000).toISOString(), firstResponseAt: null, internalUser: { name: 'Solicitante painel QA', sector: 'Financeiro' }, externalUser: null, company: null, assignedTo: null, attachments: [], messages: [], closedAt: null, rating: null, resolutionNotes: null, assignedToInternalUserId: null };
@@ -42,7 +42,10 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
                 if (method === 'DELETE') { state.active = false; return respond({ data: null }); }
                 return respond({ data: { active: state.active, views: state.generatedViews, updatedAt: null } });
             }
-            if (url.pathname === '/tickets' || url.pathname === publicRoot + '/tickets') return respond({ data: params.status === 'OPEN' ? [ticket] : [], total: params.status === 'OPEN' ? 1 : 0, page: 1, limit: 100 });
+            if (url.pathname === '/tickets' || url.pathname === publicRoot + '/tickets') {
+                const rows = !state.dense ? params.status === 'OPEN' ? [ticket] : [] : Array.from({ length: 8 }, (_, index) => ({ ...ticket, id: `10000000-0000-4000-8000-${String(index + (params.status === 'OPEN' ? 1 : 20)).padStart(12, '0')}`, title: `${params.status === 'OPEN' ? 'Pedido aberto' : 'Pedido em atendimento'} ${index + 1} · unidade de demonstração`, status: params.status, createdAt: new Date(fixedNow - (80 + index * 12) * 60000).toISOString() }));
+                return respond({ data: rows, total: rows.length, page: 1, limit: 100 });
+            }
             if (url.pathname === '/tickets/' + ticket.id || url.pathname === publicRoot + '/tickets/' + ticket.id) return respond({ data: ticket });
             if (url.pathname === '/vehicles/statistics') return state.fail.vehicles ? respond({error:{message:'Carros indisponíveis QA'}},state.fail.vehicles) : respond({ data: { generatedAt: new Date(fixedNow).toISOString(), activeVehicles: state.empty ? 0 : 2, occupiedVehicles: state.empty ? 0 : 1, availableVehicles: state.empty ? 0 : 1, upcoming: [], current: [] } });
             if (url.pathname === '/schedule') return respond({ data: state.empty ? [] : [{ id: 'upcoming-qa', title: 'Visita à unidade QA', type: 'INSTALLATION', status: 'SCHEDULED', startDate: new Date(fixedNow + 3600000).toISOString(), endDate: new Date(fixedNow + 7200000).toISOString(), companyName: 'Cliente agenda QA', projectName: 'Próximo projeto QA', installers: [{ id: 'installer-qa', name: 'Equipe agenda QA' }], address: 'Endereço agenda QA', notes: 'Detalhes do compromisso QA' }], total: state.empty ? 0 : 1 });
@@ -53,6 +56,23 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
                 operacoes: state.malformed ? {} : { generatedAt, period, installationsCompleted: 0, removalsCompleted: 0, tripsCompleted: 0, tripsPlanned: 0, current: { plannedTrips: 0, tripsInProgress: 0 }, dataQuality: { servicesCompletedWithoutDate: 0, tripsCompletedWithoutDate: 0, travelWithoutBooking: 0, unclassified: 0 }, nextInstallations: [], relevantInstallations: [], latestInstallations: [], latestRemovals: [], nextInterstateTrips: [] },
                 estoque: { generatedAt, period: { start: new Date(fixedNow - 30 * 86400000).toISOString(), end: generatedAt }, context: 'ALL', location: null, totals: { skus: 6, assets: 40, unlocated: 2, unclassified: 1 }, scope: { assets: 38, available: 8, maintenance: 2 }, movements: [], topEntries: [{ skuId: 'stock-qa', skuCode: '895001', name: 'Produto em uso QA', quantity: 20 }], topExits: [], priorities: [], criticalCount: 0, minimumConfiguredCount: 0, replenishmentConfigured: false }
             };
+            if (state.dense) {
+                data.atendimentos.current.pending = 8;
+                data.atendimentos.current.inProgress = 8;
+                data.atendimentos.current.needingAttention = 16;
+                data.atendimentos.sectors = Array.from({ length: 9 }, (_, index) => ({ source: 'INTERNAL', name: `Setor de demonstração ${index + 1}`, openedInPeriod: index + 1 }));
+                data.projetos.highlights = Array.from({ length: 9 }, (_, index) => ({ id: `project-${index}`, projectId: `project-${index}`, name: `Projeto de demonstração ${index + 1}`, companyName: 'Cliente de demonstração', type: 'INSTALLATION', status: 'SCHEDULED', markerName: null, urgency: 1, color: '#ABFF10', relevant: false, startDate: generatedAt, endDate: null }));
+                const services = Array.from({ length: 5 }, (_, index) => ({ id: `service-${index}`, projectId: `project-${index}`, name: `Instalação de demonstração ${index + 1}`, companyName: 'Cliente de demonstração', type: 'INSTALLATION', status: 'SCHEDULED', markerName: null, urgency: 1, color: '#ABFF10', relevant: false, startDate: generatedAt, endDate: null, completedAt: null }));
+                data.operacoes.nextInstallations = services;
+                data.operacoes.relevantInstallations = services;
+                data.operacoes.latestInstallations = services;
+                data.operacoes.latestRemovals = services;
+                data.operacoes.nextInterstateTrips = Array.from({ length: 5 }, (_, index) => ({ id: `trip-${index}`, title: `Viagem de demonstração ${index + 1}`, originCity: 'São Paulo', originState: 'SP', destinationCity: 'Rio de Janeiro', destinationState: 'RJ', startDate: generatedAt, endDate: generatedAt, serviceCount: 1 }));
+                const ranking = Array.from({ length: 9 }, (_, index) => ({ skuId: `sku-${index}`, skuCode: `SKU-${index + 1}`, name: `Item de demonstração ${index + 1}`, quantity: index + 1 }));
+                data.estoque.topEntries = ranking;
+                data.estoque.topExits = ranking;
+                data.estoque.movements = ['ENTRY', 'SHIPMENT', 'RETURN', 'TRANSFER', 'EXIT', 'WRITE_OFF', 'REVERSAL', 'REVERTED', 'UNCLASSIFIED'].map((nature, index) => ({ nature, quantity: index + 1, records: 1 }));
+            }
             const view = url.pathname === '/tickets/statistics' ? 'atendimentos' : params.view;
             if (state.fail[view]) return respond({ error: { message: 'Falha sintética QA' } }, 503);
             if (url.pathname === '/tickets/statistics') return respond({ data: data.atendimentos });
@@ -247,6 +267,49 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(d.getByRole('button', { name: 'Gerar link', exact: true })).toBeEnabled(); await d.getByRole('checkbox', { name: 'Projetos', exact: true }).uncheck(); s.state.fail.management = true;
         await d.getByRole('button', { name: 'Gerar link', exact: true }).click(); await expect(d.getByText('Falha ao salvar link QA', { exact: true })).toBeVisible(); await expect(d.getByRole('checkbox', { name: 'Projetos', exact: true })).not.toBeChecked();
         s.state.fail.management = false; await d.getByRole('button', { name: 'Gerar link', exact: true }).click(); await expect(d.getByLabel('Link do espelho', { exact: true })).toBeVisible(); await s.context.close();
+    });
+    await run('Monitoring panel: dense TV views fit the viewport and advance records without scrolling', async () => {
+        const s = await setup({ mirror: true, loggedOut: true, dense: true, viewport: { width: 1708, height: 817 }, query: 'visao=atendimentos&pausado=1' });
+        const assertFrame = async (page = s.page) => {
+            const frame = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight, viewportWidth: innerWidth, viewportHeight: innerHeight,
+                clipped: [...document.querySelectorAll('[data-monitoring-panel] [data-mirror-panel], [data-monitoring-panel] [data-ticket-id], [data-monitoring-panel] [data-project-highlight], [data-monitoring-panel] [data-operation-service], [data-monitoring-panel] [data-operation-trip], [data-monitoring-panel] [data-inventory-ranking]')].filter(element => {
+                    const box = element.getBoundingClientRect(), parent = element.closest('[data-mirror-panel]')?.getBoundingClientRect();
+                    return box.left < -1 || box.right > innerWidth + 1 || box.top < -1 || box.bottom > innerHeight + 1 || (parent && element !== element.closest('[data-mirror-panel]') && box.bottom > parent.bottom + 1);
+                }).map(element => element.getAttribute('data-ticket-id') || element.getAttribute('data-project-highlight') || element.getAttribute('data-operation-service') || element.getAttribute('data-operation-trip') || element.getAttribute('data-inventory-ranking') || element.getAttribute('aria-label')),
+                overflowing: [...document.querySelectorAll('[data-monitoring-panel] [data-operation-service], [data-monitoring-panel] [data-operation-trip]')].filter(element => element.scrollHeight > element.clientHeight + 2).map(element => element.getAttribute('data-operation-service') || element.getAttribute('data-operation-trip')) }));
+            assert(frame.width <= frame.viewportWidth + 1 && frame.height <= frame.viewportHeight + 1, JSON.stringify(frame));
+            assert.deepEqual(frame.clipped, []);
+            assert.deepEqual(frame.overflowing, []);
+        };
+        await expect(s.page.locator('[data-ticket-column="open"] [data-ticket-id]')).toHaveCount(3);
+        await assertFrame();
+        await s.page.screenshot({ path: path.join(shots, 'mirror-tv-atendimentos.png'), animations: 'disabled' });
+        await s.page.clock.runFor(11000);
+        await expect(s.page.locator('[data-ticket-column="open"]')).toContainText('Pedido aberto 4');
+        await assertFrame();
+        for (const [name, marker] of [['Projetos', '[data-project-highlight]'], ['Instalações e viagens', '[data-operation-service]'], ['Estoque', '[data-inventory-ranking]']]) {
+            await viewNav(s.page).getByRole('button', { name, exact: true }).click();
+            await expect(s.page.locator(marker).first()).toBeVisible();
+            await assertFrame();
+            await s.page.screenshot({ path: path.join(shots, `mirror-tv-${name === 'Projetos' ? 'projetos' : name === 'Estoque' ? 'estoque' : 'operacoes'}.png`), animations: 'disabled' });
+            await s.page.clock.runFor(11000);
+            if (name === 'Projetos') await expect(s.page.locator('[data-project-highlight="project-6"]')).toBeVisible();
+            if (name === 'Instalações e viagens') await expect(s.page.locator('[data-operation-service="service-2"]').first()).toBeVisible();
+            if (name === 'Estoque') await expect(s.page.locator('[data-inventory-ranking="entries"]')).toContainText('Item de demonstração 5');
+            await assertFrame();
+        }
+        assert.deepEqual(s.errors, []);
+        await s.context.close();
+        const compact = await setup({ mirror: true, loggedOut: true, dense: true, viewport: { width: 1280, height: 720 }, query: 'visao=atendimentos&pausado=1' });
+        await expect(compact.page.locator('[data-ticket-column="open"] [data-ticket-id]')).toHaveCount(2);
+        await assertFrame(compact.page);
+        for (const name of ['Projetos', 'Instalações e viagens', 'Estoque']) {
+            await viewNav(compact.page).getByRole('button', { name, exact: true }).click();
+            await expect(compact.page.locator('[data-mirror-panel]').first()).toBeVisible();
+            await assertFrame(compact.page);
+        }
+        assert.deepEqual(compact.errors, []);
+        await compact.context.close();
     });
     await run('Monitoring panel: mobile mirror fits width and player remains at the lower corner; desktop account retains normal navigation', async () => {
         const mobile = await setup({ mirror: true, loggedOut: true, mobile: true, query: 'visao=estoque&pausado=1' }); await expect(mobile.page.locator('[data-inventory-metric="scoped"] [data-metric-value]')).toHaveText('38');

@@ -21,6 +21,14 @@ Administrador tem o bypass existente. Seleção desconhecida ou negada usa a pri
 
 No espelho, as visões são selecionadas diretamente no menu superior. A seleção manual pausa a rotação para manter a tela escolhida. O único controle de rotação é um pequeno botão circular de play/pausa no canto inferior direito, com nome acessível. A troca automática fica **fixa em um minuto**; parâmetros e preferências antigas de intervalo são ignorados.
 
+### Leitura em telas sem mouse — 21/09/2026
+
+O espelho tem uma composição própria para telas de acompanhamento. Cabeçalho, navegação, indicadores, listas e estado da rotação compartilham a altura disponível do navegador. Em telas amplas, as listas deixam de depender de rolagem: mostram uma página de registros e avançam automaticamente a cada dez segundos. O número total e a página/faixa atual aparecem junto à lista. A posição de cada visão continua de onde parou quando a rotação volta a ela; abrir um detalhe suspende temporariamente a passagem das páginas.
+
+Em **Atendimentos**, os seis indicadores ficam em uma faixa compacta, seguidos pelas filas de abertos, em atendimento e aberturas por setor. Origem e período continuam ajustáveis em controles compactos; a configuração inicial segue todas as origens e últimos 30 dias. Em **Projetos**, os indicadores e os destaques ocupam o mesmo quadro. Em **Instalações e viagens**, os cinco grupos permanecem identificados e seus registros avançam. Em **Estoque**, entradas, saídas e naturezas de movimentação ficam visíveis lado a lado. Conteúdo excedente avança dentro de seu grupo, sem alterar a rotação de um minuto entre visões. Em celular ou janela muito baixa, a página volta ao fluxo vertical para conservar controles e leitura.
+
+O verde da marca orienta seleção e valores principais; azul identifica andamento, verde suave indica conclusões, amarelo sinaliza pendência e vermelho fica reservado a chamados que exigem atenção. Rótulos e números acompanham as cores para que o significado não dependa delas. A dashboard autenticada mantém sua apresentação e suas ações operacionais.
+
 No espelho, seleção e pausa persistem neste navegador; a URL explícita prevalece no carregamento. Exemplo: `/painel/espelho/<token>?visao=estoque&pausado=1`. Somente visão e pausa são normalizadas na query; o caminho do espelho mantém seu token. Não adicionar JWT, PIN ou credenciais da conta ao endereço.
 
 Atualizar os dados ou as visões autorizadas do espelho não reinicia nem retoma uma pausa escolhida. Se uma visão perder autorização, selecionar a primeira ainda permitida, preservando a pausa. Popup de chamado suspende a troca temporariamente; fechar preserva a pausa escolhida e inicia um novo minuto se a rotação estava ativa. Seleção de outra visão fica desabilitada enquanto o popup está aberto.
