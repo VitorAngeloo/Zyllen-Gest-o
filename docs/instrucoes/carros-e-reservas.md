@@ -1,8 +1,20 @@
 # Carros e reservas
 
-**Estado atual — 18/09/2026:** cadastro, reservas e resumo da dashboard implementados durante R2, em área separada escolhida pelo usuário. Migration aplicada e API/shared/Prisma atualizados após autorização; o localhost já usa a API com carros disponíveis. Frontend ainda não publicado no Vercel. Não houve cadastro de carros ou reservas fictícias na base real.
+**Evolução em 21/09/2026:** o fluxo reserva → retirada → devolução foi implementado no código, com migration aditiva `20260921110000_vehicle_checkout_return`. Esta etapa ainda requer publicação da API, aplicação da migration e atualização do frontend para entrar em operação. As notas de 18/09 abaixo documentam o comportamento anterior e sua publicação.
 
-## Acesso e funcionamento
+## Fluxo de uso e acesso
+
+**Reservas** (`/dashboard/carros`) definem carro, responsável e janela planejada. Uma reserva futura não marca o carro como em uso. Quando chega o horário inicial, **Retiradas e devoluções** (`/dashboard/carros/movimentacoes`) permite registrar a retirada com condutor, cliente ou uso interno, destino, finalidade, quilometragem, foto do hodômetro, combustível e indicação de avarias. A retirada só é aceita dentro do período reservado e se nenhum outro uso daquele carro estiver aberto. Ela grava o horário real do servidor, o operador e auditoria; só então o carro passa a **Em uso**.
+
+Na devolução são exigidos quilometragem (não inferior à de saída), foto do hodômetro e resposta sobre o destino inicial. O horário real do servidor libera o carro e registra `lateMinutes = max(0, arredondar para cima a diferença em minutos entre devolução e término da reserva)`. Se o prazo passar antes da devolução, o carro continua em uso e aparece como atrasado. Cancelamento e edição de reserva deixam de ser possíveis após uma retirada, mesmo quando a devolução já ocorreu; o histórico permanece. Fotos ficam em armazenamento privado e só são servidas mediante sessão de mídia e autorização interna para Carros.
+
+Todos os colaboradores internos com `vehicles.view` e `vehicles.reserve` podem consultar, reservar, retirar e devolver. O perfil **Internos** recebe essas duas permissões de modo aditivo; sua dashboard inicial continua somente de leitura, e o acesso a Carros fica na sidebar. **Painel de carros** (`/dashboard/carros/painel`) e `GET /vehicles/dashboard` são exclusivos de Administrador e Gestor. O painel inicial mostra ativos, disponíveis, em uso e devoluções atrasadas; indicadores adicionais serão refinados depois. A API mantém `GET /vehicles/statistics` para os resumos da dashboard existente, agora com disponibilidade física baseada em retiradas/devoluções.
+
+Rotas novas: `GET /vehicles/operations`, `POST /vehicles/reservations/:id/checkout`, `POST /vehicles/reservations/:id/return` e `GET /vehicles/dashboard`. Retirada e devolução recebem `multipart/form-data` com `odometerPhoto` obrigatório (JPG/PNG/WebP, até 20 MB); os formulários mantêm o preenchimento se houver erro. Tabela `VehicleUse` vincula uma retirada à reserva, impede dois usos simultâneos do mesmo carro e armazena os dados e os momentos reais. A migration também concede `vehicles.view/reserve` ao papel Internos existente, sem rodar o seed nem liberar manutenção ou gestão de agenda.
+
+## Histórico da implantação das reservas (18/09/2026)
+
+### Acesso e funcionamento anteriores
 
 **Carros**, na sidebar, abre `/dashboard/carros` no layout autenticado. Cadastro e agenda ficam nessa área própria. Reservas não exigem projeto/viagem nem são criadas automaticamente pelos seus compromissos. A dashboard apresenta disponibilidade pela agenda, carros em uso e até três próximas reservas, com acesso à área.
 

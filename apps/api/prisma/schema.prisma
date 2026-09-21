@@ -55,6 +55,9 @@ model InternalUser {
   panelMirror         PanelMirror?
   vehicleReservations VehicleReservation[] @relation("VehicleResponsible")
   vehicleBookingsCreated VehicleReservation[] @relation("VehicleBookingCreator")
+  vehicleUsesDriven VehicleUse[] @relation("VehicleDriver")
+  vehicleCheckouts VehicleUse[] @relation("VehicleCheckoutActor")
+  vehicleReturns VehicleUse[] @relation("VehicleReturnActor")
 }
 
 // Carros e reservas têm agenda própria, sem depender de projeto/viagem.
@@ -66,6 +69,7 @@ model Vehicle {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   reservations VehicleReservation[]
+  uses VehicleUse[]
 }
 
 model VehicleReservation {
@@ -83,8 +87,41 @@ model VehicleReservation {
   vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   responsible InternalUser @relation("VehicleResponsible", fields: [responsibleId], references: [id], onDelete: Restrict)
   createdBy InternalUser @relation("VehicleBookingCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  use VehicleUse?
   @@index([vehicleId, startDate, endDate])
   @@index([responsibleId])
+}
+
+// A reserva planeja o período; somente a retirada inicia o uso real.
+model VehicleUse {
+  id String @id @default(uuid())
+  reservationId String @unique
+  vehicleId String
+  driverId String
+  checkedOutById String
+  checkedOutAt DateTime @default(now())
+  clientName String
+  destination String
+  purpose String
+  odometerOut Int
+  fuelOut String
+  hadDamageOut Boolean
+  checkoutPhotoName String
+  checkoutPhotoPath String
+  returnedById String?
+  returnedAt DateTime?
+  odometerIn Int?
+  sameDestination Boolean?
+  returnPhotoName String?
+  returnPhotoPath String?
+  lateMinutes Int?
+  reservation VehicleReservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver InternalUser @relation("VehicleDriver", fields: [driverId], references: [id], onDelete: Restrict)
+  checkedOutBy InternalUser @relation("VehicleCheckoutActor", fields: [checkedOutById], references: [id], onDelete: Restrict)
+  returnedBy InternalUser? @relation("VehicleReturnActor", fields: [returnedById], references: [id], onDelete: Restrict)
+  @@index([vehicleId, returnedAt])
+  @@index([driverId, checkedOutAt])
 }
 
 model ExternalUser {

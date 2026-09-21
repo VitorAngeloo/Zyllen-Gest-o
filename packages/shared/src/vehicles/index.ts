@@ -22,9 +22,31 @@ export type VehicleCreateInput = z.infer<typeof vehicleCreateSchema>;
 export type VehicleReservationInput = z.infer<typeof vehicleReservationSchema>;
 export type VehicleReservationCreateInput = z.infer<typeof vehicleReservationCreateSchema>;
 export type VehicleReservationQuery = z.infer<typeof vehicleReservationQuerySchema>;
+export const vehicleCheckoutSchema = z.object({
+    driverId: z.string().uuid(),
+    clientName: z.string().trim().min(2).max(160),
+    destination: z.string().trim().min(2).max(240),
+    purpose: z.enum(['VISITA_CLIENTE', 'INSTALACAO', 'DESINSTALACAO', 'MANUTENCAO', 'CAPTACAO', 'OUTRO']),
+    odometerOut: z.coerce.number().int().min(0).max(9999999),
+    fuelOut: z.enum(['CHEIO', 'TRES_QUARTOS', 'METADE', 'UM_QUARTO', 'RESERVA']),
+    hadDamageOut: z.enum(['true', 'false']).transform(value => value === 'true'),
+}).strict();
+export const vehicleReturnSchema = z.object({
+    odometerIn: z.coerce.number().int().min(0).max(9999999),
+    sameDestination: z.enum(['true', 'false']).transform(value => value === 'true'),
+}).strict();
+export type VehicleCheckoutInput = z.infer<typeof vehicleCheckoutSchema>;
+export type VehicleReturnInput = z.infer<typeof vehicleReturnSchema>;
 export interface VehicleRecord { id: string; name: string; plate: string | null; active: boolean }
+export interface VehicleUseRecord {
+    id: string; reservationId: string; driver: { id: string; name: string }; clientName: string; destination: string;
+    purpose: string; odometerOut: number; fuelOut: string; hadDamageOut: boolean; checkedOutAt: string;
+    checkoutPhotoUrl: string; odometerIn: number | null; sameDestination: boolean | null;
+    returnedAt: string | null; returnPhotoUrl: string | null; lateMinutes: number | null;
+}
 export interface VehicleReservationRecord {
     id: string; vehicle: VehicleRecord; title: string; responsible: { id: string; name: string };
     startDate: string; endDate: string; notes: string | null; cancelledAt: string | null;
+    use: VehicleUseRecord | null;
 }
-export interface VehicleStatistics { generatedAt: string; activeVehicles: number; occupiedVehicles: number; availableVehicles: number; upcoming: VehicleReservationRecord[]; current: VehicleReservationRecord[] }
+export interface VehicleStatistics { generatedAt: string; activeVehicles: number; occupiedVehicles: number; availableVehicles: number; overdueVehicles: number; upcoming: VehicleReservationRecord[]; current: VehicleReservationRecord[] }

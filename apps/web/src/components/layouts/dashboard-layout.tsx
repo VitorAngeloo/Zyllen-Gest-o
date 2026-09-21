@@ -103,9 +103,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [ratingComment, setRatingComment] = useState("");
 
     const isInternos = user?.type === "internal" && "role" in (user ?? {}) && (user as any).role?.name === "Internos";
-    const internosRouteAllowed = !isInternos || ['/dashboard', '/dashboard/chamados-ti', '/dashboard/acompanhamento', '/dashboard/perfil'].includes(pathname);
+    const internosRouteAllowed = !isInternos || ['/dashboard', '/dashboard/chamados-ti', '/dashboard/acompanhamento', '/dashboard/perfil', '/dashboard/carros', '/dashboard/carros/movimentacoes'].includes(pathname);
     const canViewItem = (item: NavItem) => {
-        if (isInternos) return ['/dashboard', '/dashboard/chamados-ti', '/dashboard/acompanhamento'].includes(item.href);
+        if (isInternos) return ['/dashboard', '/dashboard/chamados-ti', '/dashboard/acompanhamento', '/dashboard/carros'].includes(item.href);
         if (item.managerOnly) return user?.type === 'internal' && ['Administrador', 'Gestor'].includes((user as any)?.role?.name ?? '');
         return !item.perm || (Array.isArray(item.perm) ? item.perm.some(hasPermission) : hasPermission(item.perm));
     };

@@ -44,7 +44,7 @@ export class MaintenanceMediaStorageService implements OnModuleInit {
         if (error || !data || data.public) throw new Error('Não foi possível confirmar bucket privado de anexos. Confira a configuração antes de iniciar a API.');
     }
 
-    async storeUploadedFile(file: Express.Multer.File, osId: string, localUploadDir: string): Promise<string> {
+    async storeUploadedFile(file: Express.Multer.File, osId: string, localUploadDir: string, namespace = 'os'): Promise<string> {
         if (!this.usesSupabase()) {
             return file.filename;
         }
@@ -54,7 +54,7 @@ export class MaintenanceMediaStorageService implements OnModuleInit {
         const now = new Date();
         const yyyy = String(now.getUTCFullYear());
         const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
-        const objectPath = `os/${osId}/${yyyy}/${mm}/${randomUUID()}${ext.toLowerCase()}`;
+        const objectPath = `${namespace}/${osId}/${yyyy}/${mm}/${randomUUID()}${ext.toLowerCase()}`;
 
         try {
             const buffer = readFileSync(sourcePath);

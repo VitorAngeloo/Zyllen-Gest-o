@@ -89,7 +89,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     const metric = (page, key) => page.locator('[data-project-metric="' + key + '"] [data-metric-value]');
     const viewNav = page => page.locator('nav[aria-label="Visões do painel de acompanhamento"], nav[aria-label="Indicadores operacionais da dashboard"]');
     await run('Internal dashboard: Internos sees only read-only personal tickets, projects and car agenda', async () => {
-        const s = await setup({ role: 'Internos', permissions: [] });
+        const s = await setup({ role: 'Internos', permissions: ['vehicles.view', 'vehicles.reserve'] });
         const dashboard = s.page.locator('[data-internal-dashboard]');
         await expect(dashboard).toBeVisible();
         await expect(dashboard.getByText('Meu chamado aberto QA', { exact: true })).toBeVisible();
@@ -102,7 +102,8 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(navigation.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible();
         await expect(navigation.getByRole('link', { name: 'Meus Chamados TI', exact: true })).toBeVisible();
         await expect(navigation.getByRole('link', { name: 'Acompanhamento', exact: true })).toBeVisible();
-        await expect(navigation.getByRole('link')).toHaveCount(3);
+        await expect(navigation.getByRole('link', { name: 'Carros', exact: true })).toBeVisible();
+        await expect(navigation.getByRole('link')).toHaveCount(4);
         assert.deepEqual([...new Set(s.requests.filter(request => !request.path.startsWith('/auth/') && !request.path.includes('pending-rating')).map(request => request.path))], ['/internal-dashboard']);
         await s.page.goto(base + '/dashboard/projetos');
         await expect(s.page).toHaveURL(base + '/dashboard');

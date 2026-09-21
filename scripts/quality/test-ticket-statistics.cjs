@@ -32,8 +32,8 @@ async function main() {
     let ddlSchema = path.join(scratch, 'schema.prisma');
     if (vehicles) {
         let baseline = fs.readFileSync(ddlSchema, 'utf8');
-        for (const name of ['Vehicle', 'VehicleReservation']) baseline = baseline.replace(new RegExp('^model ' + name + ' \\{[\\s\\S]*?^\\}', 'm'), '');
-        baseline = baseline.replace(/^.*(?:vehicleReservations|vehicleBookingsCreated).*\r?\n/gm, '');
+        for (const name of ['Vehicle', 'VehicleReservation', 'VehicleUse']) baseline = baseline.replace(new RegExp('^model ' + name + ' \\{[\\s\\S]*?^\\}', 'm'), '');
+        baseline = baseline.replace(/^.*(?:vehicleReservations|vehicleBookingsCreated|vehicleUsesDriven|vehicleCheckouts|vehicleReturns).*\r?\n/gm, '');
         ddlSchema = path.join(artifacts, 'baseline-schema.prisma'); fs.writeFileSync(ddlSchema, baseline);
     }
     if (inventoryStatistics) {
@@ -69,9 +69,15 @@ async function main() {
         const before = (await db.query('SELECT COUNT(*) AS total FROM "InternalUser"')).rows;
         const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260918100000_vehicle_reservations/migration.sql'), 'utf8');
         assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(migration)); await db.exec(migration);
+        const internosRoleId = crypto.randomUUID();
+        await db.query('INSERT INTO "Role" (id,name,"updatedAt") VALUES ($1,$2,NOW())', [internosRoleId, 'Internos']);
+        for (const action of ['view', 'reserve']) await db.query('INSERT INTO "ScreenPermission" (id,screen,action) VALUES ($1,$2,$3)', [crypto.randomUUID(), 'vehicles', action]);
+        const useMigration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260921110000_vehicle_checkout_return/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(useMigration)); await db.exec(useMigration);
+        assert.equal((await db.query('SELECT COUNT(*) AS total FROM "RolePermission" WHERE "roleId"=$1', [internosRoleId])).rows[0].total, 2);
         assert.deepEqual((await db.query('SELECT COUNT(*) AS total FROM "InternalUser"')).rows, before);
-        const privateTables = (await db.query("SELECT relrowsecurity FROM pg_class WHERE relname IN ('Vehicle','VehicleReservation')")).rows;
-        assert.equal(privateTables.length, 2); assert(privateTables.every(row => row.relrowsecurity));
+        const privateTables = (await db.query("SELECT relrowsecurity FROM pg_class WHERE relname IN ('Vehicle','VehicleReservation','VehicleUse')")).rows;
+        assert.equal(privateTables.length, 3); assert(privateTables.every(row => row.relrowsecurity));
         await db.exec('CREATE ROLE vehicle_untrusted NOLOGIN; GRANT USAGE ON SCHEMA public TO vehicle_untrusted; GRANT SELECT,INSERT ON "Vehicle" TO vehicle_untrusted; SET ROLE vehicle_untrusted');
         try { assert.deepEqual((await db.query('SELECT * FROM "Vehicle"')).rows, []); await assert.rejects(() => db.query('INSERT INTO "Vehicle" (id,name,"updatedAt") VALUES ($1,$1,NOW())', ['blocked']), /row-level security/); } finally { await db.exec('RESET ROLE'); }
     });
@@ -198,7 +204,7 @@ async function main() {
     const jwt = app.get(apiRequire('@nestjs/jwt').JwtService);
     const hash = await apiRequire('bcrypt').hash(crypto.randomBytes(20).toString('hex'), 4);
     async function internal(name, permissions = []) {
-        const role = await prisma.role.create({ data: { name } });
+        const role = await prisma.role.upsert({ where: { name }, update: {}, create: { name } });
         for (const action of permissions) {
             const [screen, permissionAction] = action.includes('.') ? action.split('.') : ['tickets', action];
             const permission = await prisma.screenPermission.upsert({

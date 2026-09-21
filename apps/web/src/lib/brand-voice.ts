@@ -520,7 +520,7 @@ export const VEHICLES_COPY = {
     saved: 'Carro salvo.', reserved: 'Reserva salva.', cancelled: 'Reserva cancelada.',
     scheduled: 'Agendada', ongoing: 'Em uso', finished: 'Concluída', cancelledStatus: 'Cancelada', inactive: 'Inativo',
     summary: 'Agenda dos carros', open: 'Abrir carros', available: 'Disponíveis agora', occupied: 'Em uso agora',
-    summaryContext: 'Disponibilidade calculada pelas reservas. Confirme a devolução física antes de usar o carro.',
+    summaryContext: 'Em uso após a retirada registrada; disponível novamente após a devolução registrada. Reservas futuras não ocupam o carro agora.',
     upcoming: 'Próximas reservas', current: 'Em uso', noUpcoming: 'Nenhuma reserva futura.',
     previous: 'Anterior', next: 'Próxima', total: (count: number) => `${count} reserva${count === 1 ? '' : 's'} no período`,
 } as const;

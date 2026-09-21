@@ -51,7 +51,7 @@ Regras do `PermissionsGuard`:
 
 O papel `Internos` também não recebe permissões gerais de chamados, agenda ou projetos para montar sua dashboard. A leitura limitada usa `GET /internal-dashboard`, que exige JWT interno e confere o nome exato do papel. O endpoint mostra somente os chamados abertos pela própria conta e resumos de projetos e carros, sem expor ações ou liberar as respectivas telas de gestão.
 
-Na Operação, `Gestor` recebe `schedule.view/create/update/delete/manage_installers` para Projetos, Agenda e Viagens e `vehicles.view` para Carros. `Técnico` recebe somente `vehicles.view/reserve`: consulta a frota e as reservas e pode criar reservas, sem abrir Projetos e Viagens, cadastrar veículos ou editar/cancelar reservas. `schedule.view/create` continuam válidas para consulta e criação de reservas de carros, preservando os perfis já configurados. `Internos` continua sem essas permissões. A atribuição a perfis existentes deve ser aditiva; não rodar o seed na base compartilhada.
+Na Operação, `Gestor` recebe `schedule.view/create/update/delete/manage_installers` para Projetos, Agenda e Viagens e `vehicles.view` para Carros. `Técnico` recebe `vehicles.view/reserve`. `Internos` também recebe `vehicles.view/reserve` para consultar, reservar, retirar e devolver carros, sem abrir Projetos e Viagens, cadastrar veículos ou editar/cancelar reservas. `schedule.view/create` continuam válidas para consulta e criação de reservas de carros nos perfis já configurados. O painel específico de carros exige adicionalmente o papel Administrador ou Gestor na API. A atribuição a perfis existentes deve ser aditiva; não rodar o seed na base compartilhada.
 
 ## Telas de permissão previstas no seed
 

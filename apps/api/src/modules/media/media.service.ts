@@ -12,7 +12,7 @@ import { isManager } from '../auth/manager.guard';
 import { MaintenanceMediaStorageService } from '../../infrastructure/storage/maintenance-media-storage.service';
 import { detectMedia } from '../../infrastructure/storage/verified-media-storage';
 
-export const MEDIA_KINDS = ['maintenance', 'os-followup', 'ticket', 'followup', 'item'] as const;
+export const MEDIA_KINDS = ['maintenance', 'os-followup', 'ticket', 'followup', 'item', 'vehicle-out', 'vehicle-in'] as const;
 export type MediaKind = typeof MEDIA_KINDS[number];
 export type MediaActor = { id: string; type: string; companyId?: string | null; role?: { name: string } };
 const SESSION_COOKIE = 'zyllen_media';
@@ -104,6 +104,10 @@ export class MediaService {
         } else if (kind === 'item') {
             const att = await this.prisma.itemMediaAttachment.findUnique({ where: { id } });
             if (att) return { ...att, kind, permission: att.filePath.startsWith('/uploads/media/catalog/') ? 'catalog' : 'inventory' };
+        } else if (kind === 'vehicle-out' || kind === 'vehicle-in') {
+            const use = await this.prisma.vehicleUse.findUnique({ where: { id } });
+            if (use && (kind === 'vehicle-out' || use.returnedAt)) return { id: use.id, kind, fileName: kind === 'vehicle-out' ? use.checkoutPhotoName : use.returnPhotoName!,
+                filePath: kind === 'vehicle-out' ? use.checkoutPhotoPath : use.returnPhotoPath!, permission: 'vehicles' };
         }
         throw new NotFoundException('Anexo não encontrado');
     }
@@ -112,6 +116,7 @@ export class MediaService {
         if (actor.type === 'internal') allowed = actor.role?.name === 'Administrador' ||
             (resource.kind === 'ticket' && resource.internalOwnerId === actor.id) ||
             await this.access.userHasPermission(actor.id, resource.permission, 'view') ||
+            (resource.kind.startsWith('vehicle-') && await this.access.userHasPermission(actor.id, 'schedule', 'view')) ||
             (resource.kind === 'item' && await this.access.userHasPermission(actor.id, resource.permission === 'catalog' ? 'inventory' : 'catalog', 'view'));
         else if (actor.type === 'external') allowed = resource.kind === 'ticket' ? resource.ownerId === actor.id : resource.kind !== 'item' && !!actor.companyId && resource.companyId === actor.companyId;
         else if (actor.type === 'contractor') allowed = ['maintenance', 'os-followup'].includes(resource.kind) && resource.ownerId === actor.id;

@@ -211,6 +211,7 @@ async function main() {
 
     // ── 3d. Assign permissions to Internos ────
     const internosScreens: string[] = [
+        'vehicles.view', 'vehicles.reserve',
     ];
     for (const key of internosScreens) {
         const [screen, action] = key.split('.');
