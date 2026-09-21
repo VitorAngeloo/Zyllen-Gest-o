@@ -50,11 +50,7 @@ function LoginPageInner() {
 
   useEffect(() => {
     if (!isLoading && user) {
-      if (user.type === "internal" && "role" in user && (user as any).role?.name === "Internos") {
-        router.replace("/dashboard/chamados-ti");
-      } else {
-        router.replace(REDIRECT_MAP[user.type] || "/dashboard");
-      }
+      router.replace(REDIRECT_MAP[user.type] || "/dashboard");
     }
   }, [isLoading, user, router]);
 
@@ -64,16 +60,6 @@ function LoginPageInner() {
     try {
       const type = await login(email, password, loginType);
       toast.success(LOGIN_COPY.successToast);
-      const savedToken = localStorage.getItem("accessToken");
-      if (type === "internal") {
-        try {
-          const meRes = await (await fetch((process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001") + "/auth/me", { headers: { Authorization: `Bearer ${savedToken}` } })).json();
-          if (meRes?.data?.role?.name === "Internos") {
-            router.push("/dashboard/chamados-ti");
-            return;
-          }
-        } catch {}
-      }
       router.push(REDIRECT_MAP[type] || "/dashboard");
     } catch (error: any) {
       toast.error(error.message || LOGIN_COPY.errorToast);

@@ -6,12 +6,21 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     const runtime = process.env.AUDIT_RUNTIME_ROOT || 'C:/Users/SERVIDOR ZYLLEN/.cache/codex-runtimes/codex-primary-runtime/dependencies';
     const { expect } = require(path.join(runtime, 'node/node_modules/playwright/test'));
     const token = 'P'.repeat(43), all = ['atendimentos', 'projetos', 'operacoes', 'estoque'];
-    async function setup({ query = '', permissions = ['dashboard.view', 'tickets.view', 'schedule.view', 'inventory.view'], views = all, mirror = false, mobile = false, loggedOut = false, fail = {}, empty = false, malformed = false, legacy = false, former = false } = {}) {
+    async function setup({ query = '', permissions = ['dashboard.view', 'tickets.view', 'schedule.view', 'inventory.view'], role = 'Gestor', views = all, mirror = false, mobile = false, loggedOut = false, fail = {}, empty = false, malformed = false, legacy = false, former = false } = {}) {
         const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 }, timezoneId: 'America/Sao_Paulo', reducedMotion: 'reduce', permissions: ['clipboard-read', 'clipboard-write'] });
         const requests = [], errors = [], state = { fail, empty, malformed, bonus: 0, active: false, generatedViews: all, views };
         await context.addCookies([{ name: 'mirrorMustOmit', value: 'synthetic-cookie', domain: '127.0.0.1', path: '/', httpOnly: true }]);
         await context.addInitScript(({ loggedOut }) => { if (!loggedOut) { localStorage.setItem('accessToken', 'synthetic-personal-panel-qa'); localStorage.setItem('userType', 'internal'); } }, { loggedOut });
         const ticket = { id: '10000000-0000-4000-8000-000000000001', title: 'Chamado completo no painel QA', description: 'Descrição integral do chamado QA', source: 'INTERNAL', status: 'OPEN', priority: 'HIGH', createdAt: new Date(fixedNow - 80 * 60000).toISOString(), firstResponseAt: null, internalUser: { name: 'Solicitante painel QA', sector: 'Financeiro' }, externalUser: null, company: null, assignedTo: null, attachments: [], messages: [], closedAt: null, rating: null, resolutionNotes: null, assignedToInternalUserId: null };
+        const internalDashboard = {
+            generatedAt: new Date(fixedNow).toISOString(),
+            tickets: {
+                open: { total: 1, items: [{ id: ticket.id, title: 'Meu chamado aberto QA', description: 'Pedido vinculado somente à conta interna.', priority: 'HIGH', status: 'OPEN', createdAt: ticket.createdAt, firstResponseAt: null, assignedTo: null }] },
+                inProgress: { total: 1, items: [{ id: '10000000-0000-4000-8000-000000000002', title: 'Meu chamado em atendimento QA', description: 'Atendimento da própria conta.', priority: 'MEDIUM', status: 'IN_PROGRESS', createdAt: new Date(fixedNow - 20 * 60000).toISOString(), firstResponseAt: new Date(fixedNow - 15 * 60000).toISOString(), assignedTo: { name: 'Técnico QA' } }] },
+            },
+            projects: { current: { total: 3, active: 2, pending: 1, scheduled: 1, inProgress: 0, done: 1, cancelled: 0 }, highlights: [{ name: 'Projeto visível QA', companyName: 'Cliente QA', type: 'INSTALLATION', status: 'SCHEDULED', startDate: new Date(fixedNow + 86400000).toISOString(), endDate: null }] },
+            vehicles: { active: 2, available: 1, occupied: 1, current: [{ id: 'vehicle-current-qa', title: 'Uso atual QA', vehicleName: 'Carro QA 1', responsibleName: 'Responsável QA', startDate: new Date(fixedNow - 3600000).toISOString(), endDate: new Date(fixedNow + 3600000).toISOString() }], upcoming: [{ id: 'vehicle-next-qa', title: 'Reserva futura QA', vehicleName: 'Carro QA 2', responsibleName: 'Outro responsável QA', startDate: new Date(fixedNow + 7200000).toISOString(), endDate: new Date(fixedNow + 10800000).toISOString() }] },
+        };
         await context.route('**/*', async route => {
             const request = route.request(), url = new URL(request.url());
             if (!['127.0.0.1', 'localhost'].includes(url.hostname) && !['data:', 'blob:'].includes(url.protocol)) return route.abort();
@@ -22,9 +31,10 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             requests.push({ path: url.pathname, params, method, headers, body: request.postData() ? request.postDataJSON() : null });
             const publicRoot = '/panel-mirrors/' + token, isPublic = url.pathname.startsWith(publicRoot);
             if (isPublic && state.fail.metadata) return respond({ error: { message: 'Espelho revogado QA' } }, 404);
-            if (url.pathname === '/auth/me') return respond({ data: { id: 'personal-panel-qa', type: 'internal', name: 'Usuário painel QA', role: { name: 'Gestor' } } });
+            if (url.pathname === '/auth/me') return respond({ data: { id: 'personal-panel-qa', type: 'internal', name: 'Usuário painel QA', role: { name: role } } });
             if (url.pathname === '/auth/me/permissions') return respond({ data: permissions });
             if (url.pathname.includes('pending-rating')) return respond({ data: null });
+            if (url.pathname === '/internal-dashboard') return respond({ data: internalDashboard });
             if (url.pathname === publicRoot) return respond({ data: { views: state.views } });
             if (url.pathname === '/personal-panel/mirror') {
                 if (state.fail.management) return respond({ error: { message: 'Falha ao salvar link QA' } }, 503);
@@ -58,6 +68,27 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     const selected = page => page.locator('[data-panel-view]');
     const metric = (page, key) => page.locator('[data-project-metric="' + key + '"] [data-metric-value]');
     const viewNav = page => page.locator('nav[aria-label="Visões do painel de acompanhamento"], nav[aria-label="Indicadores operacionais da dashboard"]');
+    await run('Internal dashboard: Internos sees only read-only personal tickets, projects and car agenda', async () => {
+        const s = await setup({ role: 'Internos', permissions: [] });
+        const dashboard = s.page.locator('[data-internal-dashboard]');
+        await expect(dashboard).toBeVisible();
+        await expect(dashboard.getByText('Meu chamado aberto QA', { exact: true })).toBeVisible();
+        await expect(dashboard.getByText('Meu chamado em atendimento QA', { exact: true })).toBeVisible();
+        await expect(dashboard.getByText('Projeto visível QA', { exact: true })).toBeVisible();
+        await expect(dashboard.getByText('Reserva futura QA', { exact: false })).toBeVisible();
+        await expect(dashboard.getByRole('link')).toHaveCount(0);
+        await expect(dashboard.getByRole('button')).toHaveCount(0);
+        const navigation = s.page.getByRole('navigation', { name: 'Navegação principal' });
+        await expect(navigation.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible();
+        await expect(navigation.getByRole('link', { name: 'Meus Chamados TI', exact: true })).toBeVisible();
+        await expect(navigation.getByRole('link', { name: 'Acompanhamento', exact: true })).toBeVisible();
+        await expect(navigation.getByRole('link')).toHaveCount(3);
+        assert.deepEqual([...new Set(s.requests.filter(request => !request.path.startsWith('/auth/') && !request.path.includes('pending-rating')).map(request => request.path))], ['/internal-dashboard']);
+        await s.page.goto(base + '/dashboard/projetos');
+        await expect(s.page).toHaveURL(base + '/dashboard');
+        assert.deepEqual(s.errors, []);
+        await s.context.close();
+    });
     await run('Dashboard cars: missing service is a notice without fake zero indicators; recovery restores real summary', async () => {
         const s = await setup({fail:{vehicles:404}}), card = s.page.locator('[data-dashboard-summary="carros"]');
         await expect(card.getByRole('status')).toContainText('A área de carros ainda não está disponível para uso.');
@@ -82,7 +113,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(s.page.locator('[data-dashboard-summary]')).toHaveCount(5);
         await expect(s.page.locator('[data-inventory-metric="total"] [data-metric-value]')).toHaveText('40');
         await expect(s.page.locator('[data-stock-classification]')).toContainText('sem classificação');
-        await expect(s.page.locator('[data-stock-classification]').getByRole('link', { name: 'Identificar locais', exact: true })).toHaveAttribute('href', '/dashboard/estoque/clientes?aba=locais');
+        await expect(s.page.locator('[data-stock-classification]').getByRole('link', { name: 'Identificar locais', exact: true })).toHaveAttribute('href', '/dashboard/estoque?aba=locations');
         await expect(viewNav(s.page).getByRole('button')).toHaveCount(0);
         await expect(s.page.getByRole('link', { name: 'Abrir estoque', exact: true })).toHaveAttribute('href', '/dashboard/estoque');
         for (const name of ['Visão anterior', 'Próxima visão', 'Atualizar dados', 'Copiar link desta visão', 'Retomar rotação', 'Pausar rotação']) await expect(s.page.getByRole('button', { name, exact: true })).toHaveCount(0);
@@ -150,7 +181,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(metric(s.page, 'active')).toHaveText('4'); await expect(s.page.locator('[data-inventory-metric="total"] [data-metric-value]')).toHaveText('40'); await s.context.close();
     });
     await run('Monitoring panel: mirror is isolated and sends neither user tokens nor cookies, even when the browser has an account session', async () => {
-        const s = await setup({ mirror: true, query: 'visao=estoque&pausado=1' }); await expect(s.page.locator('[data-inventory-metric="total"] [data-metric-value]')).toHaveText('40');
+        const s = await setup({ mirror: true, query: 'visao=estoque&pausado=1' }); await expect(s.page.locator('[data-inventory-metric="scoped"] [data-metric-value]')).toHaveText('38');
         await expect(s.page.getByRole('link', { name: 'Painel pessoal', exact: true })).toHaveCount(0); await expect(s.page.getByRole('button', { name: 'Espelho por link', exact: true })).toHaveCount(0);
         assert(s.requests.length > 0); assert(s.requests.every(r => r.path.startsWith('/panel-mirrors/') && r.method === 'GET' && !r.headers.authorization && !r.headers.cookie && !r.headers.referer));
         assert.equal(await s.page.evaluate(() => localStorage.getItem('accessToken')), 'synthetic-personal-panel-qa');
@@ -188,7 +219,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         assert(!s.requests.some(r => r.params.view && r.params.view !== 'atendimentos')); await s.context.close();
     });
     await run('Monitoring panel: revoked mirror hides cached content after metadata refresh and has no login/navigation links', async () => {
-        const s = await setup({ mirror: true, loggedOut: true, query: 'visao=estoque&pausado=1' }); await expect(s.page.locator('[data-inventory-metric="total"] [data-metric-value]')).toHaveText('40');
+        const s = await setup({ mirror: true, loggedOut: true, query: 'visao=estoque&pausado=1' }); await expect(s.page.locator('[data-inventory-metric="scoped"] [data-metric-value]')).toHaveText('38');
         s.state.fail.metadata = true; await s.page.clock.runFor(16000); await expect(selected(s.page)).toHaveCount(0); await expect(s.page.getByRole('alert').filter({ hasText: 'Este espelho está indisponível' })).toBeVisible();
         await expect(s.page.getByRole('link')).toHaveCount(0); await s.context.close();
     });
@@ -218,7 +249,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         s.state.fail.management = false; await d.getByRole('button', { name: 'Gerar link', exact: true }).click(); await expect(d.getByLabel('Link do espelho', { exact: true })).toBeVisible(); await s.context.close();
     });
     await run('Monitoring panel: mobile mirror fits width and player remains at the lower corner; desktop account retains normal navigation', async () => {
-        const mobile = await setup({ mirror: true, loggedOut: true, mobile: true, query: 'visao=estoque&pausado=1' }); await expect(mobile.page.locator('[data-inventory-metric="total"] [data-metric-value]')).toHaveText('40');
+        const mobile = await setup({ mirror: true, loggedOut: true, mobile: true, query: 'visao=estoque&pausado=1' }); await expect(mobile.page.locator('[data-inventory-metric="scoped"] [data-metric-value]')).toHaveText('38');
         assert(await mobile.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); const box = await mobile.page.getByRole('button', { name: 'Retomar rotação', exact: true }).boundingBox(); assert(box.y + box.height <= 844 && box.x + box.width <= 390);
         await mobile.page.screenshot({ path: path.join(shots, 'personal-panel-mobile.png'), fullPage: true, animations: 'disabled' }); assert.deepEqual(mobile.errors, []); await mobile.context.close();
         const desktop = await setup(); await expect(desktop.page.locator('[data-inventory-metric="total"] [data-metric-value]')).toHaveText('40'); await desktop.page.screenshot({ path: path.join(shots, 'dashboard-desktop.png'), fullPage: true, animations: 'disabled' });

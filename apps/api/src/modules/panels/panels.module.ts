@@ -9,5 +9,8 @@ import { PanelDataService } from './panel-data.service';
 import { PanelMirrorController } from './panel-mirror.controller';
 import { PersonalPanelController } from './personal-panel.controller';
 import { PanelCacheInterceptor } from './panel-cache.interceptor';
-@Module({ imports: [AuthModule, TicketsModule, ProjectServicesModule, TripsModule, InventoryModule], providers: [PanelAccessService, PanelDataService, PanelCacheInterceptor], controllers: [PersonalPanelController, PanelMirrorController] })
+import { VehiclesModule } from '../vehicles/vehicles.module';
+import { InternalDashboardController } from './internal-dashboard.controller';
+import { InternalDashboardService } from './internal-dashboard.service';
+@Module({ imports: [AuthModule, TicketsModule, ProjectServicesModule, TripsModule, InventoryModule, VehiclesModule], providers: [PanelAccessService, PanelDataService, PanelCacheInterceptor, InternalDashboardService], controllers: [PersonalPanelController, PanelMirrorController, InternalDashboardController] })
 export class PanelsModule {}

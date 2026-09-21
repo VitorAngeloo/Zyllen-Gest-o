@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@web/features/auth/context/auth-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
@@ -95,6 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const { user, token, logout, hasPermission } = useAuth();
     const pathname = usePathname();
+    const router = useRouter();
     const qc = useQueryClient();
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -102,10 +103,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [ratingComment, setRatingComment] = useState("");
 
     const isInternos = user?.type === "internal" && "role" in (user ?? {}) && (user as any).role?.name === "Internos";
+    const internosRouteAllowed = !isInternos || ['/dashboard', '/dashboard/chamados-ti', '/dashboard/acompanhamento', '/dashboard/perfil'].includes(pathname);
     const canViewItem = (item: NavItem) => {
+        if (isInternos) return ['/dashboard', '/dashboard/chamados-ti', '/dashboard/acompanhamento'].includes(item.href);
         if (item.managerOnly) return user?.type === 'internal' && ['Administrador', 'Gestor'].includes((user as any)?.role?.name ?? '');
-        // Hide Dashboard for Internos role
-        if (isInternos && item.href === "/dashboard" && item.perm === "dashboard.view") return false;
         return !item.perm || hasPermission(item.perm);
     };
     const visibleGroups = NAV_GROUPS
@@ -154,6 +155,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     useEffect(() => {
         setMobileOpen(false);
     }, [pathname]);
+    useEffect(() => {
+        if (!internosRouteAllowed) router.replace('/dashboard');
+    }, [internosRouteAllowed, router]);
 
     // Prevent body scroll when mobile sidebar is open
     useEffect(() => {
@@ -190,6 +194,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
 
     const sidebarCollapsed = collapsed && !mobileOpen;
+
+    if (!internosRouteAllowed) return null;
 
     const sidebarContent = (
         <>

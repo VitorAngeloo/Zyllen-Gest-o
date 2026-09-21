@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { projectStatisticsQuerySchema } from '../project-services';
-import { ticketStatisticsQuerySchema, type TicketStatistics } from '../tickets';
-import type { ProjectStatistics } from '../project-services';
+import { ticketStatisticsQuerySchema, type TicketPriority, type TicketStatistics } from '../tickets';
+import type { ProjectServiceStatus, ProjectServiceType, ProjectStatistics } from '../project-services';
 import type { OperationsStatistics } from '../trips';
 import type { InventoryStatistics } from '../inventory/statistics';
 export const PANEL_IDS = ['atendimentos', 'projetos', 'operacoes', 'estoque'] as const;
@@ -24,3 +24,51 @@ export type PanelTicketsQuery = z.infer<typeof panelTicketsQuerySchema>;
 export type PanelStatistics = { view: 'atendimentos'; data: TicketStatistics } | { view: 'projetos'; data: ProjectStatistics } | { view: 'operacoes'; data: OperationsStatistics } | { view: 'estoque'; data: InventoryStatistics };
 export interface PanelMirrorMetadata { views: PanelId[] }
 export interface PanelMirrorStatus { active: boolean; views: PanelId[]; updatedAt: string | null }
+
+export interface InternalDashboardTicket {
+    id: string;
+    title: string;
+    description: string;
+    priority: TicketPriority;
+    status: 'OPEN' | 'IN_PROGRESS';
+    createdAt: string;
+    firstResponseAt: string | null;
+    assignedTo: { name: string } | null;
+}
+
+export interface InternalDashboardProject {
+    name: string;
+    companyName: string;
+    type: ProjectServiceType;
+    status: ProjectServiceStatus;
+    startDate: string | null;
+    endDate: string | null;
+}
+
+export interface InternalDashboardVehicleReservation {
+    id: string;
+    title: string;
+    vehicleName: string;
+    responsibleName: string;
+    startDate: string;
+    endDate: string;
+}
+
+export interface InternalDashboardData {
+    generatedAt: string;
+    tickets: {
+        open: { total: number; items: InternalDashboardTicket[] };
+        inProgress: { total: number; items: InternalDashboardTicket[] };
+    };
+    projects: {
+        current: ProjectStatistics['current'];
+        highlights: InternalDashboardProject[];
+    };
+    vehicles: {
+        active: number;
+        available: number;
+        occupied: number;
+        current: InternalDashboardVehicleReservation[];
+        upcoming: InternalDashboardVehicleReservation[];
+    };
+}

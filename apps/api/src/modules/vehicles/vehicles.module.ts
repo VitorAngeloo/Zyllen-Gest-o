@@ -3,5 +3,5 @@ import { AuthModule } from '../auth/auth.module';
 import { AccessModule } from '../access/access.module';
 import { VehiclesController } from './vehicles.controller';
 import { VehiclesService } from './vehicles.service';
-@Module({ imports: [AuthModule, AccessModule], controllers: [VehiclesController], providers: [VehiclesService] })
+@Module({ imports: [AuthModule, AccessModule], controllers: [VehiclesController], providers: [VehiclesService], exports: [VehiclesService] })
 export class VehiclesModule {}

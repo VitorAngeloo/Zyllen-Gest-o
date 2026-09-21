@@ -49,6 +49,8 @@ Regras do `PermissionsGuard`:
 
 > **`Internos` intencionalmente não tem permissão de manutenção.** Não "conserte" isso — é regra de negócio deliberada.
 
+O papel `Internos` também não recebe permissões gerais de chamados, agenda ou projetos para montar sua dashboard. A leitura limitada usa `GET /internal-dashboard`, que exige JWT interno e confere o nome exato do papel. O endpoint mostra somente os chamados abertos pela própria conta e resumos de projetos e carros, sem expor ações ou liberar as respectivas telas de gestão.
+
 ## Telas de permissão previstas no seed
 
 `dashboard` · `inventory` (view, bipar_entrada, bipar_saida, historico, exit) · `assets` (view, create, lookup) · `catalog` · `locations` · `suppliers` (view, create, update, delete) · `purchases` (view, create, approve, receive) · `tickets` (view, triage, assign, close) · `maintenance` (view, open, execute, close) · `approvals` (view, approve, reject) · `access` (view, manage, manage_roles, manage_permissions) · `labels` (view, print) · `followups` (view, create, edit, delete) · `audit` (view) · `settings` (view, manage)

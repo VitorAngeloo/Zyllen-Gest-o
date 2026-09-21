@@ -51,6 +51,31 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         await prisma.location.update({ where: { id: location.id }, data: { kind: 'INTERNAL' } });
         const classified = ok(await stats('estoque', link)).data; assert.equal(classified.scope.available, 2); assert.equal(classified.totals.assets, 3);
     });
+    await run('Internal dashboard: only Internos can read own open tickets and read-only operational summaries', async () => {
+        const ownOpen = await prisma.ticket.create({ data: { title: 'Chamado próprio aberto QA', description: 'Descrição visível somente ao solicitante.', source: 'INTERNAL', internalUserId: unprivileged.id, status: 'OPEN' } });
+        const ownInProgress = await prisma.ticket.create({ data: { title: 'Chamado próprio em atendimento QA', description: 'Atendimento vinculado à conta.', source: 'INTERNAL', internalUserId: unprivileged.id, status: 'IN_PROGRESS', assignedToInternalUserId: tech.id } });
+        const ownClosed = await prisma.ticket.create({ data: { title: 'Chamado próprio encerrado QA', description: 'Não pertence à visão atual.', source: 'INTERNAL', internalUserId: unprivileged.id, status: 'CLOSED', closedAt: new Date() } });
+        const foreign = await prisma.ticket.create({ data: { title: 'Chamado de outra conta QA', description: 'Conteúdo que não pode vazar.', source: 'INTERNAL', internalUserId: admin.id, status: 'OPEN' } });
+        try {
+            assert.equal((await request('/internal-dashboard')).status, 401);
+            for (const actor of [admin, tech, client, thirdParty]) assert.equal((await request('/internal-dashboard', actor)).status, 403);
+            const data = ok(await request('/internal-dashboard', unprivileged));
+            assert.equal(data.tickets.open.total, 1);
+            assert.equal(data.tickets.inProgress.total, 1);
+            assert.deepEqual(data.tickets.open.items.map(item => item.id), [ownOpen.id]);
+            assert.deepEqual(data.tickets.inProgress.items.map(item => item.id), [ownInProgress.id]);
+            assert(!JSON.stringify(data).includes(foreign.id));
+            assert(!JSON.stringify(data).includes('Conteúdo que não pode vazar.'));
+            assert(!/passwordHash|pin4Hash|email|phone|notes/.test(JSON.stringify(data)));
+            assert.equal(data.projects.current.total, 0);
+            assert.deepEqual(data.projects.highlights, []);
+            assert.equal(data.vehicles.active, 0);
+            assert.deepEqual(data.vehicles.current, []);
+            assert.deepEqual(data.vehicles.upcoming, []);
+        } finally {
+            await prisma.ticket.deleteMany({ where: { id: { in: [ownOpen.id, ownInProgress.id, ownClosed.id, foreign.id] } } });
+        }
+    });
     const ticket = async extra => prisma.ticket.create({ data: { title: 'Pedido identificável QA', description: 'Descrição completa que continua disponível no popup.', source: 'INTERNAL', internalUserId: admin.id, ...extra } });
     const open = await ticket({}), own = await ticket({ status: 'IN_PROGRESS', assignedToInternalUserId: tech.id }), other = await ticket({ status: 'IN_PROGRESS', assignedToInternalUserId: admin.id });
     const closed = await ticket({ status: 'CLOSED', closedAt: new Date() });

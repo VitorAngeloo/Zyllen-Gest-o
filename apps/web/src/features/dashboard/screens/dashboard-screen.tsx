@@ -1,6 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useRef } from "react";
 import { useAuth, useAuthedFetch } from "@web/features/auth/context/auth-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
@@ -18,6 +17,7 @@ import { TicketDashboardBoard } from "@web/features/tickets/components/ticket-da
 import { ticketApi } from '@web/features/tickets/api/ticket-api';
 import { PanelMirrorSettings } from "@web/features/panels/components/panel-mirror-settings";
 import { DashboardOperationalOverview } from "../components/dashboard-operational-overview";
+import InternalDashboardScreen from './internal-dashboard-screen';
 import { getGreeting, DASHBOARD_SUBTITLE, TOASTS, DASHBOARD_OPERATIONAL_COPY as operationalCopy } from "@web/lib/brand-voice";
 
 /* ─── Attention level helper ─── */
@@ -27,19 +27,10 @@ function getAttentionLevel(count: number) {
     return { label: "Normal", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-l-emerald-500", badge: "success" as const, ring: "ring-emerald-500/20" };
 }
 
-export default function DashboardPage() {
+function FullDashboardPage() {
     const { user, hasPermission } = useAuth();
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
-    const router = useRouter();
-
-    // Internos role cannot access dashboard — redirect to chamados-ti
-    useEffect(() => {
-        if (user && user.type === "internal" && "role" in user && (user as any).role?.name === "Internos") {
-            router.replace("/dashboard/chamados-ti");
-        }
-    }, [user, router]);
-
     const canViewTickets = hasPermission("tickets.view");
     const canViewInventory = hasPermission("inventory.view");
 
@@ -449,4 +440,10 @@ export default function DashboardPage() {
             </Dialog>
         </div>
     );
+}
+
+export default function DashboardPage() {
+    const { user } = useAuth();
+    const isInternos = user?.type === 'internal' && user.role?.name === 'Internos';
+    return isInternos ? <InternalDashboardScreen /> : <FullDashboardPage />;
 }

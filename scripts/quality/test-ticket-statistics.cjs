@@ -52,7 +52,8 @@ async function main() {
         for (const name of ['ProjectService', 'ProjectServiceMarker', 'ProjectServiceInternal', 'ProjectServiceContractor', 'Trip', 'TripContractor', 'OperationalStructure', 'StructureCycle', 'PanelMirror']) {
             baseline = baseline.replace(new RegExp(`^model ${name} \\{[\\s\\S]*?^\\}`, 'm'), '');
         }
-        baseline = baseline.replace(/^.*(?:projectServiceAssignments|operationalService|projectService ProjectService|startedAt\s+DateTime\?|completedAt\s+DateTime\?|cancelledAt\s+DateTime\?).*\r?\n/gm, '');
+        baseline = baseline.replace(/^.*(?:projectServiceAssignments|operationalService|projectService ProjectService).*\r?\n/gm, '');
+        baseline = baseline.replace(/^model Schedule \{[\s\S]*?^\}/m, body => body.split('\n').filter(line => !/\b(startedAt|completedAt|cancelledAt)\s+DateTime\?/.test(line)).join('\n'));
         baseline = baseline.replace(/^.*(?:tripAssignments|\btrip\s+Trip\?).*\r?\n/gm, '');
         baseline = baseline.replace(/^.*operationalStructures.*\r?\n/gm, '');
         baseline = baseline.replace(/^.*panelMirror\s+PanelMirror.*\r?\n/gm, '');
