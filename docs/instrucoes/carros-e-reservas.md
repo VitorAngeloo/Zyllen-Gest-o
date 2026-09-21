@@ -1,6 +1,6 @@
 # Carros e reservas
 
-**Evolução em 21/09/2026:** o fluxo reserva → retirada → devolução foi implementado no código, com migration aditiva `20260921110000_vehicle_checkout_return`. Esta etapa ainda requer publicação da API, aplicação da migration e atualização do frontend para entrar em operação. As notas de 18/09 abaixo documentam o comportamento anterior e sua publicação.
+**Estado atual — 21/09/2026:** o fluxo reserva → retirada → devolução está publicado no domínio. A migration aditiva `20260921110000_vehicle_checkout_return`, a API e o frontend foram publicados nessa ordem. As notas de 18/09 abaixo documentam o comportamento anterior e sua publicação.
 
 ## Fluxo de uso e acesso
 
@@ -11,6 +11,14 @@ Na devolução são exigidos quilometragem (não inferior à de saída), foto do
 Todos os colaboradores internos com `vehicles.view` e `vehicles.reserve` podem consultar, reservar, retirar e devolver. O perfil **Internos** recebe essas duas permissões de modo aditivo; sua dashboard inicial continua somente de leitura, e o acesso a Carros fica na sidebar. **Painel de carros** (`/dashboard/carros/painel`) e `GET /vehicles/dashboard` são exclusivos de Administrador e Gestor. O painel inicial mostra ativos, disponíveis, em uso e devoluções atrasadas; indicadores adicionais serão refinados depois. A API mantém `GET /vehicles/statistics` para os resumos da dashboard existente, agora com disponibilidade física baseada em retiradas/devoluções.
 
 Rotas novas: `GET /vehicles/operations`, `POST /vehicles/reservations/:id/checkout`, `POST /vehicles/reservations/:id/return` e `GET /vehicles/dashboard`. Retirada e devolução recebem `multipart/form-data` com `odometerPhoto` obrigatório (JPG/PNG/WebP, até 20 MB); os formulários mantêm o preenchimento se houver erro. Tabela `VehicleUse` vincula uma retirada à reserva, impede dois usos simultâneos do mesmo carro e armazena os dados e os momentos reais. A migration também concede `vehicles.view/reserve` ao papel Internos existente, sem rodar o seed nem liberar manutenção ou gestão de agenda.
+
+### Publicação e verificação — 21/09/2026
+
+Commit `a9e429d`. Antes da aplicação, a única migration pendente foi comparada em leitura com o schema do banco. Backup privado do schema `public` e dos artefatos anteriores em `C:\Users\SERVIDOR ZYLLEN\Documents\Zyllen-Backups\vehicle-flow-20260921-105356`, com ACL protegida. O dump foi aberto por `pg_restore` e restaurado integralmente em PostgreSQL isolado: 61 tabelas; a instância de teste foi encerrada. Nenhum dado sintético foi enviado ao banco de produção.
+
+API de produção reiniciada como `node dist/main.js`, PID **15104**, porta 3001. As 16 migrations estão aplicadas e sem pendências. Saúde local e pública responderam `ok`; as rotas novas negam acesso sem autenticação (`401`). Leitura após a publicação confirmou tabela privada com RLS, índice que impede dois usos abertos do mesmo carro, permissões `vehicles.view/reserve` do papel Internos e zero usos inventados na implantação. O deployment Vercel `web-2kfv8tkev-skysuportevitor-7785s-projects.vercel.app` ficou `Ready` e foi promovido aos aliases `skylineti.com` e `www.skylineti.com`.
+
+Verificações sem escrita na base compartilhada: **22/22** cenários integrados de veículos em PGlite descartável, **57/57** cenários da dashboard/painéis/agenda em Chrome com API sintética e **2/2** do novo fluxo no navegador, incluindo celular e acesso por papel. Build isolado de shared/API/web, tipos web e arquitetura aprovados. A confirmação operacional com uma reserva real pela equipe ainda depende de uso normal, não de cadastros de teste em produção.
 
 ## Histórico da implantação das reservas (18/09/2026)
 
