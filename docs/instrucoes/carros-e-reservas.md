@@ -66,7 +66,7 @@ Uma reserva futura não reduz **Disponíveis agora** até chegar seu início. Ao
 
 Após a troca para campos de texto, a conferência no frontend real do localhost incluiu digitar os quatro valores pelo teclado e sair de cada campo. Resultado confirmado: `23/09/2026`, `08:30`, `23/09/2026`, `17:30`, com a mesma interceptação somente de leitura e sem enviar o formulário. Captura/resultado atualizados no diretório acima.
 
-Usa permissões existentes da agenda: `schedule.view` consulta; `schedule.create` cadastra/reserva; `schedule.update` edita; `schedule.delete` cancela. A API verifica permissões e audiência interna, inclusive em URL direta. Não há seed de roles/permissões. O espelho por link não compartilha carros nem acessa esses endpoints.
+Consulta aceita `vehicles.view` ou `schedule.view`; criar reserva aceita `vehicles.reserve` ou `schedule.create`. Cadastro de veículo continua exigindo `schedule.create`, edição exige `schedule.update` e cancelamento de reserva exige `schedule.delete`. Assim, o Técnico consulta e reserva sem receber acesso a Projetos e Viagens nem alterar a frota; Gestor tem acesso à agenda e à gestão de carros. A API verifica permissões e audiência interna, inclusive em URL direta. O seed declara as permissões para futuras instalações, mas não deve ser executado no banco compartilhado. O espelho por link não compartilha carros nem acessa esses endpoints.
 
 ## Código, migration e verificação
 

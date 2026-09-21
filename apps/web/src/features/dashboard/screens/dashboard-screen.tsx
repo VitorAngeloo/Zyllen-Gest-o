@@ -255,7 +255,7 @@ function FullDashboardPage() {
                 </Card>
             )}
 
-            <div className={`grid items-start gap-8 ${canViewTickets && (hasPermission('inventory.view') || hasPermission('schedule.view')) ? 'xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]' : ''}`}>
+            <div className={`grid items-start gap-8 ${canViewTickets && (hasPermission('inventory.view') || hasPermission('schedule.view') || hasPermission('vehicles.view')) ? 'xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]' : ''}`}>
                 {canViewTickets && <div className="min-w-0"><TicketDashboardBoard isManagerOrAdmin={isManagerOrAdmin} onAssign={handleAssignClick} onClose={handleCloseClick} onReassign={handleReassignClick} /></div>}
                 <div className="min-w-0"><DashboardOperationalOverview /></div>
             </div>

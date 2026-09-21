@@ -108,6 +108,18 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         assert.equal((await http('/vehicles/reservations/' + booking.id, 'PUT', values(booking), reader)).status, 403);
         assert.equal((await http('/vehicles/reservations/' + booking.id + '/cancel', 'PUT', {}, reader)).status, 403);
     });
+    await run('Vehicles: technician can view and reserve cars without project or fleet management access', async () => {
+        const technician = await internal('Carros t\u00e9cnico QA', ['vehicles.view', 'vehicles.reserve']);
+        ok(await http('/vehicles', 'GET', undefined, technician));
+        ok(await http('/vehicles/options', 'GET', undefined, technician));
+        ok(await http('/vehicles/statistics', 'GET', undefined, technician));
+        ok(await http(range(), 'GET', undefined, technician));
+        assert.equal((await http('/project-services', 'GET', undefined, technician)).status, 403);
+        assert.equal((await http('/vehicles', 'POST', carInput({ plate: null }), technician)).status, 403);
+        const reservation = ok(await http('/vehicles/reservations', 'POST', reserveInput({ vehicleId: other.id, responsibleId: technician.id, startDate: time(180), endDate: time(181) }), technician), 201);
+        assert.equal((await http('/vehicles/reservations/' + reservation.id, 'PUT', values(reservation), technician)).status, 403);
+        assert.equal((await http('/vehicles/reservations/' + reservation.id + '/cancel', 'PUT', {}, technician)).status, 403);
+    });
     await run('Vehicles: failed audit rolls back reservation and cannot leave an invisible occupied car', async () => {
         const before = await prisma.vehicleReservation.count();
         await prisma.$executeRawUnsafe(`CREATE FUNCTION fail_vehicle_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'VEHICLE_RESERVE' THEN RAISE EXCEPTION 'vehicle audit rollback QA'; END IF; RETURN NEW; END $$`);

@@ -6,12 +6,14 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const root = path.resolve(__dirname, '../..');
-const scratch = path.join(root, 'tmp/architecture-validation');
+const scratch = path.resolve(root, process.env.AUDIT_ARTIFACT_DIR || 'tmp/architecture-validation');
+if (path.dirname(scratch) !== path.join(root, 'tmp')) throw new Error('Browser artifacts must use a direct child directory under tmp');
 const runtime = process.env.AUDIT_RUNTIME_ROOT || 'C:/Users/SERVIDOR ZYLLEN/.cache/codex-runtimes/codex-primary-runtime/dependencies';
 const { chromium } = require(path.join(runtime, 'node/node_modules/playwright'));
 const { expect } = require(path.join(runtime, 'node/node_modules/playwright/test'));
 const next = require.resolve('next/dist/bin/next', { paths: [path.join(root, 'apps/web')] });
-const base = 'http://127.0.0.1:3998';
+const webPort = process.env.AUDIT_WEB_PORT || '3998';
+const base = `http://127.0.0.1:${webPort}`;
 const cases = [], logs = [];
 const shots = path.join(scratch, process.argv.includes('--structures') ? 'structures-browser-qa' : process.argv.includes('--projects-agenda') ? 'projects-agenda-browser-qa' : process.argv.includes('--panels') ? 'personal-panels-browser-qa' : process.argv.includes('--inventory-statistics') ? 'inventory-statistics-browser-qa' : process.argv.includes('--custody') ? 'custody-browser-qa' : process.argv.includes('--trips') ? 'trips-browser-qa' : process.argv.includes('--project-statistics') ? 'project-statistics-browser-qa' : process.argv.includes('--projects') ? 'project-services-browser-qa' : 'ticket-dashboard-qa');
 fs.mkdirSync(shots, { recursive: true });
@@ -127,7 +129,7 @@ const detail = page => page.getByRole('dialog', { name: 'Detalhes do chamado', e
 
 async function main() {
     assert(fs.existsSync(path.join(scratch, 'web/.next/BUILD_ID')), 'Run pnpm validate:isolated first');
-    web = spawn(process.execPath, [next, 'start', '-p', '3998', '-H', '127.0.0.1'], { cwd: path.join(scratch, 'web'), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1' } });
+    web = spawn(process.execPath, [next, 'start', '-p', webPort, '-H', '127.0.0.1'], { cwd: path.join(scratch, 'web'), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1' } });
     web.stderr.on('data', data => logs.push(data.toString()));
     await new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('Preview did not start: ' + logs.join(''))), 20_000);

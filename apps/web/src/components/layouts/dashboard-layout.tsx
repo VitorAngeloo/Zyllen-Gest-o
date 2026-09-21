@@ -31,7 +31,7 @@ interface NavItem {
     label: string;
     href: string;
     icon: LucideIcon;
-    perm?: string;
+    perm?: string | string[];
     managerOnly?: boolean;
 }
 
@@ -66,7 +66,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Operação",
         items: [
             { label: PROJECTS_AGENDA_COPY.navigation, href: "/dashboard/projetos", icon: CalendarDays, perm: "schedule.view" },
-            { label: VEHICLES_COPY.title, href: "/dashboard/carros", icon: Car, perm: "schedule.view" },
+            { label: VEHICLES_COPY.title, href: "/dashboard/carros", icon: Car, perm: ["vehicles.view", "schedule.view"] },
         ],
     },
     {
@@ -107,7 +107,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const canViewItem = (item: NavItem) => {
         if (isInternos) return ['/dashboard', '/dashboard/chamados-ti', '/dashboard/acompanhamento'].includes(item.href);
         if (item.managerOnly) return user?.type === 'internal' && ['Administrador', 'Gestor'].includes((user as any)?.role?.name ?? '');
-        return !item.perm || hasPermission(item.perm);
+        return !item.perm || (Array.isArray(item.perm) ? item.perm.some(hasPermission) : hasPermission(item.perm));
     };
     const visibleGroups = NAV_GROUPS
         .map((group) => ({ ...group, items: group.items.filter(canViewItem) }))

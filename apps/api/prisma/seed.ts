@@ -49,6 +49,14 @@ async function main() {
     const permissions = [
         // Dashboard
         { screen: 'dashboard', action: 'view' },
+        // Projects, agenda, trips and vehicles
+        { screen: 'schedule', action: 'view' },
+        { screen: 'schedule', action: 'create' },
+        { screen: 'schedule', action: 'update' },
+        { screen: 'schedule', action: 'delete' },
+        { screen: 'schedule', action: 'manage_installers' },
+        { screen: 'vehicles', action: 'view' },
+        { screen: 'vehicles', action: 'reserve' },
         // Inventory
         { screen: 'inventory', action: 'view' },
         { screen: 'inventory', action: 'bipar_entrada' },
@@ -146,6 +154,7 @@ async function main() {
     // ── 3b. Assign permissions to Técnico ─────
     const tecnicoScreens = [
         'dashboard.view',
+        'vehicles.view', 'vehicles.reserve',
         'inventory.view', 'inventory.bipar_entrada', 'inventory.bipar_saida', 'inventory.historico', 'inventory.exit',
         'assets.view', 'assets.lookup',
         'catalog.view',
@@ -171,6 +180,8 @@ async function main() {
     // ── 3c. Assign permissions to Gestor ──────
     const gestorScreens = [
         'dashboard.view',
+        'schedule.view', 'schedule.create', 'schedule.update', 'schedule.delete', 'schedule.manage_installers',
+        'vehicles.view',
         'inventory.view', 'inventory.bipar_entrada', 'inventory.bipar_saida', 'inventory.historico', 'inventory.exit',
         'assets.view', 'assets.create', 'assets.lookup',
         'catalog.view', 'catalog.create', 'catalog.update', 'catalog.delete',

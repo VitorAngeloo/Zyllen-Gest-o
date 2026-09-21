@@ -20,8 +20,10 @@ const SCREEN_LABELS: Record<string, string> = {
     labels: "Etiquetas",
     maintenance: "Manutenção",
     purchases: "Compras",
+    schedule: "Projetos, agenda e viagens",
     settings: "Configurações",
     tickets: "Chamados",
+    vehicles: "Carros",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -34,6 +36,9 @@ const ACTION_LABELS: Record<string, string> = {
     manage_permissions: "Gerenciar Permissões",
     approve: "Aprovar",
     print: "Imprimir",
+    reserve: "Reservar",
+    update: "Editar",
+    manage_installers: "Gerenciar equipe",
 };
 
 export default function PermissoesPage() {

@@ -50,7 +50,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             return respond({data:[]});
         });
         const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));await page.clock.install({time:fixedNow});await page.goto(base+'/dashboard/carros');
-        if (permissions.includes('schedule.view')) await expect(page.getByRole('heading',{name:'Carros',exact:true})).toBeVisible();
+        if (permissions.includes('schedule.view') || permissions.includes('vehicles.view')) await expect(page.getByRole('heading',{name:'Carros',exact:true})).toBeVisible();
         else await expect(page.getByText('Você não tem permissão para consultar os carros.',{exact:true})).toBeVisible();
         return {context,page,state,requests,errors};
     }
@@ -108,6 +108,20 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     });
     await run('Vehicles UI: historical reservations and read-only accounts expose no write controls',async()=>{
         const s=await setup({permissions:['schedule.view'],historical:true});await expect(s.page.locator('[data-vehicle-reservation]')).toHaveCount(2);for(const name of ['Cadastrar carro','Reservar carro','Reservar agora','Editar','Cancelar reserva'])await expect(s.page.getByRole('button',{name,exact:true})).toHaveCount(0);await expect(s.page.getByRole('form',{name:'Reserva',exact:true})).toHaveCount(0);assert(s.requests.every(r=>r.method==='GET'));await s.context.close();
+    });
+    await run('Vehicles UI: technician sees cars and can reserve without fleet or project controls',async()=>{
+        const s=await setup({permissions:['vehicles.view','vehicles.reserve']});
+        await expect(s.page.getByRole('link',{name:'Carros',exact:true})).toBeVisible();
+        await expect(s.page.getByRole('link',{name:'Projetos e Agenda'})).toHaveCount(0);
+        await expect(s.page.getByRole('button',{name:'Cadastrar carro',exact:true})).toHaveCount(0);
+        await expect(s.page.getByRole('form',{name:'Reserva',exact:true})).toBeVisible();
+        const form=await fillBooking(s.page);
+        await form.getByRole('button',{name:'Reservar agora',exact:true}).click();
+        await expect(s.page.locator('[data-vehicle-reservation]')).toContainText('Visita de equipe QA');
+        assert.equal(s.requests.filter(r=>r.method==='POST'&&r.path==='/vehicles/reservations').length,1);
+        await expect(s.page.getByRole('button',{name:'Editar',exact:true})).toHaveCount(0);
+        await expect(s.page.getByRole('button',{name:'Cancelar reserva',exact:true})).toHaveCount(0);
+        await s.context.close();
     });
     await run('Vehicles UI: separate pickup and return times are required; invalid same-day periods are blocked and overnight local times are preserved',async()=>{
         const s=await setup();const d=await fillBooking(s.page),startDate=inputDate(24).split('T')[0],endDate=inputDate(48).split('T')[0];
