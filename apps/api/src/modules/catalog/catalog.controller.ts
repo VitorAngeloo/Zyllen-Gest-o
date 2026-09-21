@@ -104,7 +104,7 @@ export class CatalogController {
     }
 
     @Post('skus')
-    @RequirePermission('catalog.create')
+    @RequirePermission(['catalog.create', 'catalog.create_sku'])
     @UseInterceptors(FilesInterceptor('files', 10, { storage: mediaStorage, limits: { fileSize: MAX_FILE_SIZE } }))
     async createSku(
         @Request() req: any,

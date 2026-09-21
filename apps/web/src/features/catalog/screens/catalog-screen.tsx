@@ -66,7 +66,7 @@ function SearchableCombobox({ options, value, onChange, placeholder = "Selecione
 }
 
 export default function CadastrosPage() {
-    const { user } = useAuth();
+    const { user, hasPermission } = useAuth();
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
     const [tab, setTab] = useState<Tab>("skus");
@@ -122,6 +122,10 @@ export default function CadastrosPage() {
     const [filterExitReason, setFilterExitReason] = useState("");
 
     const canUploadMedia = user?.type === "internal" && ["Técnico", "Gestor", "Administrador"].includes((user as any).role?.name ?? "");
+    const canCreateCategory = hasPermission("catalog.create");
+    const canCreateSku = canCreateCategory || hasPermission("catalog.create_sku");
+    const canUpdateCatalog = hasPermission("catalog.update");
+    const canDeleteCatalog = hasPermission("catalog.delete");
 
     const skuMediaPreviews = useMemo(
         () => newSkuMedia.map((file) => ({ file, url: URL.createObjectURL(file), isImage: file.type.startsWith("image/") })),
@@ -382,14 +386,14 @@ export default function CadastrosPage() {
             {/* ═══ CATEGORIES ═══ */}
             {tab === "categories" && (
                 <div className="space-y-4">
-                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-md">
+                    {canCreateCategory && <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-md">
                         <CardContent className="pt-6">
                             <form onSubmit={(e) => { e.preventDefault(); createCat.mutate(newCat); }} className="flex gap-2">
                                 <Input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="Nome da categoria..." required className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                                 <Button type="submit" variant="highlight" disabled={createCat.isPending}><Plus size={16} /></Button>
                             </form>
                         </CardContent>
-                    </Card>
+                    </Card>}
                     <Card className="border-0 bg-transparent shadow-none">
                         <CardContent className="space-y-4 px-0 pt-2">
                             <ListSectionHeader title="Categorias cadastradas" count={filteredCategories.length} description="Organize os itens por famílias fáceis de reconhecer." />
@@ -402,10 +406,10 @@ export default function CadastrosPage() {
                                     {filteredCategories.map((c: any) => (
                                         <div key={c.id} className="group flex items-center justify-between border-b border-white/10 px-3 py-3 text-sm text-white transition-colors hover:bg-white/[0.025] sm:border-r">
                                             <span>{c.name}</span>
-                                            <div className="flex gap-1 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                                                <button type="button" aria-label={`Editar categoria ${c.name}`} onClick={() => setEditCat({ id: c.id, name: c.name })} className="p-1 hover:text-[var(--zyllen-highlight)]"><Pencil size={14} /></button>
-                                                <button type="button" aria-label={`Excluir categoria ${c.name}`} onClick={() => setDeleteConfirm({ type: "category", id: c.id, name: c.name })} className="p-1 hover:text-red-400"><Trash2 size={14} /></button>
-                                            </div>
+                                            {(canUpdateCatalog || canDeleteCatalog) && <div className="flex gap-1 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                                                {canUpdateCatalog && <button type="button" aria-label={`Editar categoria ${c.name}`} onClick={() => setEditCat({ id: c.id, name: c.name })} className="p-1 hover:text-[var(--zyllen-highlight)]"><Pencil size={14} /></button>}
+                                                {canDeleteCatalog && <button type="button" aria-label={`Excluir categoria ${c.name}`} onClick={() => setDeleteConfirm({ type: "category", id: c.id, name: c.name })} className="p-1 hover:text-red-400"><Trash2 size={14} /></button>}
+                                            </div>}
                                         </div>
                                     ))}
                                 </div>
@@ -418,7 +422,7 @@ export default function CadastrosPage() {
             {/* ═══ SKUS ═══ */}
             {tab === "skus" && (
                 <div className="space-y-4">
-                    <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
+                    {canCreateSku && <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
                         <CardHeader><CardTitle className="text-white">Novo Item</CardTitle></CardHeader>
                         <CardContent>
                             <form onSubmit={(e) => { e.preventDefault(); createSku.mutate({ ...newSku, files: newSkuMedia }); }} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -547,7 +551,7 @@ export default function CadastrosPage() {
                                 </div>
                             </form>
                         </CardContent>
-                    </Card>
+                    </Card>}
 
                     <Card className="border-0 bg-transparent shadow-none">
                         <CardHeader className="px-0">
@@ -586,8 +590,8 @@ export default function CadastrosPage() {
                                                     <td className="hidden px-4 py-4 text-[var(--zyllen-muted)] md:table-cell">{s.brand ?? "—"}</td>
                                                     <td className="px-4 py-4 text-right">
                                                         <div className="flex justify-end gap-1">
-                                                            <button type="button" aria-label={`Editar item ${s.name}`} onClick={() => setEditSku({ id: s.id, name: s.name, brand: s.brand || "", barcode: s.barcode || "", categoryId: s.categoryId || s.category?.id || "", unit: s.unit || "UN" })} className="p-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"><Pencil size={14} /></button>
-                                                            <button type="button" aria-label={`Excluir item ${s.name}`} onClick={() => setDeleteConfirm({ type: "sku", id: s.id, name: s.name })} className="p-1 text-[var(--zyllen-muted)] hover:text-red-400"><Trash2 size={14} /></button>
+                                                            {canUpdateCatalog && <button type="button" aria-label={`Editar item ${s.name}`} onClick={() => setEditSku({ id: s.id, name: s.name, brand: s.brand || "", barcode: s.barcode || "", categoryId: s.categoryId || s.category?.id || "", unit: s.unit || "UN" })} className="p-1 text-[var(--zyllen-muted)] hover:text-[var(--zyllen-highlight)]"><Pencil size={14} /></button>}
+                                                            {canDeleteCatalog && <button type="button" aria-label={`Excluir item ${s.name}`} onClick={() => setDeleteConfirm({ type: "sku", id: s.id, name: s.name })} className="p-1 text-[var(--zyllen-muted)] hover:text-red-400"><Trash2 size={14} /></button>}
                                                         </div>
                                                     </td>
                                                 </tr>

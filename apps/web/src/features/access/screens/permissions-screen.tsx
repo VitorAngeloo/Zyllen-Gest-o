@@ -29,6 +29,7 @@ const SCREEN_LABELS: Record<string, string> = {
 const ACTION_LABELS: Record<string, string> = {
     view: "Visualizar",
     create: "Criar",
+    create_sku: "Cadastrar item",
     edit: "Editar",
     delete: "Excluir",
     manage: "Gerenciar",

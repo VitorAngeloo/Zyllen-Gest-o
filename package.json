@@ -26,6 +26,7 @@
     "test:inventory:custody:browser": "node scripts/quality/test-inventory-custody-browser.cjs",
     "test:inventory:statistics": "node scripts/quality/test-inventory-statistics.cjs",
     "test:inventory:statistics:browser": "node scripts/quality/test-inventory-statistics-browser.cjs",
+    "test:catalog:permissions": "node scripts/quality/test-catalog-permissions.cjs",
     "test:panels:browser": "node scripts/quality/test-personal-panels-browser.cjs",
     "test:panels": "node scripts/quality/test-personal-panels-api.cjs",
     "test:panels:migrations": "node scripts/quality/test-operational-migrations.cjs",

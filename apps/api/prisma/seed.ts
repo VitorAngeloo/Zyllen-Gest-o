@@ -69,6 +69,7 @@ async function main() {
         // Catalog
         { screen: 'catalog', action: 'view' },
         { screen: 'catalog', action: 'create' },
+        { screen: 'catalog', action: 'create_sku' },
         { screen: 'catalog', action: 'update' },
         { screen: 'catalog', action: 'delete' },
         // Locations
@@ -157,7 +158,7 @@ async function main() {
         'vehicles.view', 'vehicles.reserve',
         'inventory.view', 'inventory.bipar_entrada', 'inventory.bipar_saida', 'inventory.historico', 'inventory.exit',
         'assets.view', 'assets.lookup',
-        'catalog.view',
+        'catalog.view', 'catalog.create_sku',
         'locations.view',
         'tickets.view',
         'maintenance.view', 'maintenance.open', 'maintenance.execute', 'maintenance.close',
