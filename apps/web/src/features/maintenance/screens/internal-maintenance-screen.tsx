@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthedFetch } from "@web/features/auth/context/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
+import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
 import { PageHeader } from "@web/components/ui/page-header";
 import { EmptyState, ListSectionHeader } from "@web/components/ui/workspace";
@@ -21,8 +22,10 @@ import { printOsPdf } from "@web/features/maintenance/utils/os-pdf";
 import { getOsFieldRows } from "@web/features/maintenance/utils/os-form-view";
 import { uploadMaintenanceAttachments } from "@web/features/maintenance/utils/maintenance-attachments";
 import { OSFollowupSection } from "@web/features/maintenance/components/os-forms/os-followup-section";
+import { OsListPagination } from "@web/features/maintenance/components/os-list-pagination";
 
 type Tab = "list" | "new" | "detail" | "edit";
+const PAGE_SIZE = 50;
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "warning" | "default" | "success" }> = {
     OPEN: { label: "Aberta", variant: "warning" },
@@ -37,6 +40,9 @@ export default function ManutencaoPage() {
     const [selectedOS, setSelectedOS] = useState<any>(null);
     const [submitting, setSubmitting] = useState(false);
     const [detailAttachments, setDetailAttachments] = useState<MediaAttachment[]>([]);
+    const [page, setPage] = useState(1);
+    const [searchInput, setSearchInput] = useState("");
+    const [search, setSearch] = useState("");
 
     // Fetch attachments when viewing detail
     const fetchDetailAttachments = async (osId: string) => {
@@ -51,9 +57,13 @@ export default function ManutencaoPage() {
         } catch { setDetailAttachments([]); }
     };
 
-    const { data: osList, isLoading: loadingOS } = useQuery({
-        queryKey: ["maintenance"],
-        queryFn: () => maintenanceApi.listOrders<{ data: any[] }>(fetchOpts),
+    const { data: osList, isLoading: loadingOS, isError, refetch } = useQuery({
+        queryKey: ["maintenance", page, search],
+        queryFn: () => {
+            const query = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+            if (search) query.set("search", search);
+            return maintenanceApi.listFilteredOrders<{ data: any[]; total: number }>(`?${query}`, fetchOpts);
+        },
     });
 
     const updateStatus = useMutation({
@@ -442,14 +452,22 @@ export default function ManutencaoPage() {
 
             <ListSectionHeader
                 title="Ordens de serviço"
-                count={loadingOS ? undefined : (osList?.data?.length ?? 0)}
+                count={loadingOS || isError ? undefined : (osList?.total ?? 0)}
                 description="Selecione uma OS para consultar todos os dados ou use as ações rápidas para avançar o atendimento."
             />
+
+            <form className="flex max-w-xl flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); setSearch(searchInput.trim()); setPage(1); }}>
+                <Input aria-label="Buscar OS por número, cliente ou projeto" placeholder="Buscar número da OS, cliente ou projeto" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} className="min-w-[220px] flex-1" />
+                <Button type="submit" variant="outline">Buscar</Button>
+                {search && <Button type="button" variant="ghost" onClick={() => { setSearchInput(""); setSearch(""); setPage(1); }}>Limpar</Button>}
+            </form>
 
             {loadingOS ? (
                 <div className="divide-y divide-white/10 border-y border-white/10">
                     {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 rounded-none bg-white/[0.025]" />)}
                 </div>
+            ) : isError ? (
+                <EmptyState icon={<Wrench size={24} />} title="Não foi possível carregar as OS" description="Tente consultar a lista novamente." action={<Button type="button" variant="outline" onClick={() => refetch()}>Tentar novamente</Button>} />
             ) : osList?.data?.length ? (
                 <div className="overflow-x-auto border-y border-white/10">
                     <table className="w-full min-w-[760px] text-sm">
@@ -505,6 +523,7 @@ export default function ManutencaoPage() {
             ) : (
                 <EmptyState icon={<Wrench size={24} />} title="Nenhuma ordem de serviço" description={EMPTY_STATES.maintenanceList} />
             )}
+            {!loadingOS && !isError && <OsListPagination page={page} limit={PAGE_SIZE} total={osList?.total ?? 0} onPageChange={setPage} />}
         </div>
     );
 }

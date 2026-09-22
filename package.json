@@ -12,6 +12,7 @@
     "check:architecture": "node scripts/quality/check-architecture.cjs",
     "validate:isolated": "node scripts/quality/build-isolated.cjs",
     "test:dashboard": "node scripts/quality/test-ticket-dashboard.cjs",
+    "test:maintenance:browser": "node scripts/quality/test-ticket-dashboard.cjs --maintenance",
     "test:tickets:statistics": "node scripts/quality/test-ticket-statistics.cjs",
     "test:projects": "node scripts/quality/test-project-services.cjs",
     "test:projects:browser": "node scripts/quality/test-project-services-browser.cjs",

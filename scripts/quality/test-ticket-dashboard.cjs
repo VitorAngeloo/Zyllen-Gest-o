@@ -15,7 +15,7 @@ const next = require.resolve('next/dist/bin/next', { paths: [path.join(root, 'ap
 const webPort = process.env.AUDIT_WEB_PORT || '3998';
 const base = `http://127.0.0.1:${webPort}`;
 const cases = [], logs = [];
-const shots = path.join(scratch, process.argv.includes('--structures') ? 'structures-browser-qa' : process.argv.includes('--projects-agenda') ? 'projects-agenda-browser-qa' : process.argv.includes('--panels') ? 'personal-panels-browser-qa' : process.argv.includes('--inventory-statistics') ? 'inventory-statistics-browser-qa' : process.argv.includes('--custody') ? 'custody-browser-qa' : process.argv.includes('--trips') ? 'trips-browser-qa' : process.argv.includes('--project-statistics') ? 'project-statistics-browser-qa' : process.argv.includes('--projects') ? 'project-services-browser-qa' : 'ticket-dashboard-qa');
+const shots = path.join(scratch, process.argv.includes('--maintenance') ? 'maintenance-browser-qa' : process.argv.includes('--structures') ? 'structures-browser-qa' : process.argv.includes('--projects-agenda') ? 'projects-agenda-browser-qa' : process.argv.includes('--panels') ? 'personal-panels-browser-qa' : process.argv.includes('--inventory-statistics') ? 'inventory-statistics-browser-qa' : process.argv.includes('--custody') ? 'custody-browser-qa' : process.argv.includes('--trips') ? 'trips-browser-qa' : process.argv.includes('--project-statistics') ? 'project-statistics-browser-qa' : process.argv.includes('--projects') ? 'project-services-browser-qa' : 'ticket-dashboard-qa');
 fs.mkdirSync(shots, { recursive: true });
 let web, browser;
 const fixedNow = Date.now();
@@ -340,6 +340,7 @@ async function main() {
     if (process.argv.includes('--panels')) await require('./test-vehicles-browser.cjs')({ run, browser, base, shots, fixedNow });
     if (process.argv.includes('--projects-agenda')) await require('./test-projects-agenda-browser.cjs')({ run, browser, base, shots, fixedNow });
     if (process.argv.includes('--structures')) await require('./test-structures-browser.cjs')({ run, browser, base, shots, fixedNow });
+    if (process.argv.includes('--maintenance')) await require('./test-maintenance-list-browser.cjs')({ run, browser, base, fixedNow });
 }
 main().catch(error => { console.error(error); cases.push({ name: 'Harness startup', passed: false, error: error.message }); }).finally(async () => {
     if (browser) await browser.close();

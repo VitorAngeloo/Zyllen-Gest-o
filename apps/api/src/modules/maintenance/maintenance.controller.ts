@@ -40,10 +40,11 @@ export class MaintenanceController {
         @Query('status') status?: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
+        @Query('search') search?: string,
     ) {
         const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
         const l = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10) || 20));
-        const result = await this.maintenanceService.findAll({ openedById: req.user.id, status, skip: (p - 1) * l, take: l });
+        const result = await this.maintenanceService.findAll({ openedById: req.user.id, status, search, skip: (p - 1) * l, take: l });
         return { data: result.data, total: result.total, page: p, limit: l };
     }
 
@@ -55,10 +56,15 @@ export class MaintenanceController {
         @Query('assetId') assetId?: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
+        @Query('origin') origin?: string,
+        @Query('search') search?: string,
     ) {
+        if (origin && origin !== 'INTERNAL' && origin !== 'CONTRACTOR') {
+            throw new BadRequestException('Origem de OS inválida');
+        }
         const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
         const l = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10) || 20));
-        const result = await this.maintenanceService.findAll({ status, formType, assetId, skip: (p - 1) * l, take: l });
+        const result = await this.maintenanceService.findAll({ status, formType, assetId, origin: origin as 'INTERNAL' | 'CONTRACTOR' | undefined, search, skip: (p - 1) * l, take: l });
         return { data: result.data, total: result.total, page: p, limit: l };
     }
 

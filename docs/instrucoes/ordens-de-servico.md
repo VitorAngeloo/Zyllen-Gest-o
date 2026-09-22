@@ -10,6 +10,14 @@ O `MaintenanceOS.formData` é um **blob JSON** — os campos variam por `formTyp
 
 Limite de `formData`: **64 KB** (validado em `maintenance.service.ts`).
 
+## Listagem interna
+
+Em **Minhas OS**, Administrador e Gestor começam na visão **Todas as OS**. Podem consultar também as OS abertas por si, por colaboradores e por parceiros. Os demais colaboradores veem apenas as OS que abriram nessa página. A visão geral inclui inclusive registros antigos ou sem autor identificado; filtros por situação e busca por número, cliente ou projeto são aplicados no servidor antes da paginação. **Abertura de OS** também usa paginação e busca. Ambas as telas mostram o total retornado pela API e permitem avançar por todas as páginas, sem limitar a consulta às 20 OS mais recentes.
+
+`GET /maintenance` e `GET /maintenance/my-orders` aceitam `page`, `limit`, `status` e `search`; somente a listagem interna geral aceita `origin=INTERNAL|CONTRACTOR`. Os portais de cliente e parceiro mantêm seus escopos próprios por empresa e autor, respectivamente. Uma falha de consulta aparece como erro com opção de tentar novamente, não como lista vazia.
+
+Regressão da interface: `pnpm test:maintenance:browser`, após `pnpm validate:isolated`. O teste usa respostas sintéticas e não grava no banco compartilhado.
+
 ## Criação de OS e upload em duas etapas
 
 ```ts

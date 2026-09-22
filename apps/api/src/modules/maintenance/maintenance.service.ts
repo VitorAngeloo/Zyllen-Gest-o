@@ -146,14 +146,23 @@ export class MaintenanceService {
     }
 
     // ── List OS ──
-    async findAll(params?: { status?: string; formType?: string; assetId?: string; openedByContractorId?: string; openedById?: string; companyId?: string; skip?: number; take?: number }) {
-        const where = {
+    async findAll(params?: { status?: string; formType?: string; assetId?: string; openedByContractorId?: string; openedById?: string; companyId?: string; origin?: 'INTERNAL' | 'CONTRACTOR'; search?: string; skip?: number; take?: number }) {
+        const search = params?.search?.trim().slice(0, 120);
+        const where: Prisma.MaintenanceOSWhereInput = {
             ...(params?.status ? { status: params.status } : {}),
             ...(params?.formType ? { formType: params.formType } : {}),
             ...(params?.assetId ? { assetId: params.assetId } : {}),
             ...(params?.openedByContractorId ? { openedByContractorId: params.openedByContractorId } : {}),
             ...(params?.openedById ? { openedById: params.openedById } : {}),
             ...(params?.companyId ? { companyId: params.companyId } : {}),
+            ...(params?.origin === 'INTERNAL' ? { openedById: { not: null }, openedByContractorId: null } : {}),
+            ...(params?.origin === 'CONTRACTOR' ? { openedByContractorId: { not: null } } : {}),
+            ...(search ? { OR: [
+                { osNumber: { contains: search, mode: 'insensitive' } },
+                { clientName: { contains: search, mode: 'insensitive' } },
+                { company: { name: { contains: search, mode: 'insensitive' } } },
+                { project: { name: { contains: search, mode: 'insensitive' } } },
+            ] } : {}),
         };
         const [data, total] = await Promise.all([
             this.prisma.maintenanceOS.findMany({
@@ -166,7 +175,7 @@ export class MaintenanceService {
                     openedByContractor: { select: { name: true } },
                     closedBy: { select: { name: true } },
                 },
-                orderBy: { createdAt: 'desc' },
+                orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
                 ...(params?.skip !== undefined ? { skip: params.skip, take: params.take } : {}),
             }),
             this.prisma.maintenanceOS.count({ where }),

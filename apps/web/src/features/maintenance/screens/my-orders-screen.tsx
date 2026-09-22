@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth, useAuthedFetch } from "@web/features/auth/context/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
+import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
 import { PageHeader } from "@web/components/ui/page-header";
 import { EmptyState, ListSectionHeader, RecordList, RecordRow, WorkspaceBar, WorkspaceGroup } from "@web/components/ui/workspace";
@@ -21,9 +22,11 @@ import { uploadMaintenanceAttachments } from "@web/features/maintenance/utils/ma
 import { MediaUploader } from "@web/features/maintenance/components/os-forms/media-uploader";
 import type { MediaAttachment } from "@web/features/maintenance/components/os-forms/media-uploader";
 import { OSFollowupSection } from "@web/features/maintenance/components/os-forms/os-followup-section";
+import { OsListPagination } from "@web/features/maintenance/components/os-list-pagination";
 
 type View = "list" | "detail" | "edit";
-type ListTab = "mine" | "collaborators" | "contractors";
+type ListTab = "all" | "mine" | "collaborators" | "contractors";
+const PAGE_SIZE = 50;
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "warning" | "default" | "success" }> = {
     OPEN: { label: "Aberta", variant: "warning" },
@@ -32,13 +35,16 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "warning" | "defau
 };
 
 export default function MinhasOsPage() {
-    const { user, hasPermission } = useAuth();
+    const { user } = useAuth();
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
     const [view, setView] = useState<View>("list");
     const [selectedOS, setSelectedOS] = useState<any>(null);
-    const [listTab, setListTab] = useState<ListTab>("mine");
+    const [listTab, setListTab] = useState<ListTab>("all");
     const [statusFilter, setStatusFilter] = useState("");
+    const [searchInput, setSearchInput] = useState("");
+    const [search, setSearch] = useState("");
+    const [page, setPage] = useState(1);
     const [submitting, setSubmitting] = useState(false);
     const [detailAttachments, setDetailAttachments] = useState<MediaAttachment[]>([]);
 
@@ -56,30 +62,23 @@ export default function MinhasOsPage() {
         }
     };
 
-    const isAdmin = hasPermission("access.manage");
-
-    // My OS
-    const { data: myOsList, isLoading: loadingMy } = useQuery({
-        queryKey: ["my-orders", statusFilter],
-        queryFn: () => maintenanceApi.listMyOrders<{ data: any[] }>(statusFilter ? `?status=${statusFilter}` : "", fetchOpts),
+    const isManager = user?.type === "internal" && (user.role.name === "Administrador" || user.role.name === "Gestor");
+    const scope = isManager ? listTab : "mine";
+    const { data: osList, isLoading: loading, isError, refetch } = useQuery({
+        queryKey: ["maintenance-orders", scope, statusFilter, search, page],
+        queryFn: () => {
+            const query = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+            if (statusFilter) query.set("status", statusFilter);
+            if (search) query.set("search", search);
+            if (scope === "mine") return maintenanceApi.listMyOrders<{ data: any[]; total: number }>(`?${query}`, fetchOpts);
+            if (scope === "collaborators") query.set("origin", "INTERNAL");
+            if (scope === "contractors") query.set("origin", "CONTRACTOR");
+            return maintenanceApi.listFilteredOrders<{ data: any[]; total: number }>(`?${query}`, fetchOpts);
+        },
+        enabled: !!user,
     });
-
-    // All OS (admin/manager) — separated by collaborators vs contractors
-    const { data: allOsList, isLoading: loadingAll } = useQuery({
-        queryKey: ["maintenance-all", statusFilter],
-        queryFn: () => maintenanceApi.listFilteredOrders<{ data: any[] }>(statusFilter ? `?status=${statusFilter}` : "", fetchOpts),
-        enabled: isAdmin,
-    });
-
-    const collaboratorOrders = allOsList?.data.filter((os: any) => os.openedById && !os.openedByContractorId) || [];
-    const contractorOrders = allOsList?.data.filter((os: any) => os.openedByContractorId) || [];
-
-    const getDisplayList = () => {
-        if (listTab === "mine") return myOsList?.data || [];
-        if (listTab === "collaborators") return collaboratorOrders;
-        if (listTab === "contractors") return contractorOrders;
-        return [];
-    };
+    const displayList = osList?.data ?? [];
+    const selectScope = (next: ListTab) => { setListTab(next); setPage(1); };
 
     const handleSaveDraft = async (data: OsFormSubmitData) => {
         if (!selectedOS) return;
@@ -89,8 +88,7 @@ export default function MinhasOsPage() {
             await maintenanceApi.updateFormData(selectedOS.id, payload, fetchOpts);
             await uploadMaintenanceAttachments("/maintenance", selectedOS.id, localFiles, fetchOpts);
             toast.success("Rascunho salvo");
-            qc.invalidateQueries({ queryKey: ["my-orders"] });
-            qc.invalidateQueries({ queryKey: ["maintenance-all"] });
+            qc.invalidateQueries({ queryKey: ["maintenance-orders"] });
         } catch (e: any) {
             toast.error(e.message || "Erro ao salvar");
             throw e;
@@ -104,8 +102,7 @@ export default function MinhasOsPage() {
             maintenanceApi.updateStatus(params.id, { status: params.status, notes: params.status === "CLOSED" ? "Finalizado" : undefined }, fetchOpts),
         onSuccess: () => {
             toast.success("Status atualizado");
-            qc.invalidateQueries({ queryKey: ["my-orders"] });
-            qc.invalidateQueries({ queryKey: ["maintenance-all"] });
+            qc.invalidateQueries({ queryKey: ["maintenance-orders"] });
         },
         onError: (e: any) => toast.error(e.message || "Erro ao atualizar status"),
     });
@@ -164,8 +161,7 @@ export default function MinhasOsPage() {
             await maintenanceApi.updateFormData(selectedOS.id, payload, fetchOpts);
             await uploadMaintenanceAttachments("/maintenance", selectedOS.id, localFiles, fetchOpts);
             toast.success("OS atualizada");
-            qc.invalidateQueries({ queryKey: ["my-orders"] });
-            qc.invalidateQueries({ queryKey: ["maintenance-all"] });
+            qc.invalidateQueries({ queryKey: ["maintenance-orders"] });
             setView("list");
             setSelectedOS(null);
         } catch (e: any) {
@@ -368,58 +364,60 @@ export default function MinhasOsPage() {
     }
 
     // ── List view ──
-    const displayList = getDisplayList();
-    const loading = listTab === "mine" ? loadingMy : loadingAll;
-
     return (
         <div className="space-y-6">
             <PageHeader
                 eyebrow="Atendimento"
-                title="Minhas ordens de serviço"
+                title={isManager ? "Ordens de serviço" : "Minhas ordens de serviço"}
                 description="Acompanhe o andamento, consulte os registros do serviço e identifique o próximo passo de cada OS."
             />
 
-            {/* Tab selector (admin/manager sees extra tabs) */}
             <WorkspaceBar>
                 <WorkspaceGroup label="Visão">
                 <div role="group" aria-label="Origem das ordens" className="flex flex-wrap gap-x-5 gap-y-2">
+                    {isManager && (
+                        <button type="button" aria-pressed={scope === "all"} onClick={() => selectScope("all")}
+                            className={`border-b-2 py-1.5 text-sm font-medium transition-colors ${scope === "all" ? "border-[var(--zyllen-highlight)] text-white" : "border-transparent text-[var(--zyllen-muted)] hover:border-white/20 hover:text-white"}`}>
+                            Todas as OS
+                        </button>
+                    )}
                     <button
                         type="button"
-                        aria-pressed={listTab === "mine"}
-                        onClick={() => setListTab("mine")}
+                        aria-pressed={scope === "mine"}
+                        onClick={() => selectScope("mine")}
                         className={`border-b-2 py-1.5 text-sm font-medium transition-colors ${
-                            listTab === "mine"
+                            scope === "mine"
                                 ? "border-[var(--zyllen-highlight)] text-white"
                                 : "border-transparent text-[var(--zyllen-muted)] hover:border-white/20 hover:text-white"
                         }`}
                     >
-                        Minhas OS <span className="ml-1 font-mono text-[10px] text-white/45">{myOsList?.data.length ?? 0}</span>
+                        Minhas OS
                     </button>
-                    {isAdmin && (
+                    {isManager && (
                         <>
                             <button
                                 type="button"
-                                aria-pressed={listTab === "collaborators"}
-                                onClick={() => setListTab("collaborators")}
+                                aria-pressed={scope === "collaborators"}
+                                onClick={() => selectScope("collaborators")}
                                 className={`border-b-2 py-1.5 text-sm font-medium transition-colors ${
-                                    listTab === "collaborators"
+                                    scope === "collaborators"
                                         ? "border-[var(--zyllen-highlight)] text-white"
                                         : "border-transparent text-[var(--zyllen-muted)] hover:border-white/20 hover:text-white"
                                 }`}
                             >
-                                Colaboradores <span className="ml-1 font-mono text-[10px] text-white/45">{collaboratorOrders.length}</span>
+                                Colaboradores
                             </button>
                             <button
                                 type="button"
-                                aria-pressed={listTab === "contractors"}
-                                onClick={() => setListTab("contractors")}
+                                aria-pressed={scope === "contractors"}
+                                onClick={() => selectScope("contractors")}
                                 className={`border-b-2 py-1.5 text-sm font-medium transition-colors ${
-                                    listTab === "contractors"
+                                    scope === "contractors"
                                         ? "border-[var(--zyllen-highlight)] text-white"
                                         : "border-transparent text-[var(--zyllen-muted)] hover:border-white/20 hover:text-white"
                                 }`}
                             >
-                                Parceiros <span className="ml-1 font-mono text-[10px] text-white/45">{contractorOrders.length}</span>
+                                Parceiros
                             </button>
                         </>
                     )}
@@ -434,7 +432,7 @@ export default function MinhasOsPage() {
                             type="button"
                             aria-pressed={statusFilter === s}
                             key={s}
-                            onClick={() => setStatusFilter(s)}
+                            onClick={() => { setStatusFilter(s); setPage(1); }}
                             className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                                 statusFilter === s
                                     ? "bg-[var(--zyllen-highlight)]/10 text-[var(--zyllen-highlight)]"
@@ -448,9 +446,15 @@ export default function MinhasOsPage() {
                 </WorkspaceGroup>
             </WorkspaceBar>
 
+            <form className="flex max-w-xl flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); setSearch(searchInput.trim()); setPage(1); }}>
+                <Input aria-label="Buscar OS por número, cliente ou projeto" placeholder="Buscar número da OS, cliente ou projeto" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} className="min-w-[220px] flex-1" />
+                <Button type="submit" variant="outline">Buscar</Button>
+                {search && <Button type="button" variant="ghost" onClick={() => { setSearchInput(""); setSearch(""); setPage(1); }}>Limpar</Button>}
+            </form>
+
             <ListSectionHeader
-                title={listTab === "mine" ? "Ordens atribuídas a você" : listTab === "collaborators" ? "Ordens de colaboradores" : "Ordens de parceiros"}
-                count={displayList.length}
+                title={scope === "all" ? "Todas as ordens de serviço" : scope === "mine" ? "Ordens abertas por você" : scope === "collaborators" ? "Ordens de colaboradores" : "Ordens de parceiros"}
+                count={loading || isError ? undefined : (osList?.total ?? 0)}
                 description={statusFilter ? `Filtro atual: ${STATUS_CONFIG[statusFilter]?.label ?? statusFilter}.` : "Todas as situações no escopo selecionado."}
             />
 
@@ -459,6 +463,8 @@ export default function MinhasOsPage() {
                 <div className="divide-y divide-white/10 border-y border-white/10">
                     {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-none bg-white/[0.025]" />)}
                 </div>
+            ) : isError ? (
+                <EmptyState icon={<FileText size={24} />} title="Não foi possível carregar as OS" description="Tente consultar a lista novamente." action={<Button type="button" variant="outline" onClick={() => refetch()}>Tentar novamente</Button>} />
             ) : displayList.length === 0 ? (
                 <EmptyState
                     icon={<FileText size={24} />}
@@ -488,7 +494,7 @@ export default function MinhasOsPage() {
                                         </div>
                                         <p className="mt-1 truncate text-xs text-[var(--zyllen-muted)]">
                                             {formLabel}
-                                            {(os.openedBy?.name || os.openedByContractor?.name) && listTab !== "mine" && ` · ${os.openedBy?.name || os.openedByContractor?.name}`}
+                                            {(os.openedBy?.name || os.openedByContractor?.name) && scope !== "mine" && ` · ${os.openedBy?.name || os.openedByContractor?.name}`}
                                         </p>
                                         <p className="mt-1 font-mono text-[11px] text-white/45 sm:hidden">{os.osNumber || "Sem número"}</p>
                                     </div>
@@ -504,6 +510,7 @@ export default function MinhasOsPage() {
                     })}
                 </RecordList>
             )}
+            {!loading && !isError && <OsListPagination page={page} limit={PAGE_SIZE} total={osList?.total ?? 0} onPageChange={setPage} />}
         </div>
     );
 }
