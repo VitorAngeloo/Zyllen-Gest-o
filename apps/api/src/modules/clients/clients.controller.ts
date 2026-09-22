@@ -78,9 +78,15 @@ export class ClientsController {
     @Get('companies')
     @UseGuards(JwtAuthGuard, PermissionsGuard)
     @RequirePermission('settings.view')
-    async findAllCompanies() {
-        const data = await this.clientsService.findAllCompanies();
-        return { data };
+    async findAllCompanies(@Query('q') query?: string, @Query('page') pageParam?: string) {
+        // Preserve the existing response for consumers that do not request pagination.
+        if (query === undefined && pageParam === undefined) {
+            const data = await this.clientsService.findAllCompanies();
+            return { data };
+        }
+        const parsedPage = Number(pageParam);
+        const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? Math.min(parsedPage, 10000) : 1;
+        return this.clientsService.findCompaniesPage(typeof query === 'string' ? query : '', page);
     }
 
     @Get('companies/:id')

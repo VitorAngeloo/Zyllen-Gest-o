@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { encryptCPF, decryptCPFSafe } from '../../infrastructure/security/cpf-crypto';
 import { createClientStock } from './client-stock';
@@ -52,6 +53,35 @@ export class ClientsService {
             await createClientStock(tx, company, actorId);
             return company;
         });
+    }
+
+    async findCompaniesPage(query: string, page: number) {
+        const pageSize = 50;
+        const search = query.trim().slice(0, 120);
+        const digits = /^[\d.\-/\s]+$/.test(search) ? search.replace(/\D/g, '') : '';
+        const cnpjMatches = digits
+            ? await this.prisma.$queryRaw<Array<{ id: string }>>`
+                SELECT id FROM "Company"
+                WHERE regexp_replace(COALESCE(cnpj, ''), '[^0-9]', '', 'g') LIKE ${`%${digits}%`}
+            `
+            : [];
+        const where: Prisma.CompanyWhereInput = search ? {
+            OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                ...(cnpjMatches.length ? [{ id: { in: cnpjMatches.map(company => company.id) } }] : []),
+            ],
+        } : {};
+        const [data, total] = await Promise.all([
+            this.prisma.company.findMany({
+                where,
+                include: { _count: { select: { externalUsers: true, tickets: true, projects: true } } },
+                orderBy: [{ name: 'asc' }, { id: 'asc' }],
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+            }),
+            this.prisma.company.count({ where }),
+        ]);
+        return { data, total, page, pageSize };
     }
 
     async updateCompany(id: string, data: { name?: string; cnpj?: string }) {

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
 import { useAuth, useAuthedFetch } from "@web/features/auth/context/auth-context";
@@ -14,7 +14,7 @@ import { StateCitySelector } from "@web/components/ui/state-city-selector";
 import { toast } from "sonner";
 import {
     Building2, Users, Plus, Pencil, Trash2, UserPlus, FolderKanban,
-    ChevronDown, ChevronRight, Phone, Mail, MapPin, Briefcase, Eye,
+    ChevronDown, ChevronRight, Phone, Mail, MapPin, Briefcase, Eye, Search, X,
 } from "lucide-react";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { PageHeader } from "@web/components/ui/page-header";
@@ -43,6 +43,23 @@ export default function ClientesPage() {
     const [editCompany, setEditCompany] = useState<any>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
     const [viewCompany, setViewCompany] = useState<any>(null);
+    const [companySearch, setCompanySearch] = useState("");
+    const [debouncedCompanySearch, setDebouncedCompanySearch] = useState("");
+    const [companyPage, setCompanyPage] = useState(1);
+    const [companyPageInput, setCompanyPageInput] = useState("1");
+
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            setDebouncedCompanySearch(companySearch.trim());
+            setCompanyPage(1);
+            setCompanyPageInput("1");
+        }, 300);
+        return () => clearTimeout(timeout);
+    }, [companySearch]);
+
+    useEffect(() => {
+        setCompanyPageInput(String(companyPage));
+    }, [companyPage]);
 
     // ─── Project state ──────────────────
     const EMPTY_PROJECT = { name: "", description: "", phone: "", address: "", city: "", state: "" };
@@ -57,10 +74,35 @@ export default function ClientesPage() {
     // QUERIES
     // ═══════════════════════════════════════
 
-    const { data: companies, isLoading: loadingCompanies } = useQuery({
+    const { data: companies } = useQuery({
         queryKey: ["companies"],
         queryFn: () => apiClient.get<{ data: any[] }>("/clients/companies", fetchOpts),
+        enabled: tab === "users",
     });
+
+    const {
+        data: companyDirectory,
+        isFetching: fetchingCompanyDirectory,
+        isError: companyDirectoryError,
+        refetch: retryCompanyDirectory,
+    } = useQuery({
+        queryKey: ["companies", "directory", debouncedCompanySearch, companyPage],
+        queryFn: () => apiClient.get<{ data: any[]; total: number; page: number; pageSize: number }>(
+            `/clients/companies?q=${encodeURIComponent(debouncedCompanySearch)}&page=${companyPage}`,
+            fetchOpts,
+        ),
+        enabled: tab === "companies",
+    });
+    const companyDirectoryPending = fetchingCompanyDirectory || companySearch.trim() !== debouncedCompanySearch;
+    const companyPageCount = companyDirectory
+        ? Math.max(1, Math.ceil(companyDirectory.total / companyDirectory.pageSize))
+        : 1;
+
+    useEffect(() => {
+        if (companyDirectory && companyPage > companyPageCount) {
+            setCompanyPage(companyPageCount);
+        }
+    }, [companyDirectory, companyPage, companyPageCount]);
 
     const { data: externalUsers, isLoading: loadingUsers } = useQuery({
         queryKey: ["external-users"],
@@ -298,19 +340,50 @@ export default function ClientesPage() {
                     {/* ─── Lista de Empresas ─── */}
                     <ListSectionHeader
                         title="Empresas cadastradas"
-                        count={companies?.data?.length ?? 0}
+                        count={companyDirectoryPending ? undefined : companyDirectory?.total}
                         description="Abra uma empresa para consultar e organizar seus projetos."
                     />
+                    <div className="max-w-xl space-y-2">
+                        <Label htmlFor="company-directory-search" className="text-[var(--zyllen-muted)]">Buscar empresa</Label>
+                        <div className="relative">
+                            <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
+                            <Input
+                                id="company-directory-search"
+                                type="search"
+                                value={companySearch}
+                                onChange={(event) => setCompanySearch(event.target.value)}
+                                placeholder="Razão social ou CNPJ"
+                                className="border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] pl-9 pr-10 text-white"
+                            />
+                            {companySearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => setCompanySearch("")}
+                                    aria-label="Limpar busca de empresas"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--zyllen-muted)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--zyllen-highlight)]"
+                                >
+                                    <X size={16} aria-hidden="true" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
                         <div>
-                            {loadingCompanies ? (
+                            {companyDirectoryPending ? (
                                 <div className="divide-y divide-white/10 border-y border-white/10">
                                     {[...Array(3)].map((_, i) => (
                                         <Skeleton key={i} className="my-3 h-16 w-full" />
                                     ))}
                                 </div>
-                            ) : companies?.data?.length ? (
+                            ) : companyDirectoryError ? (
+                                <EmptyState
+                                    icon={<Building2 size={22} />}
+                                    title="Não foi possível carregar as empresas"
+                                    description="Tente buscar novamente."
+                                    action={<Button variant="outline" onClick={() => retryCompanyDirectory()}>Tentar novamente</Button>}
+                                />
+                            ) : companyDirectory?.data?.length ? (
                                 <div className="divide-y divide-white/10 border-y border-white/10">
-                                    {companies.data.map((c: any) => (
+                                    {companyDirectory.data.map((c: any) => (
                                         <div key={c.id} className="group flex flex-wrap items-center gap-3 py-4 transition-colors hover:bg-white/[0.02] sm:px-3">
                                             <Building2 size={18} className="shrink-0 text-[var(--zyllen-highlight)]" />
                                             <div className="flex-1 min-w-0">
@@ -353,9 +426,50 @@ export default function ClientesPage() {
                                     ))}
                                 </div>
                             ) : (
-                                <EmptyState icon={<Building2 size={22} />} title={EMPTY_STATES.companies} description="Cadastre uma empresa para então organizar projetos e usuários externos." />
+                                companySearch.trim() ? (
+                                    <EmptyState
+                                        icon={<Search size={22} />}
+                                        title="Nenhuma empresa encontrada"
+                                        description="Confira a razão social ou o CNPJ e tente novamente."
+                                        action={<Button variant="outline" onClick={() => setCompanySearch("")}>Limpar busca</Button>}
+                                    />
+                                ) : (
+                                    <EmptyState icon={<Building2 size={22} />} title={EMPTY_STATES.companies} description="Cadastre uma empresa para então organizar projetos e usuários externos." />
+                                )
                             )}
                         </div>
+                    {!companyDirectoryPending && !companyDirectoryError && companyDirectory && companyDirectory.total > companyDirectory.pageSize && (
+                        <nav aria-label="Páginas de empresas" className="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--zyllen-muted)]">
+                            <span>Página {companyPage} de {companyPageCount} · {companyDirectory.total} empresas</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button variant="outline" disabled={companyPage === 1} onClick={() => setCompanyPage(page => page - 1)}>Anterior</Button>
+                                <form
+                                    className="flex items-center gap-2"
+                                    onSubmit={(event) => {
+                                        event.preventDefault();
+                                        const requestedPage = Number(companyPageInput);
+                                        if (!Number.isInteger(requestedPage)) return;
+                                        const nextPage = Math.max(1, Math.min(companyPageCount, requestedPage));
+                                        setCompanyPageInput(String(nextPage));
+                                        setCompanyPage(nextPage);
+                                    }}
+                                >
+                                    <Label htmlFor="company-page-jump" className="whitespace-nowrap text-[var(--zyllen-muted)]">Ir para</Label>
+                                    <Input
+                                        id="company-page-jump"
+                                        type="number"
+                                        min={1}
+                                        max={companyPageCount}
+                                        value={companyPageInput}
+                                        onChange={(event) => setCompanyPageInput(event.target.value)}
+                                        className="w-20 border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white"
+                                    />
+                                    <Button type="submit" variant="outline">Ir</Button>
+                                </form>
+                                <Button variant="outline" disabled={companyPage >= companyPageCount} onClick={() => setCompanyPage(page => page + 1)}>Próxima</Button>
+                            </div>
+                        </nav>
+                    )}
                 </div>
             )}
 

@@ -16,6 +16,8 @@ Após sucesso, o frontend usa `router.replace('/cadastro/solicitacao-enviada')` 
 
 ## Aprovação interna
 
+Na aba **Empresas** de **Clientes**, o campo de busca consulta a API privada por razão social ou CNPJ e pagina os resultados em lotes de 50. A busca por CNPJ ignora pontuação, inclusive quando o cadastro antigo guarda o número formatado. O total exibido corresponde aos resultados da consulta; a lista não fica limitada às primeiras 500 empresas do carregamento legado. A navegação oferece Anterior, Próxima e entrada numérica para ir diretamente a uma página válida; uma busca nova retorna à primeira página. `GET /clients/companies?q=...&page=...` exige `settings.view` e responde com `data`, `total`, `page` e `pageSize`. A chamada sem parâmetros preserva o contrato anterior para os demais consumidores.
+
 Somente Administrador/Gestor aprovam/rejeitam solicitações ou criam diretamente contas de clientes. O servidor verifica o papel, confirma empresa/projeto, valida a relação em transação e grava auditoria. A tela **Aprovar clientes** não substitui a checagem da API.
 
 Ao cadastrar uma empresa diretamente, a mesma transação cria um estoque geral vazio `CLIENT`, vinculado à empresa e sem projeto presumido. Quando uma aprovação cria uma empresa nova, o estoque é criado durante a aprovação; aprovar acesso para uma empresa existente não duplica seus locais. Falha na criação do estoque desfaz também a nova empresa. O estoque automático recebe auditoria com o administrador ou gestor responsável.
