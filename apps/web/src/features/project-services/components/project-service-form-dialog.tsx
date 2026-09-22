@@ -63,7 +63,7 @@ export function ProjectServiceFormDialog({ editing, initialDates, choices, optio
         onSuccess: async () => { await client.invalidateQueries({ queryKey: ['structure-cycles'] }); await onSaved(); onClose(); },
         onError: (error: Error) => setError(error.message),
     });
-    return <Dialog open onOpenChange={open => { if (!open && !save.isPending) onClose(); }}><DialogContent ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="max-h-[90vh] max-w-3xl overflow-y-auto" onKeyDown={event => {
+    return <Dialog open onOpenChange={open => { if (!open && !save.isPending) onClose(); }}><DialogContent ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} onClose={save.isPending ? undefined : onClose} className="max-h-[90vh] max-w-3xl overflow-y-auto" onKeyDown={event => {
         if (event.key === 'Escape' && !save.isPending) { event.preventDefault(); onClose(); }
         if (event.key === 'Tab') {
             const controls = [...(dialogRef.current?.querySelectorAll<HTMLElement>('input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href]') ?? [])];

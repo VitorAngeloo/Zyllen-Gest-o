@@ -6,6 +6,8 @@ Ao escolher um cliente para **Novo projeto**, o formulário sugere endereço, ci
 
 O campo **Cliente** de Novo projeto permite digitar parte do nome para filtrar as empresas disponíveis antes de selecioná-las. Em **Novo Acompanhamento**, a busca consulta clientes pelo nome e a seleção de projeto usa a listagem vinculada ao cliente, inclusive para perfis com permissão de criar acompanhamentos sem acesso às configurações.
 
+O formulário de **Novo projeto** pode ser cancelado pelo botão de fechar no canto superior direito, pelo botão **Cancelar** ou pela tecla Escape. O botão de fechar fica indisponível durante o salvamento.
+
 **Terá viagem?** cria a viagem junto com o projeto, na mesma transação. O destino usa cidade/UF, endereço e período do projeto; a origem é informada separadamente. Somente colaboradores ativos de nível Técnico, Gestor ou Administrador podem participar; a conta de exibição **Dashboard** fica fora da seleção. Agenda mantém **Novo projeto** e **Novo agendamento**; a aba Viagens consolida os deslocamentos criados pelos projetos, sem cadastro avulso. Registros antigos continuam consultáveis. A migração aditiva [20260921130000_project_followup_link](../../apps/api/prisma/migrations/20260921130000_project_followup_link/migration.sql) já foi aplicada à base compartilhada.
 
 Marcadores existentes são escolhidos no formulário do projeto. A criação de novos marcadores fica recolhida em **Projetos → Configurações de projetos**, fora do cadastro cotidiano. Os marcadores de teste sem vínculos foram removidos da base compartilhada em 21/09/2026 após backup. Os campos de texto do cadastro desativam sugestões de preenchimento automático do navegador.
