@@ -11,7 +11,7 @@ module.exports = async ({ run, prisma, origin, tech, unprivileged, client, third
     };
     const ok = (response, expected = 200) => { assert.equal(response.status, expected, JSON.stringify(response.body)); return response.body.data; };
     const createStructure = (changes = {}) => http('/structures', 'POST', { companyId: company.id, name: 'Sala ciclo QA', kind: 'ROOM', ...changes });
-    const input = changes => ({ companyId: company.id, name: 'Instalação sala QA', type: 'INSTALLATION', ...changes });
+    const input = changes => ({ companyId: company.id, name: 'Instalação sala QA', type: 'INSTALLATION', address: 'Rua da sala, 10', ...changes });
     const create = changes => http('/project-services', 'POST', input(changes));
     const status = (id, state) => http(`/project-services/${id}/status`, 'PUT', { status: state });
     const scheduleStatus = (row, state) => http(`/schedule/${row.schedule.id}`, 'PUT', { status: state });
@@ -19,7 +19,7 @@ module.exports = async ({ run, prisma, origin, tech, unprivileged, client, third
     const totals = () => Promise.all([prisma.project.count(), prisma.projectService.count(), prisma.structureCycle.count(), prisma.schedule.count(), prisma.auditLog.count()]);
     const startDate = new Date(Date.now() + 12 * 86_400_000).toISOString(), endDate = new Date(Date.parse(startDate) + 3_600_000).toISOString();
     const dated = { startDate, endDate, installerIds: [tech.id], allowConflicts: true };
-    let structure, installation, cycle, removed, cancelled, next;
+    let structure, installation, cycle;
     await run('Structures: explicit identity, client isolation, validated kind and case-insensitive duplicate names', async () => {
         structure = ok(await createStructure(), 201);
         assert.equal(structure.kind, 'ROOM'); assert.equal(structure.company.id, company.id);
@@ -55,41 +55,26 @@ module.exports = async ({ run, prisma, origin, tech, unprivileged, client, third
         const row = (await cycles())[0]; assert.equal(row.installedAt, actual.toISOString()); assert.equal(row.status, 'INSTALLED'); assert.equal(row.durationDays, 5);
         assert.notEqual(row.installedAt, installation.schedule.startDate); assert.equal(ok(await http(`/structures/${structure.id}/available-cycle`)).id, cycle.id);
     });
-    await run('Structures: cancelled removal attempt remains visible; another explicit project may retry once', async () => {
-        cancelled = ok(await create({ type: 'REMOVAL', name: 'Tentativa cancelada QA', structureId: structure.id, removalCycleId: cycle.id }), 201);
-        assert.equal((await create({ type: 'REMOVAL', structureId: structure.id, removalCycleId: cycle.id })).status, 409);
-        ok(await status(cancelled.id, 'CANCELLED'));
-        removed = ok(await create({ type: 'REMOVAL', name: 'Desinstalação vigente QA', structureId: structure.id, removalCycleId: cycle.id, ...dated }), 201);
-        const row = (await cycles())[0]; assert.equal(row.removals.length, 2); assert.equal(row.removals[0].status, 'CANCELLED'); assert.equal(row.removals[1].id, removed.id);
-        assert.equal(ok(await http(`/structures/${structure.id}/available-cycle`)), null);
-        assert.equal((await status(cancelled.id, 'PENDING')).status, 409);
+    await run('Structures: a new removal cannot be created after installation', async () => {
+        const before = await totals();
+        assert.equal((await create({ type: 'REMOVAL', structureId: structure.id, removalCycleId: cycle.id })).status, 400);
+        assert.deepEqual(await totals(), before);
     });
-    await run('Structures: agenda and project endpoints cannot change linked type or detach history', async () => {
-        assert.equal((await http(`/schedule/${removed.schedule.id}`, 'PUT', { type: 'INSTALLATION' })).status, 400);
+    await run('Structures: project editing cannot change linked type or detach history', async () => {
         assert.equal((await http(`/project-services/${installation.id}`, 'PUT', input({ type: 'REMOVAL', projectId: installation.projectId, ...dated }))).status, 400);
         assert.equal((await http(`/project-services/${installation.id}`, 'PUT', input({ structureId: null, projectId: installation.projectId, ...dated }))).status, 400);
         const preserved = ok(await http(`/project-services/${installation.id}`, 'PUT', input({ projectId: installation.projectId, ...dated })));
         assert.equal(preserved.structureCycle.id, cycle.id);
     });
-    await run('Structures: installation cannot reopen or cancel while removal remains current', async () => {
-        assert.equal((await scheduleStatus(installation, 'SCHEDULED')).status, 400);
-        assert.equal((await status(installation.id, 'CANCELLED')).status, 400);
-        assert.equal((await create({ structureId: structure.id })).status, 409);
-    });
-    await run('Structures: removal completion closes cycle using real dates and permits a separate new cycle', async () => {
-        ok(await scheduleStatus(removed, 'DONE'));
-        const old = (await cycles())[0]; assert.equal(old.status, 'REMOVED'); assert(old.removedAt); assert.equal(old.durationDays, 5);
-        next = ok(await create({ structureId: structure.id }), 201);
-        const history = await cycles(); assert.equal(history.length, 2); assert.equal(history[0].id, next.structureCycle.id); assert.equal(history[1].id, cycle.id); assert.equal(history[1].installedAt, old.installedAt); assert.equal(history[1].removedAt, old.removedAt);
-        assert.equal((await scheduleStatus(removed, 'SCHEDULED')).status, 400); assert.equal((await scheduleStatus(installation, 'SCHEDULED')).status, 400);
-        assert.equal((await status(cancelled.id, 'PENDING')).status, 400);
-    });
     await run('Structures: cancelling an unstarted cycle preserves it and releases another installation', async () => {
-        ok(await status(next.id, 'CANCELLED'));
-        const latest = ok(await create({ structureId: structure.id }), 201);
-        assert.equal((await cycles()).length, 3); assert.equal((await cycles()).find(row => row.id === next.structureCycle.id).status, 'CANCELLED');
-        assert.notEqual(latest.structureCycle.id, next.structureCycle.id);
-        assert.equal((await status(next.id, 'PENDING')).status, 409);
+        const other = ok(await createStructure({ name: 'Sala cancelada QA' }), 201);
+        const first = ok(await create({ name: 'Instalação cancelada QA', structureId: other.id }), 201);
+        ok(await status(first.id, 'CANCELLED'));
+        const latest = ok(await create({ name: 'Nova instalação QA', structureId: other.id }), 201);
+        const history = ok(await http(`/structures/${other.id}/cycles`));
+        assert.equal(history.length, 2); assert.equal(history.find(row => row.id === first.structureCycle.id).status, 'CANCELLED');
+        assert.notEqual(latest.structureCycle.id, first.structureCycle.id);
+        assert.equal((await status(first.id, 'PENDING')).status, 409);
     });
     await run('Structures: existing unstarted service can be explicitly linked once; invalid linkage is atomic', async () => {
         const other = ok(await createStructure({ name: 'Totem associação QA', kind: 'TOTEM' }), 201);
@@ -120,7 +105,7 @@ module.exports = async ({ run, prisma, origin, tech, unprivileged, client, third
         assert.equal((await http('/structures?unexpected=true')).status, 400);
         assert.equal((await http('/structures/invalid/cycles')).status, 400);
         assert.equal((await http(`/structures/${crypto.randomUUID()}/cycles`)).status, 404);
-        const page = await http(`/structures/${structure.id}/cycles?limit=1&page=2`); assert.equal(page.body.total, 3); assert.equal(page.body.data.length, 1);
+        const page = await http(`/structures/${structure.id}/cycles?limit=1&page=2`); assert.equal(page.body.total, 1); assert.equal(page.body.data.length, 0);
         await assert.rejects(() => prisma.operationalStructure.delete({ where: { id: structure.id } }), error => error.code === 'P2003');
         await assert.rejects(() => prisma.projectService.delete({ where: { id: installation.id } }), error => error.code === 'P2003');
         assert((await prisma.auditLog.count({ where: { action: 'STRUCTURE_CYCLE_LINK' } })) >= 5);

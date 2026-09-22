@@ -34,7 +34,7 @@ export interface ProjectStatistics {
     highlights: ProjectDashboardHighlight[];
 }
 
-export interface ProjectServicePerson { id: string; name: string; sector?: string | null; agendaColor?: string | null }
+export interface ProjectServicePerson { id: string; name: string; sector?: string | null; agendaColor?: string | null; roleName?: string }
 export interface ProjectServiceScheduleContext {
     id: string; projectId: string; urgency: number; color: string; requiresTravel: boolean;
     marker: { id: string; name: string } | null;
@@ -48,6 +48,7 @@ export interface ProjectServiceRecord {
     type: ProjectServiceType;
     status: ProjectServiceStatus;
     marker: { id: string; name: string } | null;
+    followup: { id: string; code: string } | null;
     urgency: number;
     color: string;
     address: string | null;
@@ -57,7 +58,7 @@ export interface ProjectServiceRecord {
     notes: string | null;
     sectors: string[];
     requiresTravel: boolean;
-    trip?: { id: string; title: string; status: string } | null;
+    trip?: { id: string; title: string; status: string; originCity: string; originState: string; participantIds: string[] } | null;
     relevant: boolean;
     internalAssignees: ProjectServicePerson[];
     contractors: ProjectServicePerson[];
@@ -69,9 +70,10 @@ export interface ProjectServiceRecord {
     structureCycle?: { id: string; structureId: string; structureName: string; installationId: string } | null;
 }
 export interface ProjectServiceOptions {
-    companies: { id: string; name: string }[];
+    companies: { id: string; name: string; address: string | null; city: string | null; state: string | null }[];
     projects: { id: string; name: string; companyId: string; address: string | null; city: string | null; state: string | null; hasService: boolean }[];
     markers: { id: string; name: string }[];
+    followups: { id: string; code: string; companyId: string; projectId: string | null; serviceId: string | null }[];
     internalUsers: ProjectServicePerson[];
     contractors: ProjectServicePerson[];
 }

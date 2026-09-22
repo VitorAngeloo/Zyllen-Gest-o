@@ -1,18 +1,20 @@
 # Histórico de instalações
 
+**Revisão de 21/09/2026:** o formulário de Novo projeto não mostra mais **Sala ou totem atendido** nem o cadastro inline desse local. Os vínculos de sala/totem já registrados continuam preservados e visíveis no detalhe e em **Histórico de instalações**. A API mantém os contratos e as regras de ciclo para os dados existentes; esta revisão não remove estruturas, ciclos ou histórico do banco.
+
 **Estado em 18/09/2026.** API/migração publicadas na R1. Na R3, cadastro e histórico aparecem dentro da área Projetos e Agenda: seleção opcional de sala/totem no formulário, histórico no detalhe e consulta **Histórico de instalações** na aba Projetos. O endereço antigo `/dashboard/projetos/estruturas` abre essa aba com `historico=1`. A nova navegação está no localhost; frontend ainda não publicado no Vercel. Cada projeto continua contendo um único serviço de instalação ou desinstalação, conforme [projetos e agenda](projetos-e-agenda.md).
 
 ## Identidade e associação
 
 `OperationalStructure` identifica uma sala, totem ou outra estrutura pelo cliente e nome. Nomes são únicos por cliente, sem diferenciar maiúsculas/minúsculas. Clientes diferentes podem usar o mesmo nome. O vínculo não pressupõe integração com estoque, patrimônio, OS ou viagens.
 
-A interface usa **Sala ou totem atendido (opcional)**, **Cadastrar sala ou totem** e **Histórico de instalações**, sem chamar esse cadastro de outro projeto. Projeto representa um serviço; a sala/totem preserva a identidade física entre serviços de instalação e desinstalação. Os modelos técnicos e o histórico permanecem iguais.
+A interface atual mantém **Histórico de instalações** como consulta. Projeto representa um serviço; a sala/totem dos vínculos anteriores preserva a identidade física entre serviços de instalação e desinstalação. Os modelos técnicos e o histórico permanecem iguais.
 
-Depois de selecionar o cliente, **Cadastrar sala ou totem** permite preencher nome/tipo dentro do formulário do projeto. **Salvar e selecionar** cadastra somente esse local para o mesmo cliente e o seleciona; não salva o projeto automaticamente. Falhas mantêm o rascunho. Trocar cliente limpa a associação e o cadastro inline; o retorno de uma gravação iniciada para outro cliente não seleciona o local no novo rascunho. Desinstalação continua exigindo seleção explícita da instalação elegível. Não há formulário HTML aninhado.
+Na interface de 18/09, era possível cadastrar e selecionar sala/totem dentro do formulário. Essa etapa foi retirada do formulário de projeto na revisão de 21/09; o cadastro de locais e a consulta do histórico permanecem na área **Histórico de instalações**.
 
-A regra adotada nesta entrega é **uma estrutura por serviço**, com associação opcional e explícita. Criar uma estrutura não altera registros existentes. Selecionar a estrutura na instalação cria um `StructureCycle`; selecionar a estrutura e a instalação correspondente na desinstalação associa aquele serviço ao ciclo. A seleção da instalação não é automática.
+A regra dos vínculos existentes é **uma estrutura por serviço**, com associação opcional e explícita. Criar uma estrutura não altera registros existentes. A API preserva a criação e associação de `StructureCycle` para os registros legados; o formulário atual não inicia novos vínculos de estrutura.
 
-Um serviço existente ainda não iniciado pode ser associado manualmente. Depois da associação, tipo, estrutura e ciclo são permanentes: outro atendimento exige outro projeto/serviço. O formulário bloqueia essas trocas e a API valida a mesma regra, inclusive pela agenda. O vínculo com cliente/projeto continua preservado.
+Depois da associação, tipo, estrutura e ciclo são permanentes: outro atendimento exige outro projeto/serviço. O formulário mostra o vínculo existente sem oferecer troca, e a API valida a mesma regra, inclusive pela agenda. O vínculo com cliente/projeto continua preservado.
 
 ## Ciclos, cancelamentos e datas
 

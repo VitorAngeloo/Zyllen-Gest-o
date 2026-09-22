@@ -131,10 +131,12 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         const data = await setup();
         try {
             await expect(metric(data.page, 'active')).toHaveText('7'); const count = statsRequests(data).length; data.state.bonus = 1;
-            await data.page.clock.runFor(31_000); await expect(metric(data.page, 'active')).toHaveText('8'); assert(statsRequests(data).length > count);
+            await data.page.clock.runFor(61_000);
+            await expect.poll(() => statsRequests(data).length).toBeGreaterThan(count);
+            await expect(metric(data.page, 'active')).toHaveText('8');
             await data.page.getByLabel('Período dos indicadores').selectOption('TODAY');
             await expect(metric(data.page, 'completed')).toHaveText('0'); const before = statsRequests(data).at(-1).params.start;
-            await data.page.clock.setSystemTime(fixedNow + 86_400_000); await data.page.clock.runFor(31_000);
+            await data.page.clock.setSystemTime(fixedNow + 86_400_000); await data.page.clock.runFor(61_000);
             await expect.poll(() => statsRequests(data).at(-1)?.params.start).not.toBe(before);
         } finally { await data.context.close(); }
     });

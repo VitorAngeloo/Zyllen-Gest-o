@@ -7,6 +7,7 @@ import { Label } from "@web/components/ui/label";
 import { ArrowDownCircle, Hash, X, Camera, Upload } from "lucide-react";
 import { SkuSearchCombobox } from "@web/features/inventory/components/sku-search-combobox";
 import type { InventoryController } from "../hooks/use-inventory-controller";
+import { stockEntryLocation } from '../utils/inventory-form-options';
 
 export function InventoryEntrySection({ controller }: { controller: InventoryController }) {
     const {
@@ -29,7 +30,7 @@ export function InventoryEntrySection({ controller }: { controller: InventoryCon
         isEntryReturn,
         handleEntrySubmit,
     } = controller;
-    const internalLocations = (locations?.data ?? []).filter((location: any) => location.kind === "INTERNAL");
+    const internalLocations = (locations?.data ?? []).filter(stockEntryLocation);
     return ((
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-lg">
                     <CardHeader>
@@ -39,6 +40,7 @@ export function InventoryEntrySection({ controller }: { controller: InventoryCon
                     </CardHeader>
                     <CardContent>
                         <form
+                            autoComplete="off"
                             onSubmit={handleEntrySubmit}
                             className="space-y-4"
                         >
@@ -48,6 +50,7 @@ export function InventoryEntrySection({ controller }: { controller: InventoryCon
                                     Código de Patrimônio <span className="text-xs font-normal">(em branco = item novo)</span>
                                 </Label>
                                 <Input
+                                    autoComplete="off"
                                     value={entryForm.assetCode}
                                     onChange={(e) => setEntryForm({ ...entryForm, assetCode: e.target.value.toUpperCase() })}
                                     placeholder="Ex: CFP-00012 — para devolver um item já cadastrado"
@@ -105,21 +108,21 @@ export function InventoryEntrySection({ controller }: { controller: InventoryCon
                                 {!isEntryReturn && (
                                     <div className="space-y-2">
                                         <Label className="text-[var(--zyllen-muted)]">Quantidade (patrimônios)</Label>
-                                        <Input type="number" min={1} value={entryForm.quantity} onChange={(e) => setEntryForm({ ...entryForm, quantity: +e.target.value })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                        <Input autoComplete="off" type="number" min={1} value={entryForm.quantity} onChange={(e) => setEntryForm({ ...entryForm, quantity: +e.target.value })} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                                     </div>
                                 )}
                                 <div className={`space-y-2 ${isEntryReturn ? "col-span-2" : ""}`}>
                                     <Label className="text-[var(--zyllen-muted)]">PIN</Label>
-                                    <Input type="password" maxLength={4} placeholder="••••" value={entryForm.pin} onChange={(e) => setEntryForm({ ...entryForm, pin: e.target.value })} required className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center tracking-widest" />
+                                    <Input type="password" autoComplete="new-password" maxLength={4} placeholder="••••" value={entryForm.pin} onChange={(e) => setEntryForm({ ...entryForm, pin: e.target.value })} required className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center tracking-widest" />
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Motivo</Label>
-                                <Input value={entryForm.reason} onChange={(e) => setEntryForm({ ...entryForm, reason: e.target.value })} placeholder="Compra, reposição..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                <Input autoComplete="off" value={entryForm.reason} onChange={(e) => setEntryForm({ ...entryForm, reason: e.target.value })} placeholder="Compra, reposição..." className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Evento na timeline (opcional)</Label>
-                                <Input value={entryForm.eventDescription} onChange={(e) => setEntryForm({ ...entryForm, eventDescription: e.target.value })} placeholder="Ex: Retornou ao almoxarifado em 19/09/2026" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                <Input autoComplete="off" value={entryForm.eventDescription} onChange={(e) => setEntryForm({ ...entryForm, eventDescription: e.target.value })} placeholder="Ex: Retornou ao almoxarifado em 19/09/2026" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                                 <p className="text-[10px] text-[var(--zyllen-muted)]">O texto será anexado ao histórico do patrimônio.</p>
                             </div>
                             {canUploadMedia && !isEntryReturn && (

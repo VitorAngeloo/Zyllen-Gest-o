@@ -774,6 +774,7 @@ model Followup {
   createdBy InternalUser @relation("FollowupCreatedBy", fields: [createdById], references: [id])
   blocks    FollowupBlock[]
   history   FollowupHistory[]
+  operationalService ProjectService?
 
   @@index([projectId])
 }
@@ -906,6 +907,7 @@ model ProjectService {
   scheduleId     String? @unique
   markerId       String?
   tripId         String?
+  followupId     String? @unique
   removalCycleId String?
   type           String // INSTALLATION | REMOVAL
   urgency        Int @default(0) // 0 normal | 1 high | 2 urgent
@@ -923,6 +925,7 @@ model ProjectService {
   schedule    Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
   marker      ProjectServiceMarker? @relation(fields: [markerId], references: [id], onDelete: Restrict)
   trip        Trip? @relation(fields: [tripId], references: [id], onDelete: Restrict)
+  followup    Followup? @relation(fields: [followupId], references: [id], onDelete: Restrict)
   internalAssignees ProjectServiceInternal[]
   contractors ProjectServiceContractor[]
   installationCycle StructureCycle? @relation("CycleInstallation")

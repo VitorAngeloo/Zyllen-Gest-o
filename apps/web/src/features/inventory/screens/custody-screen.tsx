@@ -12,11 +12,13 @@ import { EmptyState, ListSectionHeader, RecordList, WorkspaceBar, WorkspaceGroup
 import { CUSTODY_COPY as copy } from "@web/lib/brand-voice";
 import { custodyApi } from "../api/custody-api";
 import { CustodyLocationDialog } from "../components/custody-location-dialog";
+import { UninstallationReviewDialog } from '../components/uninstallation-review-dialog';
 
 const assetStatusLabel = (status: string) => {
     if (status === "ATIVO") return copy.available;
     if (status === "EM_USO") return copy.inUse;
     if (status === "EM_MANUTENCAO") return copy.maintenance;
+    if (status === "BAIXADO") return "Baixado";
     return status;
 };
 
@@ -31,6 +33,7 @@ export default function CustodyScreen({ view = "assets", embedded = false }: { v
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
     const [editing, setEditing] = useState<CustodyLocation | "new" | null>(null);
+    const [uninstallLocationId, setUninstallLocationId] = useState<string | null>(null);
     const options = useQuery({
         queryKey: ["custody-options", user?.id],
         queryFn: ({ signal }) => custodyApi.options({ ...opts, signal }),
@@ -157,6 +160,14 @@ export default function CustodyScreen({ view = "assets", embedded = false }: { v
                         </WorkspaceGroup>
                     </WorkspaceBar>
 
+                    {scope === 'CLIENT' && hasPermission('inventory.bipar_saida') && <section className="flex flex-col gap-3 border-l-2 border-amber-400 bg-amber-400/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 className="text-sm font-semibold text-white">Desinstalação de sala</h2>
+                            <p className="mt-1 text-xs text-[var(--zyllen-muted)]">Selecione o cliente e a sala/projeto no filtro Local. Confira o que voltou; os demais itens serão registrados como perda após aprovação.</p>
+                        </div>
+                        <Button type="button" size="sm" className="shrink-0" disabled={!location || !visibleLocations.find(item => item.id === location)?.projectId} onClick={() => setUninstallLocationId(location)}>Desinstalar sala</Button>
+                    </section>}
+
                     {assets.isError && <p role="alert" className="text-red-200">{copy.error} <button className="underline" onClick={() => void assets.refetch()}>{copy.retry}</button></p>}
                     <ListSectionHeader
                         title="Patrimônios em custódia"
@@ -199,6 +210,7 @@ export default function CustodyScreen({ view = "assets", embedded = false }: { v
                 </>
             )}
             {editing && data && <CustodyLocationDialog location={editing === "new" ? null : editing} options={data} onClose={() => setEditing(null)} onSaved={refresh} />}
+            {uninstallLocationId && data && <UninstallationReviewDialog locationId={uninstallLocationId} options={data} onClose={() => setUninstallLocationId(null)} onSubmitted={refresh} />}
         </div>
     );
 }

@@ -227,7 +227,10 @@ function FullDashboardPage() {
                             {approvals?.data?.slice(0, 5).map((req: any) => (
                                 <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]">
                                     <div className="min-w-0 flex-1">
-                                        <span className="text-sm text-white">{req.requestType}</span>
+                                        <span className="text-sm text-white">{req.requestType === 'UNINSTALLATION' ? 'Conferência de desinstalação' : req.requestType === 'BATCH_WRITE_OFF' ? 'Baixa de estoque' : req.requestType}</span>
+                                        {req.requestType === 'UNINSTALLATION' && <p className="text-xs text-amber-200">{req.payloadJson?.returnedAssetIds?.length ?? 0} devolvidos · {(req.payloadJson?.assetIds?.length ?? 0) - (req.payloadJson?.returnedAssetIds?.length ?? 0)} perdas</p>}
+                                        {req.requestType === 'BATCH_WRITE_OFF' && <p className="text-xs text-amber-200">{req.payloadJson?.assetIds?.length ?? 0} patrimônio(s)</p>}
+                                        {req.requestType === 'UNINSTALLATION' && <p className="text-xs text-[var(--zyllen-muted)]">{req.reason}</p>}
                                         <p className="text-xs text-[var(--zyllen-muted)]">
                                             Solicitado por {req.requestedBy?.name}
                                         </p>

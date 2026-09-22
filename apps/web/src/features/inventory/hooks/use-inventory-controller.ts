@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Package, ArrowDownCircle, ArrowUpCircle, History, TrendingDown, BarChart2, Zap, LayoutDashboard, Boxes, MapPin } from "lucide-react";
 import { TOASTS } from "@web/lib/brand-voice";
 import { ALLOWED_MEDIA_MIME } from "@web/features/inventory/inventory.constants";
+import { internalExitDestination } from '@zyllen/shared';
 
 
 export function useInventoryController() {
@@ -36,6 +37,7 @@ export function useInventoryController() {
     const [exitNewPin, setExitNewPin] = useState("");
     const [exitNewMotivo, setExitNewMotivo] = useState("");
     const [exitNewReason, setExitNewReason] = useState("");
+    const [exitNewEvent, setExitNewEvent] = useState("");
     const [exitCompanyId, setExitCompanyId] = useState("");
     const [exitProjectId, setExitProjectId] = useState("");
     const exitCodeRef = useRef<HTMLDivElement>(null);
@@ -294,36 +296,23 @@ export function useInventoryController() {
     });
     const exitMut = useMutation({
         mutationFn: (data: any) => {
-            const saidaId = findTypeId("Saída");
             const reasonText = [data.motivo, data.reason].filter(Boolean).join(" — ");
-            if (data.destinationLocationId) {
-                if (!saidaId) throw new Error("Tipo de movimentação de saída não configurado");
-                return custodyApi.transfer({
-                    requestId: crypto.randomUUID(), kind: "SHIPMENT", fromLocationId: data.locationId,
-                    toLocationId: data.destinationLocationId, movementTypeId: saidaId, assetIds: [data.assetId],
-                    reason: reasonText || "Envio ao cliente", pin: data.pin,
-                }, fetchOpts);
-            }
-            return inventoryApi.createExit({
-                skuId: data.skuId,
-                fromLocationId: data.locationId,
-                qty: 1,
-                movementTypeId: saidaId,
-                pin: data.pin,
-                reason: reasonText || undefined,
-                assetId: data.assetId,
-            }, fetchOpts);
+            return inventoryApi.createBatchExit({ requestId: crypto.randomUUID(), assetIds: [data.assetId],
+                destinationLocationId: data.destinationLocationId, reason: reasonText,
+                newStatus: data.internalDestination?.status ?? "EM_USO", eventDescription: data.eventDescription, pin: data.pin }, fetchOpts);
         },
-        onSuccess: () => {
-            toast.success(TOASTS.exitRegistered);
+        onSuccess: (result: any) => {
+            toast.success(result?.message ?? TOASTS.exitRegistered);
             qc.invalidateQueries({ queryKey: ["balances"] });
             qc.invalidateQueries({ queryKey: ["movements"] });
+            qc.invalidateQueries({ queryKey: ["custody"] });
             qc.invalidateQueries({ queryKey: ["exit-sku-assets", exitSkuId] });
             setExitAsset(null);
             setExitCodeQuery("");
             setExitNewPin("");
             setExitNewMotivo("");
             setExitNewReason("");
+            setExitNewEvent("");
             setExitCompanyId("");
             setExitProjectId("");
         },
@@ -437,18 +426,19 @@ export function useInventoryController() {
     const handleBatchSubmit = () => {
         if (batchQueue.size === 0) { toast.error("Adicione ao menos um patrimônio à lista"); return; }
         if (!batchMotivo) { toast.error("Selecione o motivo da saída"); return; }
-        if (!batchCompanyId || !batchProjectId) { toast.error("Selecione o cliente e o projeto de destino"); return; }
+        const internalDestination = internalExitDestination(batchMotivo);
+        if (!internalDestination && (!batchCompanyId || !batchProjectId)) { toast.error("Selecione o cliente e o projeto de destino"); return; }
         if (!batchEvent.trim()) { toast.error("Descreva o evento da timeline"); return; }
         if (!batchPin) { toast.error("Informe o PIN"); return; }
-        const destinationLocationId = custodyOptions?.data?.locations.find(location => location.kind === "CLIENT" && location.companyId === batchCompanyId && location.projectId === batchProjectId)?.id;
-        if (!destinationLocationId) { toast.error("O projeto selecionado ainda não possui um estoque identificado"); return; }
+        const destinationLocationId = internalDestination ? undefined : custodyOptions?.data?.locations.find(location => location.kind === "CLIENT" && location.companyId === batchCompanyId && location.projectId === batchProjectId)?.id;
+        if (!internalDestination && !destinationLocationId) { toast.error("O projeto selecionado ainda não possui um estoque identificado"); return; }
         const reason = [batchMotivo, batchDetail.trim()].filter(Boolean).join(" — ");
         batchExitMut.mutate({
             requestId: crypto.randomUUID(),
             assetIds: [...batchQueue.keys()],
             destinationLocationId,
             reason,
-            newStatus: "EM_USO",
+            newStatus: internalDestination?.status ?? "EM_USO",
             eventDescription: batchEvent.trim(),
             pin: batchPin,
         });
@@ -646,20 +636,28 @@ export function useInventoryController() {
         e.preventDefault();
         if (!exitAsset) { toast.error("Selecione ou bipe um código de patrimônio"); return; }
         if (!exitNewMotivo) { toast.error("Selecione o motivo da saída"); return; }
-        if (!exitCompanyId || !exitProjectId) { toast.error("Selecione o cliente e o projeto de destino"); return; }
+        if (!exitNewEvent.trim()) { toast.error("Descreva o evento da timeline"); return; }
+        const internalDestination = internalExitDestination(exitNewMotivo);
+        if (!internalDestination && (!exitCompanyId || !exitProjectId)) { toast.error("Selecione o cliente e o projeto de destino"); return; }
         if (!exitNewPin) { toast.error("Informe o PIN"); return; }
         if (!exitAsset.currentLocationId) {
             toast.error("Este patrimônio não possui local definido. Edite o patrimônio antes de dar saída.");
             return;
         }
-        const destinationLocationId = custodyOptions?.data?.locations.find(location => location.kind === "CLIENT" && location.companyId === exitCompanyId && location.projectId === exitProjectId)?.id;
-        if (!destinationLocationId) { toast.error("O projeto selecionado ainda não possui um estoque identificado"); return; }
+        const destinationLocationId = internalDestination ? undefined : custodyOptions?.data?.locations.find(location => location.kind === "CLIENT" && location.companyId === exitCompanyId && location.projectId === exitProjectId)?.id;
+        if (!internalDestination && !destinationLocationId) { toast.error("O projeto selecionado ainda não possui um estoque identificado"); return; }
+        if (internalDestination) {
+            exitMut.mutate({ skuId: exitAsset.skuId, locationId: exitAsset.currentLocationId, pin: exitNewPin,
+                motivo: exitNewMotivo, reason: exitNewReason, eventDescription: exitNewEvent.trim(), assetId: exitAsset.id, internalDestination });
+            return;
+        }
         exitMut.mutate({
             skuId: exitAsset.skuId,
             locationId: exitAsset.currentLocationId,
             pin: exitNewPin,
             motivo: exitNewMotivo,
             reason: exitNewReason,
+            eventDescription: exitNewEvent.trim(),
             assetId: exitAsset.id,
             destinationLocationId,
         });
@@ -731,6 +729,8 @@ export function useInventoryController() {
         setExitNewMotivo,
         exitNewReason,
         setExitNewReason,
+        exitNewEvent,
+        setExitNewEvent,
         exitCompanyId,
         setExitCompanyId,
         exitProjectId,

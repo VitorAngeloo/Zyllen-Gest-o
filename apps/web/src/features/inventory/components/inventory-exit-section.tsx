@@ -8,6 +8,8 @@ import { Badge } from "@web/components/ui/badge";
 import { ArrowUpCircle, Hash, Loader2, X, MapPin } from "lucide-react";
 import { SkuSearchCombobox } from "@web/features/inventory/components/sku-search-combobox";
 import type { InventoryController } from "../hooks/use-inventory-controller";
+import { internalExitDestination } from '@zyllen/shared';
+import { selectableExitReason } from '../utils/inventory-form-options';
 
 export function InventoryExitSection({ controller }: { controller: InventoryController }) {
     const {
@@ -25,6 +27,8 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
         setExitNewMotivo,
         exitNewReason,
         setExitNewReason,
+        exitNewEvent,
+        setExitNewEvent,
         exitCompanyId,
         setExitCompanyId,
         exitProjectId,
@@ -43,6 +47,7 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
     } = controller;
     const companies = custodyOptions?.data?.companies ?? [];
     const projects = companies.find(company => company.id === exitCompanyId)?.projects ?? [];
+    const internalDestination = internalExitDestination(exitNewMotivo);
     return ((
                 <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)] max-w-lg">
                     <CardHeader>
@@ -91,7 +96,7 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
                                             <input
                                                 ref={exitCodeInputRef}
                                                 type="text"
-                                                autoComplete="new-password"
+                                                autoComplete="off"
                                                 value={exitCodeQuery}
                                                 onChange={(e) => { setExitCodeQuery(e.target.value); setExitCodeOpen(true); }}
                                                 onFocus={() => { if (exitSkuId || exitCodeQuery.length >= 2) setExitCodeOpen(true); }}
@@ -158,7 +163,8 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            {internalDestination && <p className="text-xs text-amber-200">Destino automático: {internalDestination.locationName}. O item sairá do almoxarifado e manterá o histórico.</p>}
+                            {!internalDestination && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label className="text-[var(--zyllen-muted)]">Cliente *</Label>
                                     <select value={exitCompanyId} onChange={(e) => { setExitCompanyId(e.target.value); setExitProjectId(""); }} required className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
@@ -173,7 +179,7 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
                                         {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
                                     </select>
                                 </div>
-                            </div>
+                            </div>}
 
                             {/* Motivo + Detalhe + PIN */}
                             <div className="space-y-2">
@@ -185,7 +191,7 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
                                     className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm"
                                 >
                                     <option value="">Selecione...</option>
-                                    {exitReasons?.data?.map((r: any) => <option key={r.id} value={r.name}>{r.name}</option>)}
+                                    {exitReasons?.data?.filter((reason: { name: string }) => selectableExitReason(reason.name)).map((reason: { id: string; name: string }) => <option key={reason.id} value={reason.name}>{reason.name}</option>)}
                                 </select>
                             </div>
                             <div className="space-y-2">
@@ -194,14 +200,20 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
                                     value={exitNewReason}
                                     onChange={(e) => setExitNewReason(e.target.value)}
                                     placeholder="Detalhes adicionais..."
-                                    autoComplete="new-password"
+                                    autoComplete="off"
                                     className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[var(--zyllen-muted)]">Evento na timeline *</Label>
+                                <Input aria-label="Evento na timeline" autoComplete="off" required maxLength={2000} value={exitNewEvent} onChange={event => setExitNewEvent(event.target.value)} placeholder="Ex: Enviado para a sala do projeto" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                <p className="text-[10px] text-[var(--zyllen-muted)]">Este texto será registrado no histórico do patrimônio.</p>
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">PIN</Label>
                                 <Input
                                     type="password"
+                                    autoComplete="new-password"
                                     maxLength={4}
                                     placeholder="••••"
                                     value={exitNewPin}

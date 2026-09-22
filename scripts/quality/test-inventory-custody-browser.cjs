@@ -33,6 +33,15 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             if (url.pathname === '/auth/me/permissions') return respond({ data: ['dashboard.view', 'inventory.view', 'inventory.historico', 'inventory.bipar_entrada', 'inventory.bipar_saida', 'locations.create', 'locations.update'] });
             if (url.pathname.includes('pending-rating')) return respond({ data: null });
             if (url.pathname === '/inventory/custody/options') return respond({ data: { locations: [internalLocation, clientLocation], companies: [company], movementTypes: [transferType, entryType, exitType], diagnostic: { unlocatedAssets: 0, unclassifiedAssets: 0, unclassifiedLocations: 0 } } });
+            if (url.pathname === '/inventory/custody/uninstallations/' + clientLocation.id) {
+                if (request.method() === 'GET') return respond({ data: { location: { id: clientLocation.id, name: clientLocation.name,
+                    companyName: company.name, projectName: company.projects[0].name }, assets: [{
+                    id: clientAsset.id, assetCode: clientAsset.assetCode, skuId: clientAsset.skuId,
+                    skuName: clientAsset.sku.name, status: clientAsset.status,
+                }], pendingApprovalId: null } });
+                return respond({ data: { approvalRequestId: crypto.randomUUID(), status: 'PENDING', returned: body.returnedAssetIds.length,
+                    lost: body.assetIds.length - body.returnedAssetIds.length } }, 201);
+            }
             if (url.pathname === '/inventory/custody/assets') {
                 const rows = url.searchParams.get('scope') === 'INTERNAL' ? [internalAsset] : [clientAsset];
                 return respond({ data: rows, total: rows.length, page: 1, limit: 50 });
@@ -40,7 +49,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             if (url.pathname === '/assets/lookup/QA-00001') return respond({ data: internalAsset });
             if (url.pathname === '/assets/lookup/QA-00002') return respond({ data: clientAsset });
             if (url.pathname === '/inventory/movement-types') return respond({ data: [transferType, entryType, exitType] });
-            if (url.pathname === '/inventory/exit-reasons') return respond({ data: [{ id: crypto.randomUUID(), name: 'Envio para projeto' }] });
+            if (url.pathname === '/inventory/exit-reasons') return respond({ data: ['Envio para projeto', 'Manutenção', 'Baixa', 'Uso interno'].map(name => ({ id: crypto.randomUUID(), name })) });
             if (url.pathname === '/locations') return respond({ data: [internalLocation, clientLocation] });
             if (url.pathname === '/catalog/skus' || url.pathname === '/inventory/balances') return respond({ data: [] });
             if (url.pathname === '/inventory/statistics') return respond({ data: { generatedAt: new Date(fixedNow).toISOString(), period: { start: new Date(fixedNow - 30 * 86400000).toISOString(), end: new Date(fixedNow).toISOString() }, context: 'WAREHOUSE', location: null, totals: { skus: 2, assets: 2, unlocated: 0, unclassified: 0 }, scope: { assets: 1, available: 1, maintenance: 0 }, movements: [], topEntries: [], topExits: [], priorities: [], criticalCount: 0, minimumConfiguredCount: 0, replenishmentConfigured: false, clientInsights: null } });
@@ -106,6 +115,44 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             assert.deepEqual(request.body.assetIds, [state.internalAsset.id]);
             assert.deepEqual(state.errors, []);
             await state.page.screenshot({ path: path.join(shots, 'inventory-workspace-batch-exit.png'), fullPage: true });
+        } finally { await state.context.close(); }
+    });
+    await run('Inventory workspace: maintenance exit routes automatically without client or project fields', async () => {
+        const state = await setup('/dashboard/estoque?aba=batchExit');
+        try {
+            const search = state.page.getByPlaceholder('Bipe a etiqueta ou digite código/nome...');
+            await search.fill(state.internalAsset.assetCode); await search.press('Enter');
+            await state.page.getByLabel('Motivo da saída').selectOption('Manutenção');
+            await expect(state.page.getByText(/Destino automático: Manutenção/)).toBeVisible();
+            await expect(state.page.getByLabel('Cliente', { exact: true })).toHaveCount(0);
+            await state.page.getByLabel('Evento na timeline').fill('Encaminhado para manutenção QA');
+            await state.page.getByLabel('PIN').fill('1234');
+            await state.page.getByRole('button', { name: /Dar saída em 1 item/ }).click();
+            const request = state.requests.find(item => item.path === '/inventory/exit-batch' && item.method === 'POST');
+            assert.equal(request.body.destinationLocationId, undefined);
+            assert.equal(request.body.newStatus, 'EM_MANUTENCAO');
+            assert.deepEqual(state.errors, []);
+        } finally { await state.context.close(); }
+    });
+    await run('Inventory workspace: uninstallation checklist submits returned units for approval without moving them in the UI', async () => {
+        const state = await setup('/dashboard/estoque?aba=assets');
+        try {
+            await state.page.getByLabel('Local', { exact: true }).selectOption(state.clientLocation.id);
+            await state.page.getByRole('button', { name: 'Desinstalar sala', exact: true }).click();
+            const dialog = state.page.getByRole('dialog');
+            await expect(dialog).toContainText(state.company.projects[0].name);
+            await expect(dialog).toContainText('1 pendentes/perda');
+            await dialog.getByLabel(/Marcar este item inteiro/).check();
+            await expect(dialog).toContainText('1 devolvidos');
+            await dialog.getByLabel('Almoxarifado de devolução').selectOption(state.internalLocation.id);
+            await dialog.getByLabel('PIN de conferência').fill('1234');
+            await dialog.getByRole('button', { name: 'Enviar conferência para aprovação' }).click();
+            const request = state.requests.find(item => item.path === '/inventory/custody/uninstallations/' + state.clientLocation.id && item.method === 'POST');
+            assert.deepEqual(request.body.assetIds, [state.clientAsset.id]);
+            assert.deepEqual(request.body.returnedAssetIds, [state.clientAsset.id]);
+            assert.equal(request.body.toLocationId, state.internalLocation.id);
+            await expect(dialog).toHaveCount(0);
+            assert.deepEqual(state.errors, []);
         } finally { await state.context.close(); }
     });
 };

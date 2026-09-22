@@ -154,6 +154,74 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         assert.equal(value(await http('/inventory/entry-batch', { actor: entryOnly, method: 'POST', body: entryBody }), 201).processed, 2);
         assert.equal(await prisma.stockMovement.count({ where: { referenceId: entryRequestId } }), 2);
     });
+    await run('Inventory: internal exit reasons choose their own location; write-off waits for another approver', async () => {
+        const maintenance = await asset(), internalUse = await asset(), writeOff = await asset();
+        for (const [row, reason, newStatus, name] of [
+            [maintenance, 'Manutenção — QA', 'EM_MANUTENCAO', 'Manutenção'],
+            [internalUse, 'Uso interno — QA', 'EM_USO', 'Uso interno - Skyline'],
+        ]) {
+            const body = { requestId: crypto.randomUUID(), assetIds: [row.id], reason, newStatus, eventDescription: reason, pin };
+            assert.equal(value(await http('/inventory/exit-batch', { actor: requester, method: 'POST', body }), 201).processed, 1);
+            const moved = await prisma.asset.findUnique({ where: { id: row.id }, include: { currentLocation: true } });
+            assert.equal(moved.currentLocation.name, name); assert.equal(moved.status, newStatus);
+            assert.equal(await prisma.assetEvent.count({ where: { assetId: row.id, description: reason } }), 1);
+        }
+        await prisma.movementType.upsert({ where: { name: 'Baixa' }, create: { name: 'Baixa', requiresApproval: true, isFinalWriteOff: true, setsAssetStatus: 'BAIXADO' },
+            update: { requiresApproval: true, isFinalWriteOff: true, setsAssetStatus: 'BAIXADO' } });
+        const body = { requestId: crypto.randomUUID(), assetIds: [writeOff.id], reason: 'Baixa — QA', newStatus: 'BAIXADO', eventDescription: 'Baixa definitiva QA', pin };
+        const requested = value(await http('/inventory/exit-batch', { actor: requester, method: 'POST', body }), 201);
+        assert.equal(requested.approvalRequired, true);
+        assert.equal((await prisma.asset.findUnique({ where: { id: writeOff.id } })).currentLocationId, warehouse.id);
+        status(await http('/inventory/approvals/' + requested.approvalRequestId + '/approve', { actor: requester, method: 'POST', body: { pin } }), 403);
+        status(await http('/inventory/approvals/' + requested.approvalRequestId + '/approve', { actor: approver, method: 'POST', body: { pin } }), 200);
+        const lowered = await prisma.asset.findUnique({ where: { id: writeOff.id }, include: { currentLocation: true } });
+        assert.equal(lowered.currentLocation.name, 'Baixa'); assert.equal(lowered.status, 'BAIXADO');
+        assert.equal(await prisma.stockMovement.count({ where: { assetId: writeOff.id, referenceId: body.requestId } }), 1);
+    });
+    await run('Inventory: quick exit without a client retains location and timeline in Outros', async () => {
+        const row = await asset();
+        const exitType = await prisma.movementType.findUniqueOrThrow({ where: { name: 'Saída' } });
+        const before = await prisma.asset.count();
+        status(await http('/inventory/exit', { actor: requester, method: 'POST', body: {
+            skuId: sku.id, fromLocationId: warehouse.id, qty: 1, movementTypeId: exitType.id,
+            assetId: row.id, reason: 'Baixa — sem aprovação', pin,
+        } }), 400);
+        assert.equal((await prisma.asset.findUnique({ where: { id: row.id } })).currentLocationId, warehouse.id);
+        value(await http('/inventory/exit', { actor: requester, method: 'POST', body: {
+            skuId: sku.id, fromLocationId: warehouse.id, qty: 1, movementTypeId: exitType.id,
+            assetId: row.id, reason: 'Saída sem projeto QA', pin,
+        } }), 201);
+        const moved = await prisma.asset.findUnique({ where: { id: row.id }, include: { currentLocation: true } });
+        assert.equal(moved.currentLocation.name, 'Outros');
+        assert.equal(moved.status, 'EM_USO');
+        assert.equal(await prisma.asset.count(), before);
+        assert.equal(await prisma.stockMovement.count({ where: { assetId: row.id, toLocationId: moved.currentLocationId } }), 1);
+        assert.equal(await prisma.assetEvent.count({ where: { assetId: row.id, description: { contains: 'Outros' } } }), 1);
+    });
+    await run('Inventory: uninstallation moves nothing before approval, then returns checked units and records unchecked losses', async () => {
+        for (const name of ['Entrada', 'Baixa']) await prisma.movementType.upsert({ where: { name }, create: { name }, update: {} });
+        const roomProject = await prisma.project.create({ data: { name: 'Sala desinstalada QA', companyId: company.id } });
+        const room = value(await http('/locations', { method: 'POST', body: { name: 'Sala desinstalada QA', kind: 'CLIENT', companyId: company.id, projectId: roomProject.id } }), 201);
+        const returned = await asset(), lost = await asset();
+        value(await send(input([returned.id, lost.id], { toLocationId: room.id })), 201);
+        const snapshot = value(await http('/inventory/custody/uninstallations/' + room.id));
+        assert.deepEqual(new Set(snapshot.assets.map(row => row.id)), new Set([returned.id, lost.id]));
+        const body = { requestId: crypto.randomUUID(), assetIds: snapshot.assets.map(row => row.id), returnedAssetIds: [returned.id], toLocationId: warehouse.id, pin };
+        const request = value(await http('/inventory/custody/uninstallations/' + room.id, { actor: requester, method: 'POST', body }), 201);
+        assert.equal(request.returned, 1); assert.equal(request.lost, 1);
+        assert.equal(await prisma.asset.count({ where: { id: { in: body.assetIds }, currentLocationId: room.id } }), 2);
+        assert.equal(value(await http('/inventory/custody/uninstallations/' + room.id)).pendingApprovalId, request.approvalRequestId);
+        status(await http('/inventory/approvals/' + request.approvalRequestId + '/approve', { actor: approver, method: 'POST', body: { pin } }), 200);
+        const checked = await prisma.asset.findUnique({ where: { id: returned.id } });
+        const missing = await prisma.asset.findUnique({ where: { id: lost.id }, include: { currentLocation: true } });
+        assert.equal(checked.currentLocationId, warehouse.id); assert.equal(checked.status, 'ATIVO');
+        assert.equal(missing.currentLocation.name, 'Baixa'); assert.equal(missing.status, 'BAIXADO');
+        const events = await prisma.assetEvent.findMany({ where: { assetId: { in: body.assetIds } } });
+        assert(events.some(event => event.assetId === returned.id && event.description.includes('Voltou para estoque')));
+        assert(events.some(event => event.assetId === lost.id && event.description.includes('Perda')));
+        assert.equal(value(await http('/inventory/custody/uninstallations/' + room.id)).assets.length, 0);
+        assert(value(await http('/inventory/custody/assets?locationId=' + missing.currentLocationId)).some(row => row.id === lost.id));
+    });
     await run('Custody: forced failure late in the batch rolls back assets, ledger, timeline, request and audit together', async () => {
         const row = await asset(), body = input([row.id]); const count = await prisma.stockMovement.count();
         await prisma.$executeRawUnsafe(`CREATE FUNCTION custody_qa_failure() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'Synthetic audit failure'; END; $$ LANGUAGE plpgsql`);

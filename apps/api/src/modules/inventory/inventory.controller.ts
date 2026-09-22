@@ -133,7 +133,7 @@ export class InventoryController {
         @Body(new ZodValidationPipe(createBatchExitSchema)) body: CreateBatchExitInput,
     ) {
         const data = await this.inventoryService.createBatchExit({ ...body, userId: req.user.id });
-        return { data, message: `Saída registrada em ${data.processed} patrimônio(s)` };
+        return { data, message: data.approvalRequired ? data.message : `Saída registrada em ${data.processed} patrimônio(s)` };
     }
 
     // ── Approve Exit ──

@@ -7,8 +7,8 @@ const { spawnSync } = require('node:child_process');
 module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     const runtime = process.env.AUDIT_RUNTIME_ROOT || 'C:/Users/SERVIDOR ZYLLEN/.cache/codex-runtimes/codex-primary-runtime/dependencies';
     const { expect } = require(path.join(runtime, 'node/node_modules/playwright/test'));
-    const company = { id: crypto.randomUUID(), name: 'Empresa projetos QA' };
-    const tech = { id: crypto.randomUUID(), name: 'Responsável interno QA', sector: 'Operações', agendaColor: '#2255AA' };
+    const company = { id: crypto.randomUUID(), name: 'Empresa projetos QA', address: 'Rua da sede, 10', city: 'Brasília', state: 'DF' };
+    const tech = { id: crypto.randomUUID(), name: 'Responsável interno QA', sector: 'Operações', agendaColor: '#2255AA', roleName: 'Técnico' };
     const contractor = { id: crypto.randomUUID(), name: 'Prestador projetos QA' };
     const marker = { id: crypto.randomUUID(), name: 'Sala interativa QA' };
     const start = new Date(fixedNow + 2 * 86_400_000).toISOString(), end = new Date(Date.parse(start) + 3_600_000).toISOString();
@@ -20,7 +20,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     }
     async function setup({ permissions = ['dashboard.view', 'schedule.view', 'schedule.create', 'schedule.update'], mobile = false, empty = false, failures = {} } = {}) {
         const records = empty ? [] : [record('Pendente normal QA'), record('Urgente agendado QA', { marker, urgency: 2, type: 'REMOVAL', contractors: [contractor], status: 'SCHEDULED', schedule: { id: crypto.randomUUID(), startDate: start, endDate: end } })];
-        const choices = { companies: [company], projects: [{ id: crypto.randomUUID(), name: 'Cadastro antigo QA', companyId: company.id, address: null, city: null, state: null, hasService: false }, { id: crypto.randomUUID(), name: 'Projeto já usado QA', companyId: company.id, address: null, city: null, state: null, hasService: true }], markers: [marker], internalUsers: [tech], contractors: [contractor] };
+        const choices = { companies: [company], projects: [{ id: crypto.randomUUID(), name: 'Cadastro antigo QA', companyId: company.id, address: 'Rua da obra, 42', city: 'Goiânia', state: 'GO', hasService: false }, { id: crypto.randomUUID(), name: 'Projeto já usado QA', companyId: company.id, address: null, city: null, state: null, hasService: true }], markers: [marker], followups: [], internalUsers: [tech], contractors: [contractor] };
         const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 } });
         const requests = [], errors = [];
         await context.addInitScript(() => { localStorage.setItem('accessToken', 'synthetic-projects'); localStorage.setItem('userType', 'internal'); });
@@ -90,21 +90,43 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             assert.deepEqual(data.errors, []);
         } finally { await data.context.close(); }
     });
-    await run('Project UI: creates an undated single service and persists marker, sectors, urgency, color, notes and travel', async () => {
+    await run('Project UI: creates installation with required address, grouped staff, highlighted followup and linked travel', async () => {
         const data = await setup();
         try {
+            await data.page.getByText('Configurações de projetos', { exact: true }).click();
+            await data.page.getByLabel('Novo marcador', { exact: true }).fill('Totem QA');
+            await data.page.getByRole('button', { name: 'Adicionar marcador' }).click();
             await data.page.getByRole('button', { name: 'Novo projeto', exact: true }).click();
             await dialog(data.page).getByLabel('Cliente', { exact: true }).selectOption(company.id);
+            await expect(dialog(data.page).getByLabel('Endereço', { exact: true })).toHaveValue(company.address);
+            await expect(dialog(data.page).getByLabel('Cidade', { exact: true })).toHaveValue(company.city);
+            await expect(dialog(data.page).getByLabel('UF', { exact: true })).toHaveValue(company.state);
+            await dialog(data.page).getByLabel('Projeto existente (opcional)').selectOption(data.choices.projects[0].id);
+            await expect(dialog(data.page).getByLabel('Endereço', { exact: true })).toHaveValue('Rua da obra, 42');
+            await dialog(data.page).getByLabel('Projeto existente (opcional)').selectOption('');
+            await expect(dialog(data.page).getByLabel('Endereço', { exact: true })).toHaveValue(company.address);
             await dialog(data.page).getByLabel('Nome do projeto', { exact: true }).fill('Projeto completo UI QA');
-            await dialog(data.page).getByLabel('Novo marcador', { exact: true }).fill('Totem QA'); await dialog(data.page).getByRole('button', { name: 'Adicionar marcador' }).click();
-            await expect(dialog(data.page).getByLabel('Marcador de modelo')).not.toHaveValue('');
+            await dialog(data.page).getByLabel('Endereço', { exact: true }).fill('Rua do destino, 55');
+            await dialog(data.page).getByLabel('Cidade', { exact: true }).fill('Goiânia');
+            await dialog(data.page).getByLabel('UF', { exact: true }).fill('GO');
+            await dialog(data.page).getByLabel('Início previsto').fill(localTime(start));
+            await dialog(data.page).getByLabel('Término previsto').fill(localTime(end));
+            await dialog(data.page).getByLabel('Marcador de modelo').selectOption({ label: 'Totem QA' });
             await dialog(data.page).getByLabel('Urgência').selectOption('2'); await dialog(data.page).getByLabel('Cor do projeto').fill('#CC5500');
-            await dialog(data.page).getByLabel('Setores envolvidos (separados por vírgula)').fill('Operações, Financeiro');
-            await dialog(data.page).getByLabel('Requer viagem').check(); await dialog(data.page).getByLabel('Observações').fill('Todas as orientações da execução QA');
+            await dialog(data.page).getByLabel(tech.name).first().check();
+            await dialog(data.page).getByLabel('Terá viagem?').check();
+            await dialog(data.page).getByLabel('Cidade de origem').fill('Brasília');
+            await dialog(data.page).getByLabel('UF de origem').fill('DF');
+            await dialog(data.page).getByLabel(new RegExp(tech.name)).last().check();
+            await dialog(data.page).getByLabel('Destaque para acompanhamento').check();
+            await dialog(data.page).getByLabel('Observações').fill('Todas as orientações da execução QA');
             await dialog(data.page).getByRole('button', { name: 'Salvar projeto', exact: true }).click();
-            await expect(dialog(data.page)).toHaveCount(0); await expect(row(data.page, 'Projeto completo UI QA')).toContainText('Sem agendamento');
+            await expect(dialog(data.page)).toHaveCount(0); await expect(row(data.page, 'Projeto completo UI QA')).toContainText('Agendado');
             const saved = data.requests.find(request => request.path === '/project-services' && request.method === 'POST').body;
-            assert.deepEqual(saved.sectors, ['Operações', 'Financeiro']); assert.equal(saved.requiresTravel, true); assert.equal(saved.color, '#cc5500'); assert.equal(saved.startDate, undefined);
+            assert.deepEqual(saved.sectors, []); assert.equal(saved.requiresTravel, true); assert.equal(saved.color, '#cc5500');
+            assert.equal(saved.type, 'INSTALLATION'); assert.equal(saved.address, 'Rua do destino, 55');
+            assert.deepEqual(saved.travelParticipantIds, [tech.id]); assert.equal(saved.travelOriginState, 'DF');
+            assert.equal(saved.relevant, true); assert.equal(saved.urgency, 2);
             assert.equal(saved.notes, 'Todas as orientações da execução QA'); assert.deepEqual(data.errors, []);
         } finally { await data.context.close(); }
     });
@@ -146,6 +168,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             await data.page.getByRole('button', { name: 'Novo projeto' }).click();
             await dialog(data.page).getByLabel('Cliente', { exact: true }).selectOption(company.id);
             await dialog(data.page).getByLabel('Nome do projeto').fill('Rascunho móvel QA');
+            await dialog(data.page).getByLabel('Endereço', { exact: true }).fill('Rua móvel, 10');
             await dialog(data.page).getByLabel('Início previsto').fill(localTime(start));
             await dialog(data.page).getByRole('button', { name: 'Salvar projeto' }).click();
             await expect(dialog(data.page).getByRole('alert')).toContainText('Informe início e término válidos');

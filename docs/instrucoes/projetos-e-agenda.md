@@ -1,6 +1,16 @@
 # Projetos e Agenda
 
-Para selecionar uma sala/totem no serviço e consultar seu histórico de instalação/desinstalação, usar o cadastro e os detalhes do projeto. A aba Projetos também oferece **Histórico de instalações** para consultar os locais atendidos. As regras estão em [estruturas e ciclos](estruturas-e-ciclos.md). Cada projeto mantém um único serviço; associação é opcional e explícita, com vínculo permanente depois de realizado.
+**Atualização de 21/09/2026:** o cadastro de um projeto novo cria somente uma instalação. O endereço é obrigatório. Quando se seleciona um projeto já cadastrado, o nome existente é preservado e os dados de endereço podem ser completados; o campo de nome aparece apenas para um projeto novo ou na edição. Responsáveis internos são apresentados por setor, e os setores gravados são derivados deles. É possível vincular um acompanhamento existente do mesmo cliente/projeto; marcar **Destaque para acompanhamento** define urgência máxima.
+
+Ao escolher um cliente para **Novo projeto**, o formulário sugere endereço, cidade e UF já cadastrados nele. Os campos permanecem editáveis para registrar o local real do projeto, que é salvo no próprio cadastro criado. Se for selecionado um projeto existente, prevalece o endereço desse projeto; ao voltar para **Criar novo projeto**, os dados sugeridos do cliente reaparecem.
+
+**Terá viagem?** cria a viagem junto com o projeto, na mesma transação. O destino usa cidade/UF, endereço e período do projeto; a origem é informada separadamente. Somente colaboradores ativos de nível Técnico, Gestor ou Administrador podem participar; a conta de exibição **Dashboard** fica fora da seleção. Agenda mantém **Novo projeto** e **Novo agendamento**; a aba Viagens consolida os deslocamentos criados pelos projetos, sem cadastro avulso. Registros antigos continuam consultáveis. A migração aditiva [20260921130000_project_followup_link](../../apps/api/prisma/migrations/20260921130000_project_followup_link/migration.sql) já foi aplicada à base compartilhada.
+
+Marcadores existentes são escolhidos no formulário do projeto. A criação de novos marcadores fica recolhida em **Projetos → Configurações de projetos**, fora do cadastro cotidiano. Os marcadores de teste sem vínculos foram removidos da base compartilhada em 21/09/2026 após backup. Os campos de texto do cadastro desativam sugestões de preenchimento automático do navegador.
+
+Em **Vincular acompanhamento**, cada opção apresenta o código e o nome do projeto já associado, ou indica **Sem projeto vinculado**. A lista continua limitada ao cliente escolhido e ao projeto selecionado, quando houver; acompanhamentos de outro projeto não podem ser vinculados por engano.
+
+O formulário de **Novo projeto** não apresenta mais **Sala ou totem atendido**. Projetos antigos que já possuem estrutura vinculada preservam o vínculo e permitem consultar seu histórico no detalhe. A aba Projetos mantém **Histórico de instalações** para consulta dos locais atendidos. As regras dos vínculos existentes estão em [estruturas e ciclos](estruturas-e-ciclos.md). Cada projeto mantém um único serviço.
 
 **Estado em 18/09/2026:** API e migrações operacionais publicadas na R1; navegação unificada da R3 disponível no localhost, sem publicação do frontend no Vercel. A gestão segue a definição confirmada pelo usuário: **cada projeto possui exatamente um serviço operacional**, de instalação ou desinstalação.
 
@@ -11,8 +21,10 @@ O menu **Projetos e Agenda** abre `/dashboard/projetos`, inicialmente em **Visã
 - **Visão geral:** indicadores de projetos e de instalações/desinstalações/viagens, com período compartilhado, atualização manual ou a cada 30 segundos. Falha de uma consulta preserva a outra seção. O filtro de serviço, dentro dos indicadores de projetos, vale somente para essa seção.
 - **Projetos:** cadastro e lista de instalações/desinstalações, incluindo pendentes sem data, filtros, paginação, responsáveis e status.
 - **Agenda:** calendário completo de projetos agendados, viagens e compromissos avulsos, com visualização em lista. Busca e filtros de tipo/status usam o mesmo escopo nas duas visualizações; todas as páginas de agendamentos são consultadas.
-- **Viagens:** cadastro e lista de deslocamentos, filtros, responsáveis, projetos atendidos, detalhes e ações de realização. Não há entrada separada de viagens na sidebar.
+- **Viagens:** consolidação de deslocamentos criados por projetos, com filtros, responsáveis, detalhes e ações de realização. Não há entrada separada de viagens na sidebar.
 - **Equipe:** consulta dos instaladores. Alterar cor/participação exige `schedule.manage_installers`; `schedule.view` permite somente consultar. Falha da consulta oferece nova tentativa e não aparece como equipe vazia.
+
+Os controles de mês/período anterior e seguinte do calendário usam setas de texto com área clicável de 40 × 40 pixels; assim permanecem legíveis sem depender da fonte de ícones embutida do FullCalendar, bloqueada pela política de fontes da aplicação.
 
 O endereço guarda a seleção: `/dashboard/projetos?aba=visao-geral`, `aba=projetos`, `aba=agenda&visao=calendario`, `aba=agenda&visao=lista`, `aba=viagens` ou `aba=equipe`. Recarregamento e navegação anterior/próxima do navegador mantêm a seção indicada. As abas permitem navegação com setas, Home/End e identificação acessível da seleção. No celular, a barra de abas pode ser rolada horizontalmente sem alargar a página. Somente a seção aberta consulta seus dados.
 

@@ -5,13 +5,13 @@ import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { ScheduleService } from '../schedule/schedule.service';
 import { StructureCyclesService } from '../structures/structure-cycles.service';
 
-const person = { id: true, name: true, sector: true, agendaColor: true } as const;
+const person = { id: true, name: true, sector: true, agendaColor: true, role: { select: { name: true } } } as const;
 const include = {
     project: { include: { company: { select: { id: true, name: true } } } },
-    marker: { select: { id: true, name: true } }, schedule: true,
+    marker: { select: { id: true, name: true } }, followup: { select: { id: true, code: true } }, schedule: true,
     installationCycle: { include: { structure: { select: { id: true, name: true } } } },
     removalCycle: { include: { structure: { select: { id: true, name: true } } } },
-    trip: { select: { id: true, schedule: { select: { title: true, status: true } } } },
+    trip: { select: { id: true, originCity: true, originState: true, schedule: { select: { title: true, status: true, installers: { select: { installerId: true } } } } } },
     internalAssignees: { include: { user: { select: person } } },
     contractors: { include: { user: { select: { id: true, name: true } } } },
 } satisfies Prisma.ProjectServiceInclude;
@@ -23,11 +23,11 @@ function record(row: ServiceRow): ProjectServiceRecord {
         id: row.id, projectId: row.projectId, name: row.project.name, company: row.project.company,
         structureCycle: cycle ? { id: cycle.id, structureId: cycle.structureId, structureName: cycle.structure.name, installationId: cycle.installationId } : null,
         type: row.type as ProjectServiceRecord['type'], status: (row.schedule?.status ?? (row.cancelledAt ? 'CANCELLED' : 'PENDING')) as ProjectServiceStatus,
-        marker: row.marker, urgency: row.urgency, color: row.color, mapsUrl: row.mapsUrl, notes: row.notes,
-        trip: row.trip ? { id: row.trip.id, title: row.trip.schedule.title, status: row.trip.schedule.status } : null,
+        marker: row.marker, followup: row.followup, urgency: row.urgency, color: row.color, mapsUrl: row.mapsUrl, notes: row.notes,
+        trip: row.trip ? { id: row.trip.id, title: row.trip.schedule.title, status: row.trip.schedule.status, originCity: row.trip.originCity, originState: row.trip.originState, participantIds: row.trip.schedule.installers.map(item => item.installerId) } : null,
         address: row.project.address, city: row.project.city, state: row.project.state, sectors: row.sectors,
         requiresTravel: row.requiresTravel, relevant: row.relevant,
-        internalAssignees: row.internalAssignees.map(item => item.user), contractors: row.contractors.map(item => item.user),
+        internalAssignees: row.internalAssignees.map(item => ({ id: item.user.id, name: item.user.name, sector: item.user.sector, agendaColor: item.user.agendaColor, roleName: item.user.role.name })), contractors: row.contractors.map(item => item.user),
         schedule: row.schedule ? { id: row.schedule.id, startDate: row.schedule.startDate.toISOString(), endDate: row.schedule.endDate.toISOString() } : null,
         startedAt: row.schedule?.startedAt?.toISOString() ?? null, completedAt: row.schedule?.completedAt?.toISOString() ?? null,
         cancelledAt: (row.schedule?.cancelledAt ?? row.cancelledAt)?.toISOString() ?? null, createdAt: row.createdAt.toISOString(),
@@ -39,14 +39,17 @@ export class ProjectServicesService {
     constructor(private readonly prisma: PrismaService, private readonly schedules: ScheduleService, private readonly cycles: StructureCyclesService) {}
 
     async options() {
-        const [companies, projects, markers, internalUsers, contractors] = await this.prisma.retry(() => Promise.all([
-            this.prisma.company.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+        const [companies, projects, markers, followups, internalUsers, contractors] = await this.prisma.retry(() => Promise.all([
+            this.prisma.company.findMany({ select: { id: true, name: true, address: true, city: true, state: true }, orderBy: { name: 'asc' } }),
             this.prisma.project.findMany({ select: { id: true, name: true, companyId: true, address: true, city: true, state: true, operationalService: { select: { id: true } } }, orderBy: { name: 'asc' } }),
             this.prisma.projectServiceMarker.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+            this.prisma.followup.findMany({ select: { id: true, code: true, companyId: true, projectId: true, operationalService: { select: { id: true } } }, orderBy: { createdAt: 'desc' } }),
             this.prisma.internalUser.findMany({ where: { isActive: true }, select: person, orderBy: { name: 'asc' } }),
             this.prisma.contractorUser.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
         ]));
-        return { companies, projects: projects.map(({ operationalService, ...project }) => ({ ...project, hasService: !!operationalService })), markers, internalUsers, contractors };
+        return { companies, projects: projects.map(({ operationalService, ...project }) => ({ ...project, hasService: !!operationalService })), markers,
+            followups: followups.map(({ operationalService, ...item }) => ({ ...item, serviceId: operationalService?.id ?? null })),
+            internalUsers: internalUsers.map(user => ({ id: user.id, name: user.name, sector: user.sector, agendaColor: user.agendaColor, roleName: user.role.name })), contractors };
     }
 
     async list(params: { page: number; limit: number; status?: ProjectServiceStatus; type?: string; search?: string }) {
@@ -87,23 +90,77 @@ export class ProjectServicesService {
     private async assignees(tx: Prisma.TransactionClient, id: string, input: ProjectServiceInput) {
         const internalIds = [...new Set(input.installerIds)], contractorIds = [...new Set(input.contractorIds)];
         const [users, contractors] = await Promise.all([
-            tx.internalUser.count({ where: { id: { in: internalIds }, isActive: true } }),
+            tx.internalUser.findMany({ where: { id: { in: internalIds }, isActive: true }, select: { id: true, sector: true } }),
             tx.contractorUser.count({ where: { id: { in: contractorIds }, isActive: true } }),
         ]);
-        if (users !== internalIds.length || contractors !== contractorIds.length) throw new BadRequestException('Um responsável está inativo ou não existe');
+        if (users.length !== internalIds.length || contractors !== contractorIds.length) throw new BadRequestException('Um responsável está inativo ou não existe');
         if (input.markerId && !await tx.projectServiceMarker.findUnique({ where: { id: input.markerId } })) throw new BadRequestException('Marcador não encontrado');
         await tx.projectServiceInternal.deleteMany({ where: { serviceId: id } });
         await tx.projectServiceContractor.deleteMany({ where: { serviceId: id } });
         if (internalIds.length) await tx.projectServiceInternal.createMany({ data: internalIds.map(userId => ({ serviceId: id, userId })) });
         if (contractorIds.length) await tx.projectServiceContractor.createMany({ data: contractorIds.map(userId => ({ serviceId: id, userId })) });
+        return [...new Set(users.map(user => user.sector?.trim()).filter((sector): sector is string => !!sector))];
     }
 
     private projectData(input: ProjectServiceInput) {
         return { name: input.name, address: input.address || null, city: input.city || null, state: input.state || null };
     }
-    private serviceData(input: ProjectServiceInput) {
-        return { type: input.type, markerId: input.markerId, urgency: input.urgency, color: input.color,
-            mapsUrl: input.mapsUrl || null, notes: input.notes || null, sectors: [...new Set(input.sectors)], requiresTravel: input.requiresTravel, relevant: input.relevant };
+    private serviceData(input: ProjectServiceInput, sectors: string[]) {
+        return { type: input.type, markerId: input.markerId, urgency: input.relevant ? 2 : input.urgency, color: input.color,
+            mapsUrl: input.mapsUrl || null, notes: input.notes || null, sectors, requiresTravel: input.requiresTravel, relevant: input.relevant };
+    }
+
+    private async validateFollowup(tx: Prisma.TransactionClient, input: ProjectServiceInput, projectId: string, serviceId?: string) {
+        if (!input.followupId) return;
+        const followup = await tx.followup.findUnique({ where: { id: input.followupId }, select: { companyId: true, projectId: true, operationalService: { select: { id: true } } } });
+        if (!followup || followup.companyId !== input.companyId || (followup.projectId && followup.projectId !== projectId)
+            || (followup.operationalService && followup.operationalService.id !== serviceId)) {
+            throw new BadRequestException('Acompanhamento indisponível para este projeto');
+        }
+        await tx.followup.update({ where: { id: input.followupId }, data: { projectId } });
+    }
+
+    private async upsertTrip(tx: Prisma.TransactionClient, serviceId: string, projectId: string, input: ProjectServiceInput, actorId: string, ownScheduleId?: string) {
+        if (!input.requiresTravel) return;
+        const ids = [...new Set(input.travelParticipantIds)];
+        const eligible = await tx.internalUser.findMany({ where: { id: { in: ids }, isActive: true, role: { name: { in: ['Técnico', 'Gestor', 'Administrador'] } } }, select: { id: true, name: true } });
+        if (eligible.length !== ids.length || eligible.some(person => person.name.trim().toLocaleLowerCase('pt-BR') === 'dashboard')) {
+            throw new BadRequestException('A viagem aceita apenas colaboradores ativos de nível Técnico, Gestor ou Administrador');
+        }
+        const service = await tx.projectService.findUniqueOrThrow({ where: { id: serviceId }, select: { trip: { select: {
+            id: true, scheduleId: true, originCity: true, originState: true, destinationCity: true, destinationState: true,
+            schedule: { select: { status: true, title: true, startDate: true, endDate: true, address: true, notes: true,
+                installers: { select: { installerId: true } } } },
+        } } } });
+        if (!input.startDate || !input.endDate) throw new BadRequestException('Informe as datas do projeto para planejar a viagem');
+        if (service.trip) {
+            const previous = service.trip, schedule = previous.schedule;
+            const unchanged = previous.originCity === input.travelOriginCity && previous.originState === input.travelOriginState
+                && previous.destinationCity === input.city && previous.destinationState === input.state
+                && schedule.title === 'Viagem · ' + input.name && schedule.startDate.toISOString() === input.startDate
+                && schedule.endDate.toISOString() === input.endDate && (schedule.address ?? '') === input.address
+                && (schedule.notes ?? '') === input.notes
+                && schedule.installers.map(item => item.installerId).sort().join() === [...ids].sort().join();
+            if (unchanged) return;
+            if (schedule.status !== 'SCHEDULED') throw new BadRequestException('Reabra a viagem como planejada antes de alterar seu roteiro');
+        }
+        const excludeScheduleIds = [ownScheduleId, service.trip?.scheduleId].filter((id): id is string => !!id);
+        if (!input.allowConflicts && await this.schedules.conflictingAssignments(tx, { startDate: input.startDate, endDate: input.endDate,
+            installerIds: ids, contractorIds: [], excludeScheduleIds })) throw new ConflictException('Há conflito de horário para um participante da viagem');
+        const tripSchedule = { title: `Viagem · ${input.name}`, startDate: input.startDate, endDate: input.endDate,
+            address: input.address, notes: input.notes, installerIds: ids };
+        if (service.trip) {
+            await tx.trip.update({ where: { id: service.trip.id }, data: { originCity: input.travelOriginCity, originState: input.travelOriginState,
+                destinationCity: input.city, destinationState: input.state } });
+            await this.schedules.updateInTransaction(service.trip.scheduleId, { ...tripSchedule, allowConflicts: input.allowConflicts }, tx, actorId);
+        } else {
+            const schedule = await this.schedules.createInTransaction({ ...tripSchedule, type: 'OTHER' }, actorId, tx);
+            const trip = await tx.trip.create({ data: { scheduleId: schedule.id, originCity: input.travelOriginCity, originState: input.travelOriginState,
+                destinationCity: input.city, destinationState: input.state } });
+            await tx.projectService.update({ where: { id: serviceId }, data: { tripId: trip.id } });
+            await tx.auditLog.create({ data: { action: 'TRIP_CREATE_FROM_PROJECT', entityType: 'Trip', entityId: trip.id, userId: actorId,
+                details: { serviceId, projectId, participantIds: ids } } });
+        }
     }
 
     private async conflicts(tx: Prisma.TransactionClient, input: ProjectServiceInput, excludeId?: string) {
@@ -115,6 +172,7 @@ export class ProjectServicesService {
     }
 
     async create(input: ProjectServiceInput, actorId: string) {
+        if (input.type !== 'INSTALLATION') throw new BadRequestException('Novos projetos começam como instalação');
         try {
             const id = await this.prisma.$transaction(async tx => {
                 if (!await tx.company.findUnique({ where: { id: input.companyId } })) throw new BadRequestException('Cliente não encontrado');
@@ -125,18 +183,22 @@ export class ProjectServicesService {
                     const project = await tx.project.findUnique({ where: { id: projectId }, include: { operationalService: true } });
                     if (!project || project.companyId !== input.companyId) throw new BadRequestException('Projeto não pertence ao cliente selecionado');
                     if (project.operationalService) throw new ConflictException('Este projeto já possui seu serviço operacional');
-                    await tx.project.update({ where: { id: projectId }, data: this.projectData(input) });
+                    await tx.project.update({ where: { id: projectId }, data: { address: input.address, city: input.city || null, state: input.state || null } });
+                    input = { ...input, name: project.name };
                 } else {
                     projectId = (await tx.project.create({ data: { companyId: input.companyId, ...this.projectData(input), createdAt: new Date() } })).id;
                 }
-                const service = await tx.projectService.create({ data: { projectId, ...this.serviceData(input), createdAt: new Date() } });
+                await this.validateFollowup(tx, input, projectId);
+                const service = await tx.projectService.create({ data: { projectId, followupId: input.followupId, ...this.serviceData(input, []), createdAt: new Date() } });
                 await this.cycles.attach(tx, service.id, input, actorId);
-                await this.assignees(tx, service.id, input);
+                const sectors = await this.assignees(tx, service.id, input);
+                await tx.projectService.update({ where: { id: service.id }, data: { sectors } });
                 await this.conflicts(tx, input);
                 if (input.startDate) {
                     const schedule = await this.schedules.createInTransaction({ title: input.name, type: input.type, startDate: input.startDate, endDate: input.endDate!,
                         companyId: input.companyId, projectId, address: input.address, notes: input.notes, installerIds: input.installerIds }, actorId, tx);
                     await tx.projectService.update({ where: { id: service.id }, data: { scheduleId: schedule.id } });
+                    await this.upsertTrip(tx, service.id, projectId, input, actorId, schedule.id);
                 }
                 await this.audit(tx, 'PROJECT_SERVICE_CREATE', service.id, actorId, { projectId, type: input.type });
                 return service.id;
@@ -158,16 +220,18 @@ export class ProjectServicesService {
             if (service.tripId && !input.requiresTravel) throw new BadRequestException('Este serviço possui viagem vinculada. Desvincule pela gestão de viagens antes de remover a necessidade.');
             if (service.cancelledAt && input.startDate) throw new BadRequestException('Reabra o projeto antes de agendar');
             await this.cycles.attach(tx, id, input, actorId);
-            await this.assignees(tx, id, input);
+            await this.validateFollowup(tx, input, service.projectId, id);
+            const sectors = await this.assignees(tx, id, input);
             await this.conflicts(tx, input, service.scheduleId ?? undefined);
             await tx.project.update({ where: { id: service.projectId }, data: this.projectData(input) });
-            await tx.projectService.update({ where: { id }, data: this.serviceData(input) });
+            await tx.projectService.update({ where: { id }, data: { ...this.serviceData(input, sectors), followupId: input.followupId } });
             if (input.startDate) {
                 const scheduleData = { title: input.name, type: input.type, startDate: input.startDate, endDate: input.endDate!, companyId: input.companyId,
                     projectId: service.projectId, address: input.address, notes: input.notes, installerIds: input.installerIds, allowConflicts: input.allowConflicts };
                 const schedule = service.scheduleId ? await this.schedules.updateInTransaction(service.scheduleId, scheduleData, tx, actorId)
                     : await this.schedules.createInTransaction(scheduleData, actorId, tx);
                 await tx.projectService.update({ where: { id }, data: { scheduleId: schedule.id } });
+                await this.upsertTrip(tx, id, service.projectId, input, actorId, schedule.id);
             }
             await this.audit(tx, 'PROJECT_SERVICE_UPDATE', id, actorId, { projectId: service.projectId });
         });

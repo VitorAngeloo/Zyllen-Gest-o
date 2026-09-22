@@ -107,6 +107,17 @@ async function main() {
         try { await assert.rejects(() => db.query('INSERT INTO "InventoryTransferItem" ("transferId","assetId","previousStatus") VALUES ($1,$1,$2)', [id, 'ATIVO']), /row-level security/); }
         finally { await db.exec('RESET ROLE'); }
     });
+    if (custody) await run('Internal destination migration: creates named locations without moving existing assets', async () => {
+        const before = (await db.query('SELECT COUNT(*) AS total FROM "Asset"')).rows[0].total;
+        const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260921140000_internal_stock_destinations/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(migration));
+        await db.exec(migration);
+        await db.exec(migration);
+        assert.equal((await db.query('SELECT COUNT(*) AS total FROM "Asset"')).rows[0].total, before);
+        const locations = (await db.query('SELECT name, kind FROM "Location" WHERE name IN ($1,$2,$3)',
+            ['Manutenção', 'Baixa', 'Uso interno - Skyline'])).rows;
+        assert.equal(locations.length, 3); assert(locations.every(row => row.kind === 'INTERNAL'));
+    });
     if (projects) await run('Project migration: additive upgrade preserves client/project and enables RLS on all new tables', async () => {
         const id = crypto.randomUUID();
         await db.query('INSERT INTO "Company" (id,name,"updatedAt") VALUES ($1,$2,NOW())', [id, 'Cliente existente QA']);
@@ -156,6 +167,14 @@ async function main() {
         await db.exec('GRANT SELECT,INSERT ON "PanelMirror" TO projects_untrusted; SET ROLE projects_untrusted');
         try { assert.equal((await db.query('SELECT * FROM "PanelMirror"')).rows.length, 0); await assert.rejects(() => db.query('INSERT INTO "PanelMirror" (id,"ownerId","tokenHash","views","updatedAt") VALUES ($1,$1,$1,ARRAY[\'estoque\'],NOW())', ['blocked']), /row-level security/); }
         finally { await db.exec('RESET ROLE'); }
+    });
+    if (projects) await run('Project followup migration: existing projects remain intact and followup links are optional', async () => {
+        const before = (await db.query('SELECT COUNT(*) AS total FROM "Project"')).rows[0].total;
+        const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260921130000_project_followup_link/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(migration));
+        await db.exec(migration);
+        assert.equal((await db.query('SELECT COUNT(*) AS total FROM "Project"')).rows[0].total, before);
+        assert.equal((await db.query("SELECT is_nullable FROM information_schema.columns WHERE table_name = 'ProjectService' AND column_name = 'followupId'")).rows[0].is_nullable, 'YES');
     });
     socket = new PGLiteSocketServer({ db, port: 0, host: '127.0.0.1' });
     await socket.start();

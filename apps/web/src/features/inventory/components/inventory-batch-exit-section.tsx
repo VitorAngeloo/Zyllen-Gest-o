@@ -7,6 +7,8 @@ import { Label } from "@web/components/ui/label";
 import { Search, Loader2, TrendingDown, X, MapPin, CheckCircle2, Trash2 } from "lucide-react";
 
 import type { InventoryController } from "../hooks/use-inventory-controller";
+import { internalExitDestination } from '@zyllen/shared';
+import { selectableExitReason } from '../utils/inventory-form-options';
 
 export function InventoryBatchExitSection({ controller }: { controller: InventoryController }) {
     const {
@@ -39,6 +41,7 @@ export function InventoryBatchExitSection({ controller }: { controller: Inventor
     } = controller;
     const companies = custodyOptions?.data?.companies ?? [];
     const projects = companies.find(company => company.id === batchCompanyId)?.projects ?? [];
+    const internalDestination = internalExitDestination(batchMotivo);
     return ((
                 <div className="grid lg:grid-cols-3 gap-4 items-start">
                     <div className="lg:col-span-2 space-y-4">
@@ -59,7 +62,7 @@ export function InventoryBatchExitSection({ controller }: { controller: Inventor
                                             ref={batchScanRef}
                                             autoFocus
                                             type="text"
-                                            autoComplete="new-password"
+                                            autoComplete="off"
                                             value={batchScan}
                                             onChange={(e) => setBatchScan(e.target.value)}
                                             onKeyDown={(e) => e.key === "Enter" && handleBatchScan()}
@@ -137,7 +140,8 @@ export function InventoryBatchExitSection({ controller }: { controller: Inventor
                             <CardTitle className="text-white text-sm">Aplicar a todos ({batchQueue.size})</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="space-y-2">
+                            {internalDestination && <p className="text-xs text-amber-200">Destino automático: {internalDestination.locationName}. Os patrimônios e suas timelines serão preservados.</p>}
+                            {!internalDestination && <><div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Cliente *</Label>
                                 <select aria-label="Cliente" value={batchCompanyId} onChange={(e) => { setBatchCompanyId(e.target.value); setBatchProjectId(""); }} className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
                                     <option value="">Selecione...</option>
@@ -150,7 +154,7 @@ export function InventoryBatchExitSection({ controller }: { controller: Inventor
                                     <option value="">Selecione...</option>
                                     {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
                                 </select>
-                            </div>
+                            </div></>}
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Motivo da Saída *</Label>
                                 <select
@@ -160,21 +164,21 @@ export function InventoryBatchExitSection({ controller }: { controller: Inventor
                                     className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm"
                                 >
                                     <option value="">Selecione...</option>
-                                    {exitReasons?.data?.map((r: any) => <option key={r.id} value={r.name}>{r.name}</option>)}
+                                    {exitReasons?.data?.filter((reason: { name: string }) => selectableExitReason(reason.name)).map((reason: { id: string; name: string }) => <option key={reason.id} value={reason.name}>{reason.name}</option>)}
                                 </select>
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Detalhe (opcional)</Label>
-                                <Input value={batchDetail} onChange={(e) => setBatchDetail(e.target.value)} placeholder="Complemento do motivo..." autoComplete="new-password" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                <Input value={batchDetail} onChange={(e) => setBatchDetail(e.target.value)} placeholder="Complemento do motivo..." autoComplete="off" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Evento na timeline *</Label>
-                                <Input aria-label="Evento na timeline" value={batchEvent} onChange={(e) => setBatchEvent(e.target.value)} placeholder="Ex: Enviado para a obra X" autoComplete="new-password" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
+                                <Input aria-label="Evento na timeline" value={batchEvent} onChange={(e) => setBatchEvent(e.target.value)} placeholder="Ex: Enviado para a obra X" autoComplete="off" className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white" />
                                 <p className="text-[10px] text-[var(--zyllen-muted)]">Digitado uma vez, entra na timeline de CADA item da lista.</p>
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">PIN *</Label>
-                                <Input aria-label="PIN" type="password" maxLength={4} placeholder="••••" value={batchPin} onChange={(e) => setBatchPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleBatchSubmit()} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center tracking-widest" />
+                                <Input aria-label="PIN" type="password" autoComplete="new-password" maxLength={4} placeholder="••••" value={batchPin} onChange={(e) => setBatchPin(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleBatchSubmit()} className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white text-center tracking-widest" />
                             </div>
                             <Button
                                 variant="highlight"

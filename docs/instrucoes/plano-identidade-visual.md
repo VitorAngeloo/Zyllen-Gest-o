@@ -2,6 +2,8 @@
 
 **Data:** 17/09/2026. **Estado:** planejamento consolidado, piloto funcional validado e primeira expansão transversal iniciada em 19/09/2026. **Escopo:** identidade, navegação, apresentação e experiência de uso do frontend. **Origem:** pedido do usuário para uma aparência mais profissional, menos genérica e com mais cuidado nos detalhes, ampliado pelo pedido de uma UX mais agradável.
 
+**Novo ciclo — 20/09/2026:** [planejamento de UX baseado no estudo de Laws of UX](#ciclo-de-ux-de-20092026), registrado a pedido do usuário. O foco passa a ser previsibilidade, preservação do trabalho e recuperação de falhas. Este ciclo está somente em planejamento, sem implementação ou publicação decorrente deste registro. Os registros anteriores descrevem o ciclo visual; não constituem uma lista atual de pendências. A base permanente de consulta está no [guia de UX design](ux-design.md).
+
 **Atualização em 18/09/2026:** referências e preferências incorporadas, fontes atuais conferidos e primeiro ciclo de trabalho detalhado com mapa de navegação, composição do dashboard, cenários e entregas.
 
 **Decisão posterior do usuário — 18/09/2026:** a seção Acesso Rápido e sua personalização foram removidas da dashboard no refinamento R2. A navegação usa a sidebar e os links dos resumos operacionais. Esta decisão substitui a proposta anterior de compactar e preservar os atalhos; as diretrizes abaixo já refletem a mudança. Comportamento atual no [guia do frontend](frontend.md#dashboard-e-painel-de-acompanhamento).
@@ -355,7 +357,9 @@ O trabalho visual não exige alteração do banco ou da API. Quando houver imple
 
 Executar as verificações de arquitetura, tipos, builds isolados e regressões aplicáveis conforme [desenvolvimento](desenvolvimento.md) e [frontend](frontend.md). Fazer a validação com dados sintéticos, seguindo as [restrições desta máquina e do banco compartilhado](instrucoes-para-agentes.md).
 
-## Decisões para a próxima etapa
+## Decisões registradas no ciclo visual de 17–19/09/2026
+
+Lista histórica: revalidar cada item frente às entregas posteriores. A sequência proposta mais recente está no [ciclo de UX de 20/09/2026](#ciclo-de-ux-de-20092026).
 
 - Revisar o piloto do dashboard e registrar os ajustes que formarão o padrão das demais telas.
 - Identificar as tarefas mais frequentes e os pontos de maior dificuldade para priorizar as hipóteses de UX.
@@ -365,3 +369,69 @@ Executar as verificações de arquitetura, tipos, builds isolados e regressões 
 - Consolidar a direção a partir do piloto concreto e expandir na ordem do roteiro completo.
 
 Este documento registra o planejamento de identidade visual e UX, o piloto funcional e a primeira expansão transversal. Avaliação com usuários e refinamento profundo por família permanecem como próximas etapas; a instalação da fonte da marca foi adiada por orientação do usuário.
+
+## Ciclo de UX de 20/09/2026
+
+**Estado: planejamento salvo; execução ainda não iniciada.** Origem: análise do site Laws of UX, do livro de Jon Yablonski e de uma amostra dos fontes do projeto. O usuário pediu primeiro a discussão das melhorias e depois o registro deste planejamento e de uma base de consulta.
+
+### Objetivo e limites do diagnóstico
+
+Fazer a equipe entender o estado de cada tarefa, trabalhar sem perder preenchimento e conseguir continuar após uma falha. Preservar a identidade Zyllen/Skyline já refinada, os vetores oficiais, a proporção das marcas e a animação da sidebar. Uma nova reforma estética não é a prioridade deste ciclo.
+
+As observações abaixo vêm de inspeção de código e documentação. Elas não equivalem a uma auditoria visual completa no navegador nem a testes com usuários. Dificuldade percebida, frequência, impacto e ganho esperado são hipóteses até serem observados em tarefas representativas. As leis psicológicas ajudam a formular essas hipóteses; não provam que uma alteração melhorará o produto.
+
+Princípios, padrões e método de avaliação estão no [guia de UX design](ux-design.md). Regras de negócio continuam nas referências de [frontend](frontend.md), [OS](ordens-de-servico.md), [estoque](estoque-e-patrimonio.md) e [autorização](autenticacao-e-permissoes.md).
+
+### O que já existe e deve ser aproveitado
+
+- Navegação agrupada na sidebar e no Estoque; a área unificada de Projetos e Agenda já organiza suas abas. Melhorar a compreensão e a continuidade a partir dessas estruturas.
+- Componentes comuns de interface e identidade visual já aplicada. Consolidar comportamento neles exige verificar os consumidores dos três portais.
+- Rascunho manual disponível em fluxos de edição de OS; criação e anexação são etapas distintas. A proposta é revisar cobertura, visibilidade e recuperação.
+- O hook [useDialogFocus](../../apps/web/src/lib/use-dialog-focus.ts) já trata foco, Tab e Escape nos consumidores que o utilizam. Antes de centralizar o comportamento, mapear essa adoção para evitar controles de foco duplicados.
+- Resumos operacionais já têm tratamentos de carregamento e falha. Usar os casos corretos como referência para telas com lacunas, sem reescrever o que funciona.
+
+### Prioridades propostas
+
+P1, P2 e P3 indicam ordem inicial de investigação e entrega, não severidade comprovada ou prazo contratado. Reavaliar pela frequência da tarefa, consequência do erro, dificuldade de recuperação, esforço e dependências.
+
+| Ordem | Base observada ou hipótese | Melhoria proposta | Critério de aceite da futura entrega |
+|---|---|---|---|
+| P1 — Estados de consulta | Em [Minhas OS](../../apps/web/src/features/maintenance/screens/my-orders-screen.tsx), a ausência de dados pode chegar ao mesmo estado visual de lista vazia sem distinguir erro da consulta. No [wizard de OS](../../apps/web/src/features/maintenance/components/os-forms/os-form-wizard.tsx), há consultas auxiliares com falhas silenciosas. | Distinguir carregando, vazio confirmado, filtro sem resultados, erro inicial e falha de atualização. Mostrar recuperação junto à região afetada e identificar dados anteriores quando estiverem desatualizados. | Simular erro da lista, das opções e dos anexos: nenhum deles afirma que não existem registros. Retentativa mantém os filtros e o preenchimento; uma falha parcial não impede ações independentes. |
+| P1 — Continuidade do preenchimento | O wizard mantém arquivos locais em determinados erros, mas voltar à escolha de tipo limpa o formulário. O salvamento manual não constitui garantia de recuperação após fechar o navegador. | Revisar navegação com alterações pendentes, preservação entre etapas e indicação de salvamento. Explicar separadamente OS criada, anexos enviados e anexos pendentes. Avaliar rascunho automático em uma entrega posterior. | Interrupção ou erro não descarta trabalho silenciosamente. Após criação bem-sucedida e falha no upload, o usuário retoma a OS existente. Nenhuma retomada cria outra OS ou altera bloco confirmado. |
+| P1 — Teclado, diálogos e toque | A base de [Dialog](../../apps/web/src/components/ui/dialog.tsx) não garante sozinha todo o comportamento de foco e teclado; há tratamento em consumidores. O tamanho do desenho de um ícone não comprova o tamanho de seu alvo. | Inventariar diálogos e reutilizar o controle de foco existente. Revisar nomes acessíveis, abertura, navegação, fechamento e retorno. Medir as áreas clicáveis dos controles compactos, inclusive recolher a sidebar. | Percursos completos com teclado, foco visível, leitura do título e retorno coerente. Sem dois controladores disputando o foco. Controles móveis confortáveis, sem depender de hover. Estados ocupados e bloqueios obrigatórios tratados explicitamente. |
+| P2 — Contexto de consulta | No [painel de projetos](../../apps/web/src/features/project-services/components/project-services-panel.tsx), busca, filtros e página usam estado local; desmontar o componente pode perder esse contexto. | Preservar filtros e página ao abrir detalhes e voltar. Usar URL para estado compartilhável não sensível quando fizer sentido; manter indicação de filtros ativos e opção de limpar. | Abrir um registro e voltar mantém a consulta. Recarregamento e histórico do navegador têm resultado previsível. Link direto respeita as permissões; dados sensíveis não entram na URL. |
+| P2 — Leitura e navegação | Os grupos de navegação já existem. Espaçamento, rótulos, densidade e descoberta precisam de avaliação por tarefa, não apenas de preferência visual. | Revisar alinhamentos, hierarquia, nomes e proximidade de elementos relacionados. Manter consistência entre famílias e nomes acessíveis na sidebar recolhida. | Usuários representativos encontram os destinos das tarefas de referência. Não há corte de texto essencial em celular ou zoom; estado ativo e foco são identificáveis. Nenhum destino autorizado é perdido. |
+| P3 — Próximo passo e atenção | Há alertas e ações por permissão. A hipótese é que muitos destaques simultâneos disputem atenção; isso ainda precisa ser observado. | Tornar claros o motivo da pendência e a ação possível. Estudar hierarquia de alertas mantendo as regras operacionais atuais. | A pessoa identifica o que exige atenção e por quê. Ações correspondem às permissões; a dashboard de Internos continua somente para consulta. Cor e animação não são os únicos sinais. |
+
+Não definir um limite arbitrário de sete itens para menus. Não reinstalar a seção Acesso Rápido, removida por decisão do usuário. Busca global e filtros salvos ficam condicionados à observação de tarefas recorrentes que justifiquem esses recursos.
+
+### Decisões que continuam pendentes
+
+**Avaliação obrigatória de atendimento.** O [layout interno](../../apps/web/src/components/layouts/dashboard-layout.tsx) apresenta uma avaliação pendente que bloqueia a continuidade; notas de até três exigem comentário com pelo menos dez caracteres. A possibilidade de interrupção da rotina ou de respostas apressadas é uma hipótese de UX, sem comprovação por uso neste diagnóstico.
+
+Estudar uma alternativa com lembrete persistente e opção de avaliar depois exige decisão de produto sobre obrigatoriedade e momento da cobrança. Este registro não aprova remover o bloqueio nem mudar a regra do comentário. Medir compreensão, interrupções e qualidade das respostas antes de recomendar a mudança.
+
+**Rascunho automático.** Decidir cobertura por formulário, local de armazenamento, expiração, isolamento por conta, indicação de salvamento e tratamento de conflitos. Arquivos em memória não são anexos persistidos. Não guardar senhas, PINs ou tokens como parte de rascunhos. Não prometer recuperação em outro dispositivo sem suporte implementado e validado.
+
+**Alertas.** A ordem da fila, o limite de uma hora, os contadores e o destaque pulsante com movimento reduzido permanecem como estão. Uma proposta de apresentação diferente precisa explicitar o que muda; os princípios de atenção não autorizam remover regras existentes.
+
+### Sequência de trabalho proposta
+
+| Etapa | Trabalho e entrega | Condição para avançar |
+|---|---|---|
+| 1. Diagnóstico por tarefa | Observar localizar/atender um chamado, preencher/concluir uma OS com anexos e registrar uma saída de estoque. Mapear passos, dúvidas, interrupções e recuperação. Registrar uma referência inicial usando dados sintéticos. | Problemas observados separados de hipóteses; prioridade e recorte da primeira entrega definidos. |
+| 2. Base compartilhada | Prototipar estados, mensagens, foco de diálogos, áreas de toque e padrões de ações. Implementar apenas o recorte escolhido, reutilizando componentes e hooks existentes. | Cenários de erro, teclado, celular e consumidores afetados verificados. Sem regressão de autorização, confirmações ou funções atuais. |
+| 3. Piloto em OS | Aplicar a base à continuidade do formulário e à criação/anexação. Deixar claro o que foi salvo e o que falta. Rascunho automático só entra se sua decisão e viabilidade estiverem resolvidas. | Testes de interrupção e falha demonstram recuperação sem perda silenciosa, duplicação ou alteração de bloco confirmado. Comparar a tarefa com a referência inicial. |
+| 4. Expansão por família | Levar os padrões validados para Estoque, Projetos/Agenda e demais portais conforme a prioridade observada. Preservar contexto e regras específicas de cada jornada. | Cada família avaliada com seus usuários/perfis, tamanhos de tela e falhas relevantes; atualizar o guia técnico com o comportamento efetivamente entregue. |
+
+OS é o piloto de comportamento deste novo ciclo. O dashboard permanece como piloto visual histórico. A sequência evita refazer todas as telas antes de verificar se os padrões resolvem os problemas encontrados. Ainda não há estimativa de calendário.
+
+### Como avaliar e registrar as entregas
+
+Comparar tarefas equivalentes antes e depois: conclusão sem ajuda, dúvidas e erros, retrabalho, tempo até concluir e capacidade de recuperar uma falha. Registrar também a confiança da pessoa sobre o que foi salvo. Usar contagens e relatos junto às medidas; uma amostra pequena não sustenta percentuais gerais de ganho.
+
+O [método do guia de UX](ux-design.md#avaliação-por-tarefas) define o roteiro e as limitações. Usar protótipos ou ambiente isolado com dados sintéticos; os testes não devem escrever no banco compartilhado com produção.
+
+Antes de declarar uma entrega concluída, guardar escopo, evidência anterior/posterior, cenários executados, limitações e decisões pendentes. Atualizar a referência técnica correspondente e o estado deste plano. As verificações de arquitetura, tipos, build isolado e regressão seguem as instruções do projeto quando houver implementação.
+
+**Próxima entrega sugerida:** diagnóstico breve das três tarefas e especificação dos estados de consulta e recuperação da OS. Até uma solicitação de execução, este ciclo permanece documentado como proposta.

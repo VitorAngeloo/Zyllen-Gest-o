@@ -37,7 +37,7 @@ export class InventoryCustodyService {
                 : requestedScope === 'INTERNAL'
                     ? { currentLocation: { kind: 'INTERNAL' } }
                     : {};
-            const conditions: Prisma.AssetWhereInput[] = [{ status: { not: 'BAIXADO' } }, scope];
+            const conditions: Prisma.AssetWhereInput[] = [{ OR: [{ status: { not: 'BAIXADO' } }, { currentLocation: { name: 'Baixa' } }] }, scope];
             if (query.locationId) conditions.push({ currentLocationId: query.locationId });
             if (query.companyId) conditions.push({ currentLocation: { kind: 'CLIENT', companyId: query.companyId } });
             if (query.search) conditions.push({ OR: [{ assetCode: { contains: query.search, mode: 'insensitive' as const } }, { sku: { name: { contains: query.search, mode: 'insensitive' as const } } }] });

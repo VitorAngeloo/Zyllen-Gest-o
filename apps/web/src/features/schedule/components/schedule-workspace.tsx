@@ -172,7 +172,6 @@ export function ScheduleWorkspace({ section, view, onViewChange }: Props) {
                 description={section === 'equipe' ? copy.teamDescription : copy.calendarDescription}
                 actions={section === 'agenda' && canCreate ? <>
                     <Button onClick={() => setProjectDialog({})}>{projectCopy.create}</Button>
-                    <Button variant="outline" onClick={() => setTripDialog({})}>{tripCopy.create}</Button>
                     <Button variant="outline" onClick={() => openCreate()}>{copy.newSchedule}</Button>
                 </> : undefined}
             />

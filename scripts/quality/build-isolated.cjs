@@ -16,7 +16,7 @@ const env = {
     ...process.env,
     DATABASE_URL: 'postgresql://test@127.0.0.1:1/test',
     DIRECT_URL: 'postgresql://test@127.0.0.1:1/test',
-    NEXT_PUBLIC_API_URL: 'http://127.0.0.1:3999',
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3999',
     NEXT_TELEMETRY_DISABLED: '1',
     PRISMA_GENERATE_SKIP_AUTOINSTALL: 'true',
 };

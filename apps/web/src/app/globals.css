@@ -119,6 +119,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Native option popups otherwise inherit the browser's light palette on Windows. */
+select {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background-color: var(--zyllen-bg-dark);
+  color: var(--zyllen-white);
+}
+
 ::selection {
   background: var(--zyllen-highlight);
   color: var(--zyllen-bg-dark);
@@ -250,6 +261,18 @@ body {
   border-radius: 6px !important;
   font-weight: 500;
   transition: all 0.15s;
+}
+
+.zyllen-calendar .fc-toolbar .fc-prev-button,
+.zyllen-calendar .fc-toolbar .fc-next-button {
+  display: inline-flex;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
 }
 
 .zyllen-calendar .fc-button-active,

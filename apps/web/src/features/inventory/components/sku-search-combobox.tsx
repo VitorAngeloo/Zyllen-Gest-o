@@ -48,6 +48,7 @@ export function SkuSearchCombobox({ skus, value, onChange }: { skus: any[]; valu
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
                     <input
                         type="text"
+                        autoComplete="off"
                         value={query}
                         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
                         onFocus={() => setOpen(true)}
@@ -75,7 +76,7 @@ export function SkuSearchCombobox({ skus, value, onChange }: { skus: any[]; valu
                 </div>
             )}
             {/* Hidden input for form validation */}
-            <input type="text" value={value} required tabIndex={-1} className="sr-only" onChange={() => {}} />
+            <input type="text" value={value} autoComplete="off" required tabIndex={-1} className="sr-only" onChange={() => {}} />
         </div>
     );
 }

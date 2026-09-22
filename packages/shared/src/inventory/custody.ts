@@ -56,3 +56,21 @@ export interface CustodyOptions {
     movementTypes: { id: string; name: string; requiresApproval: boolean }[];
     diagnostic: { unlocatedAssets: number; unclassifiedAssets: number; unclassifiedLocations: number };
 }
+
+export const uninstallationReviewSchema = z.object({
+    requestId: z.string().uuid(),
+    assetIds: z.array(z.string().uuid()).min(1).max(2000),
+    returnedAssetIds: z.array(z.string().uuid()).max(2000),
+    toLocationId: z.string().uuid().nullable(),
+    pin: z.string().regex(/^\d{4}$/, 'Informe o PIN de quatro dígitos'),
+}).strict().superRefine((value, context) => {
+    const all = new Set(value.assetIds);
+    if (all.size !== value.assetIds.length || new Set(value.returnedAssetIds).size !== value.returnedAssetIds.length
+        || value.returnedAssetIds.some(id => !all.has(id))) context.addIssue({ code: 'custom', path: ['returnedAssetIds'], message: 'Confira os itens selecionados' });
+    if (value.returnedAssetIds.length && !value.toLocationId) context.addIssue({ code: 'custom', path: ['toLocationId'], message: 'Selecione o estoque de devolução' });
+});
+export type UninstallationReviewInput = z.infer<typeof uninstallationReviewSchema>;
+export interface UninstallationSnapshot {
+    location: { id: string; name: string; companyName: string; projectName: string };
+    assets: { id: string; assetCode: string; skuId: string; skuName: string; status: string }[];
+}

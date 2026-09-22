@@ -9,7 +9,6 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     const { expect } = require(path.join(runtime, 'node/node_modules/playwright/test'));
     const tech = { id: crypto.randomUUID(), name: 'Técnico viagens QA', agendaColor: '#2266AA' }, contractor = { id: crypto.randomUUID(), name: 'Terceirizado viagens QA' };
     const start = new Date(fixedNow + 2 * 86_400_000).toISOString(), end = new Date(fixedNow + 4 * 86_400_000).toISOString();
-    const localTime = iso => new Date(Date.parse(iso) - 3 * 3_600_000).toISOString().slice(0, 16);
     const dialog = page => page.getByRole('dialog'), cards = page => page.locator('[data-trip-card]');
     const metric = (page, key) => page.locator(`[data-operation-metric="${key}"] [data-metric-value]`);
     const alert = page => page.locator('[role="alert"]:not(#__next-route-announcer__)');
@@ -83,14 +82,6 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await page.clock.install({ time: fixedNow }); await page.clock.setFixedTime(fixedNow); await page.goto(base + route);
         return { context, page, choices, records, state, requests, failures, errors };
     }
-    async function fillNew(page, { crew = true } = {}) {
-        const popup = dialog(page);
-        await popup.getByLabel('Nome da viagem').fill('Viagem cadastrada UI QA');
-        await popup.getByLabel('Cidade de origem').fill('São Paulo'); await popup.getByLabel('UF de origem').selectOption('SP');
-        await popup.getByLabel('Cidade de destino').fill('Rio de Janeiro'); await popup.getByLabel('UF de destino').selectOption('RJ');
-        await popup.getByLabel('Saída prevista').fill(localTime(start)); await popup.getByLabel('Retorno previsto').fill(localTime(end));
-        if (crew) await popup.getByLabel(contractor.name).check();
-    }
     await run('Travel UI: full route, dates, executors, linked services and private notes remain available in the popup', async () => {
         const data = await setup();
         try {
@@ -103,36 +94,29 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             await data.page.screenshot({ path: path.join(shots, 'trips-desktop.png'), fullPage: true, animations: 'disabled' }); assert.deepEqual(data.errors, []);
         } finally { await data.context.close(); }
     });
-    await run('Travel UI: agenda creates contractor-only trip with multiple services and correct local-to-UTC planning', async () => {
+    await run('Travel UI: agenda keeps project and appointment actions but has no standalone trip creation', async () => {
         const data = await setup({ route: '/dashboard/agenda' });
         try {
-            await data.page.getByRole('button', { name: 'Nova viagem', exact: true }).click(); await fillNew(data.page);
-            await dialog(data.page).getByRole('checkbox', { name: /^Instalação nova QA/ }).check(); await dialog(data.page).getByRole('checkbox', { name: /^Desinstalação nova QA/ }).check();
-            await dialog(data.page).getByLabel('Observações da viagem').fill('Roteiro completo UI QA'); await dialog(data.page).getByRole('button', { name: 'Salvar viagem' }).click(); await expect(dialog(data.page)).toHaveCount(0);
-            const request = data.requests.find(value => value.path === '/trips' && value.method === 'POST');
-            assert.deepEqual(request.body.installerIds, []); assert.deepEqual(request.body.contractorIds, [contractor.id]); assert.equal(request.body.serviceIds.length, 2);
-            assert.equal(request.body.startDate.slice(0, 16), start.slice(0, 16)); assert.equal(request.body.endDate.slice(0, 16), end.slice(0, 16)); assert.equal(request.body.notes, 'Roteiro completo UI QA');
-            assert(!data.requests.some(value => value.path === '/schedule' && value.method === 'POST'));
-            await data.page.getByRole('button', { name: 'Calendário', exact: true }).click(); const event = data.page.locator('.fc-event').filter({ hasText: 'Viagem cadastrada UI QA' }).first(); await expect(event).toContainText('Viagem'); await event.click();
-            await expect(dialog(data.page).getByLabel('Nome da viagem')).toHaveValue('Viagem cadastrada UI QA'); await expect(dialog(data.page).getByLabel(contractor.name)).toBeChecked(); assert.deepEqual(data.errors, []);
+            await expect(data.page.getByRole('button', { name: 'Nova viagem', exact: true })).toHaveCount(0);
+            await data.page.getByRole('button', { name: 'Calendário', exact: true }).click();
+            const event = data.page.locator('.fc-event').filter({ hasText: 'Viagem para cliente QA' }).first();
+            await expect(event).toContainText('Viagem'); await event.click();
+            await expect(dialog(data.page).getByLabel('Cidade de origem')).toHaveValue('São Paulo');
+            await expect(dialog(data.page).getByLabel('Cidade de origem')).toBeDisabled();
+            await expect(dialog(data.page).getByRole('button', { name: 'Salvar viagem' })).toHaveCount(0);
+            assert(!data.requests.some(value => value.path === '/trips' && ['POST', 'PUT'].includes(value.method)));
             await data.page.screenshot({ path: path.join(shots, 'trip-calendar-popup.png'), animations: 'disabled' });
-            await data.page.keyboard.press('Escape'); await data.page.locator('.zyllen-calendar').getByRole('button', { name: /lista/i }).click();
-            const listEvent = data.page.locator('.fc-event').filter({ hasText: 'Viagem cadastrada UI QA' }).first();
-            if (!await listEvent.count()) await data.page.locator('.zyllen-calendar .fc-next-button').click();
-            await expect(listEvent).toContainText(contractor.name);
         } finally { await data.context.close(); }
     });
-    await run('Travel UI: validation retains the draft; conflict confirmation is explicit and cleared after a plan edit', async () => {
-        const data = await setup({ conflict: true });
+    await run('Travel UI: linked trip detail remains read-only with edit permission', async () => {
+        const data = await setup();
         try {
-            await data.page.getByRole('button', { name: 'Nova viagem', exact: true }).click(); await fillNew(data.page, { crew: false });
-            await dialog(data.page).getByRole('button', { name: 'Salvar viagem' }).click(); await expect(dialog(data.page).getByRole('alert')).toContainText('Selecione pelo menos um responsável');
-            assert(!data.requests.some(value => value.path === '/trips' && value.method === 'POST'));
-            await dialog(data.page).getByLabel(contractor.name).check(); await dialog(data.page).getByRole('button', { name: 'Salvar viagem' }).click(); await expect(dialog(data.page).getByRole('alert')).toContainText('conflito de horário');
-            const override = dialog(data.page).getByLabel(/Conferi a agenda/); await override.check(); await dialog(data.page).getByLabel('Nome da viagem').fill('Viagem ajustada UI QA'); await expect(override).toHaveCount(0);
-            await dialog(data.page).getByRole('button', { name: 'Salvar viagem' }).click(); await expect(dialog(data.page).getByRole('alert')).toContainText('conflito de horário'); await override.check();
-            await dialog(data.page).getByRole('button', { name: 'Salvar viagem' }).click(); await expect(dialog(data.page)).toHaveCount(0);
-            assert.equal(data.requests.filter(value => value.path === '/trips' && value.method === 'POST').at(-1).body.allowConflicts, true);
+            await expect(data.page.getByRole('button', { name: 'Nova viagem', exact: true })).toHaveCount(0);
+            await cards(data.page).first().getByRole('button', { name: 'Ver viagem' }).click();
+            await expect(dialog(data.page).getByLabel('Nome da viagem')).toBeDisabled();
+            await expect(dialog(data.page).getByLabel('Observações da viagem')).toBeDisabled();
+            await expect(dialog(data.page).getByRole('button', { name: 'Salvar viagem' })).toHaveCount(0);
+            assert(!data.requests.some(value => value.path === '/trips' && ['POST', 'PUT'].includes(value.method)));
         } finally { await data.context.close(); }
     });
     await run('Travel UI: real departure/return require confirmation, route is locked in progress and reopening starts another attempt', async () => {
@@ -212,9 +196,13 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         try {
             await expect(metric(data.page, 'installations')).toHaveText('5'); await data.page.getByLabel('Período dos indicadores').selectOption('TODAY'); await expect(metric(data.page, 'installations')).toHaveText('0');
             await expect(data.page.getByRole('region', { name: 'Próximas instalações' }).locator('[data-operation-service]')).toHaveCount(4);
-            await data.page.getByLabel('Período dos indicadores').selectOption('CUSTOM'); await data.page.getByLabel('Data inicial', { exact: true }).fill('2026-09-01'); await data.page.getByLabel('Data final', { exact: true }).fill('2026-09-18');
-            await expect(metric(data.page, 'installations')).toHaveText('5'); const last = data.requests.filter(value => value.path === '/trips/statistics').at(-1); assert.equal(last.params.start, '2026-09-01T03:00:00.000Z'); assert.equal(last.params.end, '2026-09-19T03:00:00.000Z');
-            await data.page.getByLabel('Data final', { exact: true }).fill('2026-08-01'); await expect(alert(data.page)).toContainText('Informe datas válidas'); const count = data.requests.filter(value => value.path === '/trips/statistics').length; await data.page.clock.runFor(31_000); assert.equal(data.requests.filter(value => value.path === '/trips/statistics').length, count);
+            const localDay = time => new Date(time - 3 * 3_600_000).toISOString().slice(0, 10);
+            const initialDay = localDay(fixedNow - 7 * 86_400_000), finalDay = localDay(fixedNow);
+            await data.page.getByLabel('Período dos indicadores').selectOption('CUSTOM'); await data.page.getByLabel('Data inicial', { exact: true }).fill(initialDay); await data.page.getByLabel('Data final', { exact: true }).fill(finalDay);
+            await expect(metric(data.page, 'installations')).toHaveText('5'); const last = data.requests.filter(value => value.path === '/trips/statistics').at(-1);
+            assert.equal(last.params.start, new Date(initialDay + 'T03:00:00.000Z').toISOString());
+            assert.equal(last.params.end, new Date(Date.parse(finalDay + 'T03:00:00.000Z') + 86_400_000).toISOString());
+            await data.page.getByLabel('Data final', { exact: true }).fill(localDay(fixedNow - 30 * 86_400_000)); await expect(alert(data.page)).toContainText('Informe datas válidas'); const count = data.requests.filter(value => value.path === '/trips/statistics').length; await data.page.clock.runFor(31_000); assert.equal(data.requests.filter(value => value.path === '/trips/statistics').length, count);
         } finally { await data.context.close(); }
     });
     await run('Operations UI: stale data survives failed refresh of the same filter; failure of another period has no fake zeros', async () => {

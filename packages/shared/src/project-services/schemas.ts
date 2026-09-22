@@ -20,6 +20,7 @@ export type ProjectStatisticsQuery = z.infer<typeof projectStatisticsQuerySchema
 export const projectServiceInputSchema = z.object({
     companyId: z.string().uuid(),
     projectId: z.string().uuid().optional(),
+    followupId: z.string().uuid().nullable().default(null),
     name: z.string().trim().min(1).max(200),
     type: z.enum(PROJECT_SERVICE_TYPES),
     structureId: z.string().uuid().nullable().optional(),
@@ -27,7 +28,7 @@ export const projectServiceInputSchema = z.object({
     markerId: z.string().uuid().nullable().default(null),
     urgency: z.number().int().min(0).max(2).default(0),
     color: z.string().regex(/^#[a-fA-F0-9]{6}$/).default('#ABFF10'),
-    address: z.string().trim().max(1000).default(''),
+    address: z.string().trim().min(1, 'Informe o endereço do projeto').max(1000),
     city: z.string().trim().max(100).default(''),
     state: z.string().trim().max(2).default(''),
     mapsUrl: z.union([z.literal(''), z.string().url().max(2000).refine(value => value.toLowerCase().startsWith('https://'), 'Use um link HTTPS')]).default(''),
@@ -36,6 +37,9 @@ export const projectServiceInputSchema = z.object({
     installerIds: z.array(z.string().uuid()).max(50).default([]),
     contractorIds: z.array(z.string().uuid()).max(50).default([]),
     requiresTravel: z.boolean().default(false),
+    travelOriginCity: z.string().trim().max(100).default(''),
+    travelOriginState: z.string().trim().max(2).default(''),
+    travelParticipantIds: z.array(z.string().uuid()).max(50).default([]),
     relevant: z.boolean().default(false),
     startDate: z.string().datetime({ offset: true }).optional(),
     endDate: z.string().datetime({ offset: true }).optional(),
@@ -48,6 +52,12 @@ export const projectServiceInputSchema = z.object({
     }
     if (value.startDate && !value.installerIds.length && !value.contractorIds.length) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['installerIds'], message: 'Selecione pelo menos um responsável para agendar' });
+    }
+    if (value.requiresTravel) {
+        if (!value.startDate || !value.endDate) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['startDate'], message: 'Informe o período para criar a viagem' });
+        if (!value.city || !value.state) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['city'], message: 'Informe cidade e UF do destino' });
+        if (!value.travelOriginCity || !value.travelOriginState) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['travelOriginCity'], message: 'Informe cidade e UF de origem' });
+        if (!value.travelParticipantIds.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['travelParticipantIds'], message: 'Selecione quem participará da viagem' });
     }
 });
 

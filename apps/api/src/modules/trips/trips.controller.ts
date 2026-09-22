@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post, Put, Query, Request, UseGuards } from '@nestjs/common';
-import { operationsStatisticsQuerySchema, tripInputSchema, tripListQuerySchema, tripStatusSchema, type OperationsStatisticsQuery, type TripInput, type TripListQuery, type TripStatusInput } from '@zyllen/shared';
+import { Body, Controller, Get, Param, Put, Query, Request, UseGuards } from '@nestjs/common';
+import { operationsStatisticsQuerySchema, tripListQuerySchema, tripStatusSchema, type OperationsStatisticsQuery, type TripListQuery, type TripStatusInput } from '@zyllen/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
@@ -19,10 +19,6 @@ export class TripsController {
     async list(@Query(new ZodValidationPipe(tripListQuerySchema)) query: TripListQuery) { return this.trips.list(query); }
     @Get(':id') @RequirePermission('schedule.view')
     async find(@Param('id') id: string) { return { data: await this.trips.find(id) }; }
-    @Post() @RequirePermission('schedule.create')
-    async create(@Body(new ZodValidationPipe(tripInputSchema)) input: TripInput, @Request() req: any) { return { data: await this.trips.create(input, req.user.id) }; }
-    @Put(':id') @RequirePermission('schedule.update')
-    async update(@Param('id') id: string, @Body(new ZodValidationPipe(tripInputSchema)) input: TripInput, @Request() req: any) { return { data: await this.trips.update(id, input, req.user.id) }; }
     @Put(':id/status') @RequirePermission('schedule.update')
     async status(@Param('id') id: string, @Body(new ZodValidationPipe(tripStatusSchema)) input: TripStatusInput, @Request() req: any) { return { data: await this.trips.status(id, input, req.user.id) }; }
 }

@@ -54,20 +54,18 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         return { context, page, requests, errors, state, structure, cycle, company, other };
     }
     const dialog = page => page.getByRole('dialog');
-    await run('Unified R3 history: inline registration retains project draft, selects same-client room and creates no project implicitly', async () => {
-        const s = await setup({ route: '/dashboard/projetos?aba=projetos', failSave: true }); try {
+    await run('Project creation omits the room/totem field and does not create a structure implicitly', async () => {
+        const s = await setup({ route: '/dashboard/projetos?aba=projetos' }); try {
             await s.page.getByRole('button', { name: 'Novo projeto', exact: true }).click(); const d = dialog(s.page);
-            await d.getByLabel('Cliente', { exact: true }).selectOption(s.company.id); await d.getByLabel('Nome do projeto').fill('Rascunho preservado QA');
-            await d.getByRole('button', { name: 'Cadastrar sala ou totem', exact: true }).click();
-            await d.getByLabel('Nome do local atendido').fill('Sala cadastrada no projeto QA');
-            await d.getByRole('button', { name: 'Salvar e selecionar', exact: true }).click();
-            await expect(d.getByRole('alert')).toContainText('Nome de estrutura duplicado QA');
-            await expect(d.getByLabel('Nome do projeto')).toHaveValue('Rascunho preservado QA');
-            s.state.failSave = false; await d.getByRole('button', { name: 'Salvar e selecionar', exact: true }).click();
-            await expect(d.getByLabel('Sala ou totem atendido (opcional)')).not.toHaveValue('');
-            await expect(d.getByLabel('Nome do projeto')).toHaveValue('Rascunho preservado QA');
+            await d.getByLabel('Cliente', { exact: true }).selectOption(s.company.id); await d.getByLabel('Nome do projeto').fill('Projeto sem sala vinculada QA');
+            await d.getByLabel('Endereço').fill('Rua de teste, 10');
+            await expect(d.getByLabel('Sala ou totem atendido (opcional)')).toHaveCount(0);
+            await expect(d.getByRole('button', { name: 'Cadastrar sala ou totem', exact: true })).toHaveCount(0);
+            await d.getByRole('button', { name: 'Salvar projeto', exact: true }).click(); await expect(d).toHaveCount(0);
             const writes = s.requests.filter(row => ['POST', 'PUT', 'DELETE'].includes(row.method));
-            assert.equal(writes.length, 2); assert(writes.every(row => row.path === '/structures' && row.body.companyId === s.company.id));
+            assert.equal(writes.length, 1); assert.equal(writes[0].path, '/project-services');
+            assert.equal(writes[0].body.companyId, s.company.id); assert.equal(writes[0].body.name, 'Projeto sem sala vinculada QA');
+            assert.equal(writes[0].body.structureId, null); assert.equal(writes[0].body.removalCycleId, null);
             assert.equal(new URL(s.page.url()).searchParams.get('aba'), 'projetos'); assert.deepEqual(s.errors, []);
         } finally { await s.context.close(); }
     });
@@ -110,21 +108,20 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             await s.page.getByRole('button', { name: 'Ver histórico de instalações: Sala principal QA' }).click(); const history = s.page.getByRole('region', { name: 'Histórico de instalações: Sala principal QA' });
             await expect(history).toContainText('Dias instalada'); await expect(history).toContainText('Ainda instalada'); await expect(history).toContainText('Desinstalação cancelada ciclos QA'); await expect(history.locator('dd').last()).toHaveText('5');
             await history.getByRole('button', { name: 'Instalação concluída ciclos QA', exact: true }).click(); await expect(dialog(s.page)).toContainText('Instruções completas ciclos QA');
-            await expect(dialog(s.page).getByLabel('Serviço', { exact: true })).toBeDisabled(); await expect(dialog(s.page).getByLabel('Sala ou totem atendido (opcional)', { exact: true })).toHaveCount(0);
+            await expect(dialog(s.page).getByLabel('Sala ou totem atendido (opcional)', { exact: true })).toHaveCount(0);
             await dialog(s.page).getByRole('button', { name: 'Fechar', exact: true }).click(); await expect(history.getByRole('button', { name: 'Instalação concluída ciclos QA', exact: true })).toBeFocused();
             await s.page.screenshot({ path: path.join(shots, 'structures-desktop.png'), fullPage: true }); assert.deepEqual(s.errors, []);
         } finally { await s.context.close(); }
     });
-    await run('Structures UI: explicit removal selection, cross-client reset and no inferred installation', async () => {
+    await run('Existing room link remains read-only and survives a project edit', async () => {
         const s = await setup({ route: '/dashboard/projetos?aba=projetos' }); try {
-            await s.page.getByRole('button', { name: 'Novo projeto', exact: true }).click(); const d = dialog(s.page);
-            await d.getByLabel('Cliente', { exact: true }).selectOption(s.company.id); await d.getByLabel('Nome do projeto', { exact: true }).fill('Nova desinstalação UI QA'); await d.getByLabel('Serviço', { exact: true }).selectOption('REMOVAL');
-            await d.getByLabel('Sala ou totem atendido (opcional)', { exact: true }).selectOption(s.structure.id);
-            await expect(d.getByLabel('Instalação correspondente', { exact: true })).toHaveValue(''); await d.getByLabel('Instalação correspondente', { exact: true }).selectOption(s.cycle.id);
-            await d.getByLabel('Cliente', { exact: true }).selectOption(s.other.id); await expect(d.getByLabel('Sala ou totem atendido (opcional)', { exact: true })).toHaveValue(''); await expect(d.getByLabel('Instalação correspondente', { exact: true })).toHaveCount(0);
-            await d.getByLabel('Cliente', { exact: true }).selectOption(s.company.id); await d.getByLabel('Sala ou totem atendido (opcional)', { exact: true }).selectOption(s.structure.id); await d.getByLabel('Instalação correspondente', { exact: true }).selectOption(s.cycle.id);
+            await s.page.getByRole('button', { name: 'Editar projeto', exact: true }).click(); const d = dialog(s.page);
+            await expect(d.getByText(s.structure.name)).toBeVisible();
+            await expect(d.getByLabel('Sala ou totem atendido (opcional)', { exact: true })).toHaveCount(0);
+            await d.getByLabel('Endereço').fill('Rua de teste, 10');
             await d.getByRole('button', { name: 'Salvar projeto', exact: true }).click(); await expect(d).toHaveCount(0);
-            const write = s.requests.find(r => r.path === '/project-services' && r.method === 'POST'); assert.equal(write.body.type, 'REMOVAL'); assert.equal(write.body.structureId, s.structure.id); assert.equal(write.body.removalCycleId, s.cycle.id); assert.deepEqual(s.errors, []);
+            const write = s.requests.find(r => r.path.startsWith('/project-services/') && r.method === 'PUT');
+            assert.equal(write.body.structureId, s.structure.id); assert.equal(write.body.removalCycleId, null); assert.deepEqual(s.errors, []);
         } finally { await s.context.close(); }
     });
     await run('Structures UI: initial list/history failures are visible and retry recovers without fake emptiness', async () => {

@@ -5,12 +5,12 @@ import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { ScheduleService } from '../schedule/schedule.service';
 
 const publicPerson = { id: true, name: true, agendaColor: true } as const;
-const serviceSelect = { id: true, type: true, tripId: true, scheduleId: true, project: { select: { name: true, company: { select: { name: true } } } } } as const;
+const serviceSelect = { id: true, type: true, tripId: true, scheduleId: true, project: { select: { name: true, address: true, company: { select: { name: true } } } } } as const;
 const include = { schedule: { include: { installers: { include: { installer: { select: publicPerson } } } } },
     contractors: { include: { user: { select: { id: true, name: true } } } }, services: { select: serviceSelect } } satisfies Prisma.TripInclude;
 type TripRow = Prisma.TripGetPayload<{ include: typeof include }>;
 function choice(service: TripRow['services'][number]): TripServiceChoice {
-    return { id: service.id, name: service.project.name, companyName: service.project.company.name, type: service.type as TripServiceChoice['type'], tripId: service.tripId };
+    return { id: service.id, name: service.project.name, companyName: service.project.company.name, address: service.project.address, type: service.type as TripServiceChoice['type'], tripId: service.tripId };
 }
 function record(row: TripRow): TripRecord {
     return {

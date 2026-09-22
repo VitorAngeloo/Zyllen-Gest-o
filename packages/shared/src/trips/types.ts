@@ -8,7 +8,7 @@ export interface TripScheduleContext {
     contractors?: TripPerson[];
 }
 export interface TripServiceChoice {
-    id: string; name: string; companyName: string; type: ProjectServiceType; tripId: string | null;
+    id: string; name: string; companyName: string; address: string | null; type: ProjectServiceType; tripId: string | null;
 }
 export interface TripRecord extends TripScheduleContext {
     title: string; interstate: boolean; notes: string | null;

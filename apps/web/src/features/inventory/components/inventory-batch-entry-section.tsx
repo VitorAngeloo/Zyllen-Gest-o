@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import type { InventoryController } from "../hooks/use-inventory-controller";
+import { stockEntryLocation } from '../utils/inventory-form-options';
 
 export function InventoryBatchEntrySection({ controller }: { controller: InventoryController }) {
     const {
@@ -15,7 +16,7 @@ export function InventoryBatchEntrySection({ controller }: { controller: Invento
         batchEntryEvent, setBatchEntryEvent, batchEntryPin, setBatchEntryPin, batchEntryScanRef,
         locations, batchEntryAddAsset, handleBatchEntryScan, batchEntryMut, handleBatchEntrySubmit,
     } = controller;
-    const internalLocations = (locations?.data ?? []).filter((location: any) => location.kind === "INTERNAL");
+    const internalLocations = (locations?.data ?? []).filter(stockEntryLocation);
 
     return <div className="grid items-start gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
@@ -29,7 +30,7 @@ export function InventoryBatchEntrySection({ controller }: { controller: Invento
                         <div className="relative flex-1">
                             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--zyllen-muted)]" />
                             {batchEntryScanning && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[var(--zyllen-muted)]" />}
-                            <input ref={batchEntryScanRef} autoFocus value={batchEntryScan} onChange={event => setBatchEntryScan(event.target.value)} onKeyDown={event => event.key === "Enter" && handleBatchEntryScan()} placeholder="Bipe a etiqueta ou digite código/nome..." className="h-10 w-full rounded-md border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] pl-9 pr-9 text-sm text-white placeholder:font-sans placeholder:text-[var(--zyllen-muted)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50" />
+                            <input ref={batchEntryScanRef} autoFocus autoComplete="off" value={batchEntryScan} onChange={event => setBatchEntryScan(event.target.value)} onKeyDown={event => event.key === "Enter" && handleBatchEntryScan()} placeholder="Bipe a etiqueta ou digite código/nome..." className="h-10 w-full rounded-md border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] pl-9 pr-9 text-sm text-white placeholder:font-sans placeholder:text-[var(--zyllen-muted)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/50" />
                         </div>
                         <Button variant="highlight" onClick={handleBatchEntryScan} disabled={batchEntryScanning}>{batchEntryScanning ? <Loader2 size={15} className="animate-spin" /> : "Adicionar"}</Button>
                     </div>
@@ -70,9 +71,9 @@ export function InventoryBatchEntrySection({ controller }: { controller: Invento
                 <label className="block space-y-2 text-sm text-[var(--zyllen-muted)]">Condição dos itens *
                     <select value={batchEntryStatus} onChange={event => setBatchEntryStatus(event.target.value as "ATIVO" | "EM_MANUTENCAO")} className="h-9 w-full rounded-md border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] px-3 text-sm text-white"><option value="ATIVO">Disponível</option><option value="EM_MANUTENCAO">Em manutenção</option></select>
                 </label>
-                <div className="space-y-2"><Label className="text-[var(--zyllen-muted)]">Motivo *</Label><Input aria-label="Motivo da entrada" value={batchEntryReason} onChange={event => setBatchEntryReason(event.target.value)} placeholder="Ex: retorno do projeto" className="border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white" /></div>
-                <div className="space-y-2"><Label className="text-[var(--zyllen-muted)]">Evento na timeline *</Label><Input aria-label="Evento na timeline" value={batchEntryEvent} onChange={event => setBatchEntryEvent(event.target.value)} placeholder="Ex: Retornou ao Almoxarifado Skyline em..." className="border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white" /><p className="text-[10px] text-[var(--zyllen-muted)]">O texto será registrado na timeline de cada patrimônio.</p></div>
-                <div className="space-y-2"><Label className="text-[var(--zyllen-muted)]">PIN *</Label><Input aria-label="PIN" type="password" maxLength={4} value={batchEntryPin} onChange={event => setBatchEntryPin(event.target.value)} onKeyDown={event => event.key === "Enter" && handleBatchEntrySubmit()} className="border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-center tracking-widest text-white" /></div>
+                <div className="space-y-2"><Label className="text-[var(--zyllen-muted)]">Motivo *</Label><Input aria-label="Motivo da entrada" autoComplete="off" value={batchEntryReason} onChange={event => setBatchEntryReason(event.target.value)} placeholder="Ex: retorno do projeto" className="border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white" /></div>
+                <div className="space-y-2"><Label className="text-[var(--zyllen-muted)]">Evento na timeline *</Label><Input aria-label="Evento na timeline" autoComplete="off" value={batchEntryEvent} onChange={event => setBatchEntryEvent(event.target.value)} placeholder="Ex: Retornou ao Almoxarifado Skyline em..." className="border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-white" /><p className="text-[10px] text-[var(--zyllen-muted)]">O texto será registrado na timeline de cada patrimônio.</p></div>
+                <div className="space-y-2"><Label className="text-[var(--zyllen-muted)]">PIN *</Label><Input aria-label="PIN" type="password" autoComplete="new-password" maxLength={4} value={batchEntryPin} onChange={event => setBatchEntryPin(event.target.value)} onKeyDown={event => event.key === "Enter" && handleBatchEntrySubmit()} className="border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)] text-center tracking-widest text-white" /></div>
                 <Button variant="highlight" className="w-full" onClick={handleBatchEntrySubmit} disabled={batchEntryMut.isPending || !batchEntryQueue.size}>{batchEntryMut.isPending ? <><Loader2 size={15} className="animate-spin" /> Registrando...</> : <><CheckCircle2 size={15} /> Registrar entrada de {batchEntryQueue.size}</>}</Button>
             </CardContent>
         </Card>

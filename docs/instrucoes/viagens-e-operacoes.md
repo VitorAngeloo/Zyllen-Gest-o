@@ -1,5 +1,7 @@
 # Viagens e painel operacional
 
+**Atualização de 21/09/2026:** uma viagem nova nasce da opção **Terá viagem?** no cadastro do projeto, com participantes de nível Técnico ou superior. O destino, endereço e período vêm do projeto; a origem é informada no mesmo formulário. A aba Viagens é uma visão de consulta, filtros e acompanhamento de status. Os botões **Nova viagem** da Agenda e da aba Viagens e as rotas de criação/edição direta de viagem foram removidos. Viagens legadas permanecem visíveis. Os parágrafos datados de 18/09 abaixo documentam a implementação anterior e não descrevem mais a entrada atual de novos dados.
+
 **Estado em 18/09/2026:** API/migração publicadas na R1. Na R3, cadastro e indicadores estão dentro de [Projetos e Agenda](projetos-e-agenda.md), disponível no localhost. Frontend ainda não publicado no Vercel.
 
 ## Cadastro único e acesso

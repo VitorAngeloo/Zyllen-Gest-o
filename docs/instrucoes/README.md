@@ -21,6 +21,7 @@ Toda alteração de código ou documentação deve seguir a [regra de organizaç
 | Entender o sistema e encontrar o código | [Arquitetura](arquitetura.md) |
 | Manter pastas, responsabilidades e documentação organizadas | [Regra obrigatória de organização](organizacao-da-arquitetura.md) |
 | Encontrar as referências específicas do web | [Frontend](frontend.md) |
+| Planejar e avaliar a experiência de uso com uma base comum | [UX design](ux-design.md) |
 | Instalar, desenvolver, verificar e seguir convenções | [Desenvolvimento](desenvolvimento.md) |
 | Configurar o ambiente sem expor valores | [Variáveis de ambiente](variaveis-de-ambiente.md) |
 | Alterar schema ou entender retries do Prisma | [Banco de dados](banco-de-dados.md) |
@@ -45,7 +46,7 @@ Os arquivos `plano-*.md` e `historico-*.md` estão nesta mesma pasta. Seus nomes
 
 - [Plano de evolução de estoque e patrimônio](plano-evolucao-estoque.md): proposta e registro de abril de 2026; revalidar backlog e premissas antes de executar.
 - [Plano de evolução operacional e painéis](plano-evolucao-operacional-e-paineis.md): proposta de 17/09/2026 baseada no prompt do usuário e no código atual; frentes, dependências, regras de indicadores e decisões ainda necessárias.
-- [Plano de identidade visual e UX](plano-identidade-visual.md): planejamento inicial de 17/09/2026, consolidado em 18/09/2026 com referências do usuário; etapas, mapa do menu, composição do dashboard, cenários, prioridades e critérios de avaliação.
+- [Plano de identidade visual e UX](plano-identidade-visual.md): histórico visual de 17–19/09/2026 e [ciclo de UX de 20/09/2026](plano-identidade-visual.md#ciclo-de-ux-de-20092026), com diagnóstico, prioridades, etapas, critérios de aceite e decisões pendentes. O novo ciclo está em planejamento.
 - [Especificação inicial](historico-especificacao-inicial.md): arquitetura, contratos e roteiro da fundação, em fevereiro de 2026.
 - [Histórico de desenvolvimento](historico-desenvolvimento.md): entregas e pendências registradas em fevereiro de 2026.
 - [Registro de publicação de segurança](historico-publicacao-seguranca.md): deploy de 15/09/2026 e validação posterior do cadastro.

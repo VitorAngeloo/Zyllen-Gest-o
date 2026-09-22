@@ -10,6 +10,7 @@ import { PROJECT_SERVICE_COPY as copy, PROJECTS_AGENDA_COPY as workspaceCopy } f
 import StructuresScreen from '@web/features/structures/screens/structures-screen';
 import { useProjectServices } from '../hooks/use-project-services';
 import { ProjectServiceDialog } from './project-service-dialog';
+import { ProjectMarkerSettings } from './project-marker-settings';
 import { ProjectServiceTable } from './project-service-table';
 
 export default function ProjectServicesPanel({ showHistory = false }: { showHistory?: boolean }) {
@@ -31,6 +32,7 @@ export default function ProjectServicesPanel({ showHistory = false }: { showHist
                     <Select aria-label={copy.typeFilter} value={type} onValueChange={value => { setType(value); setPage(1); }}><SelectOption value="">{copy.allTypes}</SelectOption>{Object.entries(copy.types).map(([value, label]) => <SelectOption key={value} value={value}>{label}</SelectOption>)}</Select></div>
             </WorkspaceGroup>
         </WorkspaceBar>
+        {canCreate && choices.data && <ProjectMarkerSettings markers={choices.data.markers} onCreated={async () => { await choices.refetch(); }} />}
         {actionError && <p role="alert" className="border-l-2 border-red-400 bg-red-500/5 px-4 py-3 text-sm text-red-200">{actionError}</p>}
         {(list.isError || choices.isError) && <div role="alert" className="border-l-2 border-red-400 bg-red-500/5 px-4 py-3 text-sm text-red-200"><p>{copy.loadError}</p><Button type="button" size="sm" variant="ghost" onClick={() => { void list.refetch(); void choices.refetch(); }}>{copy.retry}</Button></div>}
         {list.isLoading ? <div className="divide-y divide-white/10 border-y border-white/10">{Array.from({ length: 5 }, (_, index) => <div key={index} className="px-4 py-4"><Skeleton className="h-5 w-full max-w-md" /></div>)}</div> : records.length ? <ProjectServiceTable records={records} canEdit={canEdit} pending={status.isPending || !choices.data || choices.isError} onEdit={record => setDialog({ id: record.id })} onStatus={(record, value) => {

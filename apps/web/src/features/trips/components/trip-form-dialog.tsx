@@ -23,7 +23,7 @@ export function TripFormDialog({ editing, initialDates, choices, options, onClos
     const { hasPermission } = useAuth();
     const canUpdate = hasPermission('schedule.update');
     const terminal = !!editing && ['DONE', 'CANCELLED'].includes(editing.status);
-    const canSave = hasPermission(editing ? 'schedule.update' : 'schedule.create') && !terminal;
+    const canSave = false; // Travel planning is edited through its project; this view only consolidates and changes status.
     const [form, setForm] = useState(() => ({ ...tripFormValues(editing), ...(!editing && initialDates ? { startDate: initialDates.start, endDate: initialDates.end } : {}) }));
     const [error, setError] = useState('');
     const [confirmation, setConfirmation] = useState<TripStatusInput['status'] | null>(null);

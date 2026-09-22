@@ -30,7 +30,6 @@ export default function TripsScreen() {
             title={copy.title}
             count={list.data?.total ?? 0}
             description={copy.description}
-            actions={hasPermission('schedule.create') ? <Button onClick={() => setDialog({})}>{copy.create}</Button> : undefined}
         />
 
         <WorkspaceBar className="sm:block">
@@ -67,6 +66,8 @@ export default function TripsScreen() {
                                     <span className="border-l border-white/15 pl-3 text-xs text-white">{copy.statuses[trip.status] ?? trip.status}</span>
                                 </div>
                                 <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--zyllen-muted)] [overflow-wrap:anywhere]"><MapPin size={12} aria-hidden="true" />{trip.originCity}/{trip.originState} → {trip.destinationCity}/{trip.destinationState}</p>
+                                <p className="mt-1 text-xs text-[var(--zyllen-muted)]">Projeto: {trip.services.map(service => `${service.companyName} · ${service.name}`).join(', ') || 'Vínculo histórico não informado'}</p>
+                                {trip.services[0]?.address && <p className="mt-1 text-xs text-[var(--zyllen-muted)]">Destino: {trip.services[0].address}</p>}
                                 <div className="mt-3 grid gap-x-6 gap-y-2 text-xs text-[var(--zyllen-muted)] sm:grid-cols-3">
                                     <p><span className="block text-[10px] uppercase tracking-[0.12em] text-white/35">Rota</span>{trip.interstate ? copy.interstate : copy.sameState} · {copy.count(trip.services.length)}</p>
                                     <p className="tabular-nums"><span className="block text-[10px] uppercase tracking-[0.12em] text-white/35">{copy.departure}</span>{new Date(trip.startDate).toLocaleString('pt-BR')}</p>
@@ -84,7 +85,7 @@ export default function TripsScreen() {
                 icon={<MapPin size={28} />}
                 title={copy.empty}
                 description={filtered ? 'Revise os filtros para consultar outras viagens.' : undefined}
-                action={!filtered && hasPermission('schedule.create') ? <Button variant="outline" size="sm" onClick={() => setDialog({})}>{copy.create}</Button> : undefined}
+                action={undefined}
             />
         ))}
 

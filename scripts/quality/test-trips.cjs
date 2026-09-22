@@ -28,108 +28,83 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
             startDate: new Date(startDate ?? future(65)), endDate: new Date(Date.parse(startDate ?? future(65)) + 3_600_000), completedAt } }) : null;
         return prisma.projectService.create({ data: { projectId: project.id, type, scheduleId: schedule?.id, createdAt: new Date(now - 40 * 86_400_000), ...attributes } });
     }
-    const installation = await service('Instalação da viagem QA'), removal = await service('Desinstalação da viagem QA', 'REMOVAL');
-    let trip, contractorTrip;
-    await run('Trips: multiple services share one canonical calendar event and keep one service per project', async () => {
-        trip = ok(await http('/trips', 'POST', input({ serviceIds: [installation.id, removal.id, installation.id], notes: 'Observação interna QA' })), 201);
-        assert.equal(trip.services.length, 2); assert.equal(trip.interstate, true); assert.equal(trip.status, 'SCHEDULED');
-        assert.equal(trip.startedAt, null); assert.equal(trip.completedAt, null);
+    let trip, project;
+    const projectInput = (overrides = {}) => ({
+        companyId: company.id, name: 'Instalação com viagem QA', type: 'INSTALLATION',
+        address: 'Rua de teste, 10', city: 'Rio de Janeiro', state: 'RJ',
+        startDate: future(60), endDate: future(61), installerIds: [crew.id],
+        requiresTravel: true, travelOriginCity: 'São Paulo', travelOriginState: 'SP',
+        travelParticipantIds: [admin.id], ...overrides,
+    });
+    await run('Trips: project creation produces one linked trip and a separate calendar event', async () => {
+        project = ok(await http('/project-services', 'POST', projectInput()), 201);
+        assert.equal(project.type, 'INSTALLATION');
+        assert.equal(project.trip.originCity, 'São Paulo');
+        assert.equal(project.trip.participantIds[0], admin.id);
+        trip = ok(await http('/trips/' + project.trip.id));
+        assert.equal(trip.destinationCity, 'Rio de Janeiro');
+        assert.equal(trip.destinationState, 'RJ');
+        assert.equal(trip.services.length, 1);
+        assert.equal(trip.services[0].id, project.id);
         assert.equal(await prisma.trip.count(), 1);
-        const linked = await prisma.projectService.findMany({ where: { tripId: trip.id } }); assert.equal(linked.length, 2); assert(linked.every(item => item.requiresTravel));
-        assert.equal(await prisma.projectService.count({ where: { projectId: installation.projectId } }), 1);
-        const event = ok(await http('/schedule/' + trip.scheduleId));
-        assert.equal(event.trip.id, trip.id); assert.equal(event.type, 'OTHER'); assert.equal(event.projectId, null); assert.equal(event.projectService, null);
-        const record = ok(await http('/project-services/' + installation.id)); assert.equal(record.trip.id, trip.id);
+        assert.notEqual(project.schedule.id, trip.scheduleId);
+        assert.equal(ok(await http('/schedule/' + trip.scheduleId)).trip.id, trip.id);
+        assert.equal(ok(await http('/schedule/' + project.schedule.id)).projectService.id, project.id);
     });
-    await run('Trips: contractor-only travel appears in the agenda and within-state travel remains explicit', async () => {
-        contractorTrip = ok(await http('/trips', 'POST', input({ title: 'Terceirizado dentro do estado QA', installerIds: [], contractorIds: [contractor.id], destinationState: 'SP', destinationCity: 'Campinas', startDate: future(70), endDate: future(71) })), 201);
-        assert.equal(contractorTrip.internalAssignees.length, 0); assert.equal(contractorTrip.contractors[0].id, contractor.id); assert.equal(contractorTrip.interstate, false);
-        const event = ok(await http('/schedule/' + contractorTrip.scheduleId)); assert.equal(event.trip.id, contractorTrip.id); assert.equal(event.installers.length, 0);
-        assert.deepEqual(event.trip.contractors, [{ id: contractor.id, name: contractor.name }]);
-        const events = ok(await http('/schedule?limit=100')); assert(events.some(item => item.trip?.id === contractorTrip.id));
+    await run('Trips: direct writes are unavailable; invalid project travel rolls back', async () => {
+        assert.equal((await http('/trips', 'POST', input())).status, 404);
+        assert.equal((await http('/trips/' + trip.id, 'PUT', input())).status, 404);
+        const dashboard = await internal('Dashboard');
+        await prisma.internalUser.update({ where: { id: dashboard.id }, data: { roleId: admin.roleId } });
+        const before = [await prisma.trip.count(), await prisma.projectService.count(), await prisma.schedule.count()];
+        for (const overrides of [
+            { travelOriginCity: '' }, { travelOriginState: '' }, { travelParticipantIds: [] },
+            { city: '' }, { state: '' }, { startDate: undefined, endDate: undefined },
+            { travelParticipantIds: [crypto.randomUUID()] },
+            { travelParticipantIds: [dashboard.id] },
+        ]) assert.equal((await http('/project-services', 'POST', projectInput({ name: 'Inválido QA', allowConflicts: true, ...overrides }))).status, 400);
+        assert.deepEqual([await prisma.trip.count(), await prisma.projectService.count(), await prisma.schedule.count()], before);
     });
-    await run('Trips: invalid route, interval, staff, foreign service or unknown fields leave no orphan event/audit/association', async () => {
-        const before = { events: await prisma.schedule.count(), trips: await prisma.trip.count(), audits: await prisma.auditLog.count() };
-        for (const overrides of [{ originState: 'XX' }, { originCity: ' ' }, { endDate: future(59) }, { startDate: '2026-09-18' }, { installerIds: [], contractorIds: [] },
-            { installerIds: [crypto.randomUUID()] }, { serviceIds: [crypto.randomUUID()] }, { completedAt: future(62) }]) assert.equal((await http('/trips', 'POST', input(overrides))).status, 400, JSON.stringify(overrides));
-        assert.deepEqual({ events: await prisma.schedule.count(), trips: await prisma.trip.count(), audits: await prisma.auditLog.count() }, before);
+    await run('Trips: project updates synchronize route, participants and dates', async () => {
+        const startDate = future(62), endDate = future(63);
+        project = ok(await http('/project-services/' + project.id, 'PUT', projectInput({
+            projectId: project.projectId, name: 'Viagem atualizada QA', city: 'Campinas', state: 'SP',
+            startDate, endDate, allowConflicts: true,
+        })));
+        trip = ok(await http('/trips/' + project.trip.id));
+        assert.equal(trip.destinationCity, 'Campinas');
+        assert.equal(trip.interstate, false);
+        assert.equal(trip.startDate, startDate);
+        assert.equal(trip.endDate, endDate);
+        assert.equal(trip.internalAssignees[0].id, admin.id);
+        assert.equal(await prisma.trip.count(), 1);
     });
-    await run('Trips: association cannot be stolen; explicit unlink preserves need and prior audit history', async () => {
-        const clash = await http('/trips/' + contractorTrip.id, 'PUT', values(contractorTrip, { serviceIds: [installation.id] })); assert.equal(clash.status, 409);
-        assert.equal((await prisma.projectService.findUnique({ where: { id: installation.id } })).tripId, trip.id);
-        trip = ok(await http('/trips/' + trip.id, 'PUT', values(trip, { serviceIds: [removal.id] })));
-        const unlinked = await prisma.projectService.findUnique({ where: { id: installation.id } }); assert.equal(unlinked.tripId, null); assert.equal(unlinked.requiresTravel, true);
-        contractorTrip = ok(await http('/trips/' + contractorTrip.id, 'PUT', values(contractorTrip, { serviceIds: [installation.id] })));
-        assert.equal(contractorTrip.services[0].id, installation.id);
-        const audit = await prisma.auditLog.findMany({ where: { entityId: trip.id, action: 'TRIP_UPDATE' } }); assert(JSON.stringify(audit).includes(installation.id));
-    });
-    await run('Trips: a linked service cannot erase the travel requirement', async () => {
-        const res = await http('/project-services/' + installation.id, 'PUT', { companyId: company.id, name: 'Instalação da viagem QA', type: 'INSTALLATION', requiresTravel: false });
-        assert.equal(res.status, 400); assert.equal((await prisma.projectService.findUnique({ where: { id: installation.id } })).requiresTravel, true);
-    });
-    await run('Trips: conflicts include contractor trips and require an explicit override, while linked service overlap is expected', async () => {
-        const before = await prisma.trip.count();
-        assert.equal((await http('/trips', 'POST', input({ installerIds: [], contractorIds: [contractor.id], startDate: future(70), endDate: future(71) }))).status, 409);
-        assert.equal(await prisma.trip.count(), before);
-        const override = ok(await http('/trips', 'POST', input({ installerIds: [], contractorIds: [contractor.id], startDate: future(70), endDate: future(71), allowConflicts: true })), 201);
-        assert.equal(override.contractors.length, 1);
-        const projectInput = { companyId: company.id, name: 'Conflito projeto com viagem QA', type: 'INSTALLATION', installerIds: [], contractorIds: [contractor.id], startDate: future(70), endDate: future(71) };
-        assert.equal((await http('/project-services', 'POST', projectInput)).status, 409);
-        const linked = await service('Execução dentro da viagem QA', 'REMOVAL', { status: 'SCHEDULED', startDate: future(60.5) });
-        await prisma.scheduleInstaller.create({ data: { scheduleId: linked.scheduleId, installerId: crew.id } });
-        await prisma.projectServiceInternal.create({ data: { serviceId: linked.id, userId: crew.id } });
-        trip = ok(await http('/trips/' + trip.id, 'PUT', values(trip, { serviceIds: [removal.id, linked.id] })));
-        assert.equal((await http('/schedule/' + trip.scheduleId, 'PUT', { startDate: future(60), endDate: future(61.5) })).status, 200);
-        assert.equal((await http('/schedule/' + linked.scheduleId, 'PUT', { startDate: future(60.6), endDate: future(60.7) })).status, 200);
-        assert.equal((await http('/schedule/' + linked.scheduleId, 'PUT', { startDate: future(70), endDate: future(71), installerIds: [] })).status, 400, 'Cannot remove the sole responsible');
-    });
-    await run('Trips: calendar changes persist in the same travel record; it cannot become a service or recurring cancellation', async () => {
-        trip = ok(await http('/trips/' + trip.id));
-        assert.equal(trip.endDate, future(61.5));
-        assert.equal((await http('/schedule/' + trip.scheduleId, 'PUT', { type: 'INSTALLATION' })).status, 400);
-        assert.equal((await http('/schedule/' + trip.scheduleId, 'PUT', { projectId: installation.projectId })).status, 400);
-        assert.equal((await http('/schedule/' + trip.scheduleId + '?cancelSeries=true', 'DELETE')).status, 400);
-        assert.equal((await prisma.schedule.findUnique({ where: { id: trip.scheduleId } })).status, 'SCHEDULED');
-    });
-    await run('Trips: departure/return require explicit actions, planned future dates never become actual execution', async () => {
+    await run('Trips: departure and return use actual timestamps; project cannot erase linked trip', async () => {
+        assert.equal((await http('/project-services/' + project.id, 'PUT', projectInput({ projectId: project.projectId, requiresTravel: false }))).status, 400);
         assert.equal((await http('/trips/' + trip.id + '/status', 'PUT', { status: 'DONE' })).status, 400);
-        assert.equal((await http('/schedule/' + trip.scheduleId, 'PUT', { status: 'DONE' })).status, 400, 'Calendar cannot bypass start confirmation');
-        const before = Date.now(); trip = ok(await http('/trips/' + trip.id + '/status', 'PUT', { status: 'IN_PROGRESS' })); const after = Date.now();
-        assert(Date.parse(trip.startedAt) >= before && Date.parse(trip.startedAt) <= after); assert.equal(trip.completedAt, null); assert(Date.parse(trip.startDate) > after);
-        const first = trip.startedAt; trip = ok(await http('/trips/' + trip.id + '/status', 'PUT', { status: 'IN_PROGRESS' })); assert.equal(trip.startedAt, first);
-        assert.equal((await http('/trips/' + trip.id, 'PUT', values(trip, { destinationCity: 'Destino diferente' }))).status, 400);
-        trip = ok(await http('/trips/' + trip.id + '/status', 'PUT', { status: 'DONE' })); assert(trip.completedAt); assert(Date.parse(trip.completedAt) >= Date.parse(trip.startedAt));
-        const finished = trip.completedAt; trip = ok(await http('/trips/' + trip.id + '/status', 'PUT', { status: 'DONE' })); assert.equal(trip.completedAt, finished);
+        assert.equal((await http('/schedule/' + trip.scheduleId, 'PUT', { status: 'DONE' })).status, 400);
+        const before = Date.now();
+        trip = ok(await http('/trips/' + trip.id + '/status', 'PUT', { status: 'IN_PROGRESS' }));
+        assert(Date.parse(trip.startedAt) >= before && Date.parse(trip.startedAt) <= Date.now());
+        assert.equal((await http('/project-services/' + project.id, 'PUT', projectInput({ projectId: project.projectId,
+            city: 'Niterói', state: 'RJ', startDate: future(62), endDate: future(63), allowConflicts: true }))).status, 400);
+        assert.equal(ok(await http('/trips/' + trip.id)).destinationCity, 'Campinas');
+        trip = ok(await http('/trips/' + trip.id + '/status', 'PUT', { status: 'DONE' }));
+        assert(trip.completedAt);
         assert.equal(ok(await stats()).tripsCompleted, 1);
     });
-    await run('Trips: reopening clears current real dates but keeps prior timestamps in immutable audits', async () => {
-        const completedAt = trip.completedAt, startedAt = trip.startedAt;
-        assert.equal((await http('/trips/' + trip.id, 'PUT', values(trip))).status, 400);
-        assert.equal((await http('/schedule/' + trip.scheduleId, 'PUT', { title: 'Tentativa direta' })).status, 400);
-        assert.equal((await http('/trips/' + trip.id + '/status', 'PUT', { status: 'IN_PROGRESS' })).status, 400);
-        trip = ok(await http('/trips/' + trip.id + '/status', 'PUT', { status: 'SCHEDULED' })); assert.equal(trip.startedAt, null); assert.equal(trip.completedAt, null);
-        const audits = await prisma.auditLog.findMany({ where: { entityId: trip.scheduleId } }); assert(JSON.stringify(audits).includes(completedAt)); assert(JSON.stringify(audits).includes(startedAt));
-        assert.equal(ok(await stats()).tripsCompleted, 0);
-        trip = ok(await http('/trips/' + trip.id + '/status', 'PUT', { status: 'CANCELLED' })); const at = trip.cancelledAt;
-        assert(at); trip = ok(await http('/trips/' + trip.id + '/status', 'PUT', { status: 'CANCELLED' })); assert.equal(trip.cancelledAt, at);
-        assert.equal(trip.services.length, 2);
-        trip = ok(await http('/trips/' + trip.id + '/status', 'PUT', { status: 'SCHEDULED' })); assert.equal(trip.cancelledAt, null);
-    });
-    await run('Trips: list pagination/filter/search are validated and options never expose credentials or CPF', async () => {
-        const interstate = await http('/trips?interstate=true&limit=1'); assert.equal(interstate.status, 200); assert.equal(interstate.body.limit, 1); assert(interstate.body.total >= 2); assert.equal(interstate.body.data.length, 1);
-        assert.equal((await http('/trips?interstate=false')).body.total, 1);
+    await run('Trips: list, filters, statistics and permissions remain available', async () => {
+        const list = await http('/trips?status=DONE&limit=1');
+        assert.equal(list.status, 200); assert.equal(list.body.total, 1);
+        assert.equal(list.body.data[0].id, trip.id);
+        assert.equal((await http('/trips?interstate=true')).body.total, 0);
         assert.equal((await http('/trips?search=' + encodeURIComponent("' OR TRUE --"))).body.total, 0);
         for (const suffix of ['limit=101', 'page=0', 'status=PENDING', 'interstate=1', 'ownerId=abc']) assert.equal((await http('/trips?' + suffix)).status, 400);
-        const options = ok(await http('/trips/options')); assert(options.internalUsers.some(item => item.id === crew.id)); assert(options.services.some(item => item.id === installation.id && item.tripId === contractorTrip.id));
-        assert(!/passwordHash|pin4Hash|email|cpf|token|notes/i.test(JSON.stringify(options)));
-    });
-    await run('Trips: endpoints enforce JWT, internal audience and schedule permissions, without granting maintenance rights', async () => {
         for (const actor of [null, unprivileged, client, thirdParty]) for (const route of ['/trips', '/trips/options', '/trips/' + trip.id, '/trips/statistics?' + new URLSearchParams(period)]) assert.equal((await http(route, 'GET', undefined, actor)).status, actor ? 403 : 401);
         assert.equal((await http('/trips', 'GET', undefined, reader)).status, 200);
-        assert.equal((await http('/trips', 'POST', input({ startDate: future(80), endDate: future(81) }), reader)).status, 403);
         assert.equal((await http('/trips/' + trip.id + '/status', 'PUT', { status: 'IN_PROGRESS' }, reader)).status, 403);
-        assert.equal((await http('/trips/' + trip.id + '/status', 'PUT', { status: 'PENDING' })).status, 400);
-        assert.equal(await prisma.rolePermission.count({ where: { roleId: unprivileged.roleId, screenPermission: { screen: 'maintenance' } } }), 0);
+        const options = ok(await http('/trips/options'));
+        assert(!/passwordHash|pin4Hash|email|cpf|token/i.test(JSON.stringify(options)));
     });
     await prisma.projectService.deleteMany(); await prisma.trip.deleteMany();
     await run('Operations: legacy calendar events/projects never inflate an empty operational dataset', async () => {

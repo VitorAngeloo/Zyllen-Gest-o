@@ -170,6 +170,8 @@ export default function AgendaCalendar({ schedules, onEventClick, onDateSelect, 
                 plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
                 initialView="dayGridMonth"
                 locale={ptBrLocale}
+                buttonIcons={false}
+                buttonText={{ prev: "←", next: "→" }}
                 events={events}
                 eventClick={handleEventClick}
                 dateClick={canCreate ? handleDateClick : undefined}

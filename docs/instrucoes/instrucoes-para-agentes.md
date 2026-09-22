@@ -54,6 +54,7 @@ Antes de criar, alterar ou mover código ou documentação, ler integralmente e 
 | Assunto | Documento |
 |---|---|
 | Estrutura, bootstrap, HTTP e portais | [Arquitetura](arquitetura.md) |
+| Experiência de uso, padrões de interação e avaliação de interfaces | [UX design](ux-design.md); prioridades datadas no [plano de identidade e UX](plano-identidade-visual.md#ciclo-de-ux-de-20092026) |
 | JWT, refresh, RBAC e PIN | [Autenticação](autenticacao-e-permissoes.md) |
 | OS, formulários, assinatura e anexos | [Manutenção](ordens-de-servico.md) |
 | Saldo, backfill, reconciliação e patrimônio | [Estoque](estoque-e-patrimonio.md) |

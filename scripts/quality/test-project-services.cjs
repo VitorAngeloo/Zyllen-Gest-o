@@ -12,7 +12,7 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         return { status: response.status, body: await response.json() };
     }
     function ok(response, expected = 200) { assert.equal(response.status, expected, JSON.stringify(response.body)); return response.body.data; }
-    const input = overrides => ({ companyId: company.id, name: 'Projeto instalação QA', type: 'INSTALLATION', ...overrides });
+    const input = overrides => ({ companyId: company.id, name: 'Projeto instalação QA', type: 'INSTALLATION', address: 'Rua de teste, 10', ...overrides });
     const create = overrides => http('/project-services', { actor: organizer, method: 'POST', body: input(overrides) });
     const state = id => http(`/project-services/${id}`);
     const update = (id, body) => http(`/project-services/${id}`, { actor: organizer, method: 'PUT', body: input(body) });
@@ -31,9 +31,9 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         await assert.rejects(() => prisma.projectService.create({ data: { projectId: pending.projectId, type: 'REMOVAL' } }), error => error.code === 'P2002');
         assert.equal(await prisma.projectService.count({ where: { projectId: pending.projectId } }), 1);
     });
-    await run('Projects: only installation/removal and coherent dates/responsibles are accepted', async () => {
-        for (const changes of [{ type: 'MAINTENANCE' }, { type: 'SUPPORT' }, { startDate: start }, { startDate: start, endDate: start },
-            { startDate: start, endDate: end }, { mapsUrl: 'javascript:alert(1)' }, { urgency: 3 }]) assert.equal((await create(changes)).status, 400);
+    await run('Projects: creation accepts only installation and requires an address and coherent dates/responsibles', async () => {
+        for (const changes of [{ type: 'MAINTENANCE' }, { type: 'SUPPORT' }, { type: 'REMOVAL' }, { address: ' ' }, { startDate: start }, { startDate: start, endDate: start },
+            { startDate: start, endDate: end }, { mapsUrl: 'javascript:alert(1)' }, { urgency: 3 }, { requiresTravel: true }]) assert.equal((await create(changes)).status, 400);
     });
     await run('Projects: invalid assignee/client/marker rolls back project, service, calendar and audit together', async () => {
         const before = await Promise.all([prisma.project.count(), prisma.projectService.count(), prisma.schedule.count(), prisma.auditLog.count()]);
@@ -45,11 +45,16 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
     await run('Projects: markers are reusable regardless of case and appear in the calendar context', async () => {
         marker = ok(await http('/project-services/markers', { method: 'POST', body: { name: 'Sala interativa' } }), 201);
         assert.equal(ok(await http('/project-services/markers', { method: 'POST', body: { name: 'SALA INTERATIVA' } }), 201).id, marker.id);
-        contracted = ok(await create({ name: 'Desinstalação terceirizada QA', type: 'REMOVAL', markerId: marker.id, contractorIds: [contractor.id], startDate: start, endDate: end, urgency: 2, color: '#FF5500', sectors: ['Operações'], requiresTravel: true }), 201);
+        contracted = ok(await create({ name: 'Instalação terceirizada QA', markerId: marker.id, contractorIds: [contractor.id], startDate: start, endDate: end, urgency: 2, color: '#FF5500',
+            city: 'Goiânia', state: 'GO', travelOriginCity: 'Brasília', travelOriginState: 'DF', travelParticipantIds: [admin.id], requiresTravel: true }), 201);
         assert.equal(contracted.status, 'SCHEDULED'); assert.deepEqual(contracted.internalAssignees, []); assert.equal(contracted.contractors[0].id, contractor.id);
         const calendar = ok(await http(`/schedule/${contracted.schedule.id}`));
         assert.equal(calendar.projectService.marker.name, 'Sala interativa'); assert.equal(calendar.projectService.contractors[0].user.id, contractor.id);
         assert.equal(calendar.projectService.color, '#FF5500'); assert.equal(calendar.projectService.requiresTravel, true);
+        assert(contracted.trip?.id);
+        const trip = ok(await http(`/trips/${contracted.trip.id}`));
+        assert.equal(trip.destinationCity, 'Goiânia'); assert.equal(trip.originState, 'DF');
+        assert.equal(trip.internalAssignees[0].id, admin.id);
     });
     await run('Projects: an undated service can be scheduled later using exactly one canonical calendar interval', async () => {
         pending = ok(await update(pending.id, { projectId: pending.projectId, startDate: start, endDate: end, installerIds: [tech.id] }));
@@ -105,6 +110,16 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         const foreign = await prisma.company.create({ data: { name: 'Outra empresa QA' } });
         assert.equal((await create({ projectId: legacy.id, companyId: foreign.id })).status, 400);
         const record = ok(await create({ projectId: legacy.id, name: 'Legado escolhido QA' }), 201); assert.equal(record.projectId, legacy.id);
+        assert.equal(record.name, 'Legado QA');
+    });
+    await run('Projects: an existing accompaniment links once to the same client and project', async () => {
+        const followup = await prisma.followup.create({ data: { code: 'QA-' + crypto.randomUUID(), companyId: company.id, createdById: admin.id } });
+        const linked = ok(await create({ name: 'Projeto com acompanhamento QA', followupId: followup.id }), 201);
+        assert.equal(linked.followup.id, followup.id);
+        assert.equal((await prisma.followup.findUnique({ where: { id: followup.id } })).projectId, linked.projectId);
+        const before = await prisma.project.count();
+        assert.equal((await create({ name: 'Outro projeto QA', followupId: followup.id })).status, 400);
+        assert.equal(await prisma.project.count(), before);
     });
     await run('Projects: urgency ordering, status/type filters and pagination count only operational projects', async () => {
         const list = await http('/project-services?limit=1&page=1'); assert.equal(list.status, 200); assert(list.body.total > 1);

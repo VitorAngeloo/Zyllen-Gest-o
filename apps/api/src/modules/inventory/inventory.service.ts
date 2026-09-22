@@ -1,7 +1,8 @@
 import { InventoryQueriesService } from './inventory-queries.service';
 import { InventorySettingsService } from './inventory-settings.service';
 import { InventoryCustodyService } from './inventory-custody.service';
-import { Prisma } from '@prisma/client';
+import { InventoryUninstallationService } from './inventory-uninstallation.service';
+import { Prisma, type MovementType } from '@prisma/client';
 import {
     Injectable,
     NotFoundException,
@@ -12,7 +13,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
-import type { CreateBatchEntryInput, CreateBatchExitInput } from '@zyllen/shared';
+import { internalExitDestination, type CreateBatchEntryInput, type CreateBatchExitInput } from '@zyllen/shared';
 
 @Injectable()
 export class InventoryService {
@@ -21,6 +22,7 @@ export class InventoryService {
         private readonly queries: InventoryQueriesService,
         private readonly settings: InventorySettingsService,
         private readonly custody: InventoryCustodyService,
+        private readonly uninstallations: InventoryUninstallationService,
     ) {}
 
     // ── Validate PIN ──
@@ -240,10 +242,16 @@ export class InventoryService {
         if (!sku) throw new NotFoundException('Item não encontrado');
         if (!location) throw new NotFoundException('Local não encontrado');
         if (location.kind === 'CLIENT') throw new BadRequestException('Use a devolução do cliente para preservar o destino e a custódia');
+        if (internalExitDestination(data.reason ?? '')?.status === 'BAIXADO' && !moveType.isFinalWriteOff) {
+            throw new BadRequestException('Use a movimentação Baixa com aprovação para retirar definitivamente o patrimônio');
+        }
+        if (moveType.isFinalWriteOff && !moveType.requiresApproval) {
+            throw new BadRequestException('A baixa definitiva exige aprovação configurada');
+        }
 
         // Check available assets at location
         const availableCount = await this.prisma.asset.count({
-            where: { skuId: data.skuId, currentLocationId: data.fromLocationId, status: { notIn: ['BAIXADO'] } },
+            where: { skuId: data.skuId, currentLocationId: data.fromLocationId, status: 'ATIVO' },
         });
         if (availableCount < data.qty) {
             throw new BadRequestException(`Patrimônios disponíveis insuficientes. Disponível: ${availableCount}`);
@@ -284,47 +292,40 @@ export class InventoryService {
         return this.prisma.$transaction(async (tx) => {
             await tx.$queryRaw`SELECT id FROM "Location" WHERE id = ${data.fromLocationId} FOR SHARE`;
             const source = await tx.location.findUniqueOrThrow({ where: { id: data.fromLocationId } });
-            if (source.kind === 'CLIENT') throw new BadRequestException('Use a devolução do cliente para preservar o destino e a custódia');
-            if (data.assetId) {
-                await tx.$queryRaw`SELECT id FROM "Asset" WHERE id = ${data.assetId} FOR UPDATE`;
-                const asset = await tx.asset.findUnique({ where: { id: data.assetId } });
-                if (!asset || asset.skuId !== data.skuId || data.qty !== 1 || asset.currentLocationId !== data.fromLocationId || asset.status === 'BAIXADO') throw new ConflictException('Patrimônio indisponível na origem; nada foi aplicado');
+            if (source.kind !== 'INTERNAL') throw new BadRequestException('Use a devolução do cliente para preservar o destino e a custódia');
+            const selected = data.assetId
+                ? await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Asset" WHERE id = ${data.assetId} FOR UPDATE`
+                : await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Asset" WHERE "skuId" = ${data.skuId} AND "currentLocationId" = ${source.id} AND status = 'ATIVO' ORDER BY id LIMIT ${data.qty} FOR UPDATE`;
+            const ids = selected.map(row => row.id);
+            const assets = await tx.asset.findMany({ where: { id: { in: ids } }, select: { id: true, skuId: true, status: true, currentLocationId: true } });
+            if (assets.length !== data.qty || assets.some(asset => asset.skuId !== data.skuId || asset.currentLocationId !== source.id || asset.status !== 'ATIVO')) {
+                throw new ConflictException('Patrimônio indisponível na origem; nada foi aplicado');
             }
-            const movement = await tx.stockMovement.create({
-                data: {
-                    typeId: data.movementTypeId,
-                    skuId: data.skuId,
-                    fromLocationId: data.fromLocationId,
-                    qty: data.qty,
-                    reason: data.reason,
-                    createdByInternalUserId: data.userId,
-                    pinValidatedAt: new Date(),
-                    assetId: data.assetId ?? null,
-                },
-            });
-
-            await this.applyAssetMovementRules(tx, { assetId: data.assetId, moveType, fromLocationId: data.fromLocationId });
-
-            // Saída de um patrimônio específico: sai do saldo (sem local) e guarda
-            // o motivo, para o status mostrar "em uso/cliente/..." em vez de "Ativo".
-            if (data.assetId) {
-                await tx.asset.update({
-                    where: { id: data.assetId },
-                    data: { currentLocationId: null, lastExitReason: data.reason?.trim() || 'Saída' },
-                });
-            }
+            const classification = moveType.isFinalWriteOff ? { locationName: 'Baixa', status: 'BAIXADO', referenceType: 'STOCK_WRITE_OFF' }
+                : internalExitDestination(data.reason ?? '') ?? { locationName: 'Outros', status: 'EM_USO', referenceType: 'OTHER_EXIT' };
+            if (moveType.setsAssetStatus && moveType.setsAssetStatus !== classification.status) throw new BadRequestException('O tipo de movimentação não corresponde ao motivo selecionado');
+            const destination = await tx.location.upsert({ where: { name: classification.locationName }, update: {}, create: { name: classification.locationName, kind: 'INTERNAL' } });
+            if (destination.kind !== 'INTERNAL' || destination.id === source.id) throw new BadRequestException('Estoque interno de destino inválido');
+            const now = new Date();
+            const movements = await Promise.all(assets.map(asset => tx.stockMovement.create({ data: {
+                typeId: data.movementTypeId, skuId: asset.skuId, assetId: asset.id, fromLocationId: source.id, toLocationId: destination.id,
+                qty: 1, reason: data.reason, referenceType: classification.referenceType, createdByInternalUserId: data.userId, pinValidatedAt: now,
+            } })));
+            await tx.asset.updateMany({ where: { id: { in: ids } }, data: { currentLocationId: destination.id, status: classification.status, lastExitReason: data.reason?.trim() || 'Saída' } });
+            await tx.assetEvent.createMany({ data: assets.map(asset => ({ assetId: asset.id, description: `${classification.locationName}: ${data.reason?.trim() || 'Saída'}`,
+                createdByInternalUserId: data.userId })) });
 
             await tx.auditLog.create({
                 data: {
                     action: 'STOCK_EXIT',
                     entityType: 'StockMovement',
-                    entityId: movement.id,
+                    entityId: movements[0].id,
                     userId: data.userId,
-                    details: { sku: sku.skuCode, location: location.name, qty: data.qty, type: moveType.name },
+                    details: { sku: sku.skuCode, location: location.name, qty: data.qty, type: moveType.name, assetIds: ids, destinationLocationId: destination.id },
                 },
             });
 
-            return { approvalRequired: false, movement };
+            return { approvalRequired: false, movement: movements[0], movements };
         });
     }
 
@@ -382,43 +383,79 @@ export class InventoryService {
 
         const moveType = await this.prisma.movementType.findFirst({ where: { name: 'Saída' } });
         if (!moveType) throw new NotFoundException('Tipo de movimentação "Saída" não encontrado');
-        const destination = data.destinationLocationId
-            ? await this.prisma.location.findUnique({ where: { id: data.destinationLocationId } })
-            : null;
-        if (data.destinationLocationId && (!destination || destination.kind !== 'CLIENT' || !destination.companyId || !destination.projectId)) {
-            throw new BadRequestException('Selecione um cliente e um projeto com estoque identificado');
+        const internalDestination = internalExitDestination(data.reason);
+        if (internalDestination && data.destinationLocationId) throw new BadRequestException('Este motivo usa um estoque interno automático');
+        if (!internalDestination && !data.destinationLocationId) throw new BadRequestException('Selecione um cliente e projeto para esta saída');
+        if (internalDestination && data.newStatus !== internalDestination.status) throw new BadRequestException('O estado não corresponde ao motivo da saída');
+
+        if (internalDestination?.status === 'BAIXADO') {
+            const approval = await this.prisma.$transaction(async tx => {
+                await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${requestId}))`;
+                const existing = await tx.approvalRequest.findUnique({ where: { id: requestId } });
+                const ids = [...new Set(data.assetIds)].sort();
+                if (existing) {
+                    const previous = existing.payloadJson as { assetIds?: string[]; reason?: string; eventDescription?: string } | null;
+                    if (existing.requestType !== 'BATCH_WRITE_OFF' || existing.requestedById !== data.userId || previous?.reason !== data.reason
+                        || previous?.eventDescription !== data.eventDescription || [...(previous?.assetIds ?? [])].sort().join() !== ids.join()) throw new ConflictException('Identificador já utilizado em outra baixa');
+                    return existing;
+                }
+                await tx.$queryRaw`SELECT id FROM "Asset" WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`;
+                const pending = await tx.approvalRequest.findMany({ where: { requestType: 'BATCH_WRITE_OFF', status: 'PENDING' }, select: { payloadJson: true } });
+                if (pending.some(item => ((item.payloadJson as { assetIds?: string[] } | null)?.assetIds ?? []).some(id => ids.includes(id)))) {
+                    throw new ConflictException('Um patrimônio já possui baixa aguardando aprovação');
+                }
+                const assets = await tx.asset.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, currentLocation: { select: { kind: true } } } });
+                if (assets.length !== ids.length || assets.some(asset => asset.status !== 'ATIVO' || asset.currentLocation?.kind !== 'INTERNAL')) throw new ConflictException('Um patrimônio não está disponível no almoxarifado');
+                const created = await tx.approvalRequest.create({ data: { id: requestId, requestType: 'BATCH_WRITE_OFF', requestedById: data.userId,
+                    reason: data.reason, payloadJson: { assetIds: ids, reason: data.reason, eventDescription: data.eventDescription } } });
+                await tx.auditLog.create({ data: { action: 'BATCH_WRITE_OFF_REQUESTED', entityType: 'ApprovalRequest', entityId: requestId, userId: data.userId,
+                    details: { assetIds: ids, reason: data.reason } } });
+                return created;
+            });
+            return { approvalRequired: true, approvalRequestId: approval.id, message: 'Baixa enviada para aprovação; os itens ainda não foram movimentados' };
         }
 
+        const processed = await this.prisma.$transaction(tx => this.executeBatchExit(tx, data, requestId, moveType, internalDestination), { timeout: 60000, maxWait: 15000 });
+        return { processed };
+    }
+
+    private async executeBatchExit(tx: Prisma.TransactionClient, data: Omit<CreateBatchExitInput, 'pin'> & { userId: string }, requestId: string,
+        moveType: MovementType, internalDestination: ReturnType<typeof internalExitDestination>, approved = false) {
         const uniqueIds = [...new Set(data.assetIds)].sort();
         const now = new Date();
-        const processed = await this.prisma.$transaction(async (tx) => {
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${requestId}))`;
+            const destination = internalDestination
+                ? await tx.location.upsert({ where: { name: internalDestination.locationName }, update: {}, create: { name: internalDestination.locationName, kind: 'INTERNAL' } })
+                : await tx.location.findUnique({ where: { id: data.destinationLocationId! } });
+            if (!destination || (internalDestination ? destination.kind !== 'INTERNAL' : destination.kind !== 'CLIENT' || !destination.companyId || !destination.projectId)) {
+                throw new BadRequestException('O estoque de destino não corresponde ao motivo selecionado');
+            }
             const previous = await tx.auditLog.findFirst({ where: { action: 'STOCK_EXIT_BATCH_REQUEST', entityType: 'InventoryBatchExit', entityId: requestId }, orderBy: { createdAt: 'desc' } });
             if (previous) {
-                const details = previous.details as { assetIds?: string[]; destinationLocationId?: string | null; processed?: number } | null;
-                if (previous.userId !== data.userId || (details?.destinationLocationId ?? null) !== (data.destinationLocationId ?? null) || [...(details?.assetIds ?? [])].sort().join() !== uniqueIds.join()) throw new ConflictException('Identificador já utilizado em outra saída em lote');
+                const details = previous.details as { assetIds?: string[]; requestedDestinationLocationId?: string | null; destinationLocationId?: string | null; processed?: number; reason?: string } | null;
+                if (previous.userId !== data.userId || (details?.requestedDestinationLocationId ?? (internalDestination ? null : details?.destinationLocationId) ?? null) !== (data.destinationLocationId ?? null) || details?.reason !== data.reason || [...(details?.assetIds ?? [])].sort().join() !== uniqueIds.join()) throw new ConflictException('Identificador já utilizado em outra saída em lote');
                 return details?.processed ?? uniqueIds.length;
             }
             const initial = await tx.asset.findMany({ where: { id: { in: uniqueIds } }, select: { id: true, currentLocationId: true } });
-            const locations = [...new Set([...initial.map(a => a.currentLocationId).filter((id): id is string => Boolean(id)), ...(data.destinationLocationId ? [data.destinationLocationId] : [])])].sort();
+            const locations = [...new Set([...initial.map(a => a.currentLocationId).filter((id): id is string => Boolean(id)), destination.id])].sort();
             if (locations.length) await tx.$queryRaw`SELECT id FROM "Location" WHERE id IN (${Prisma.join(locations)}) ORDER BY id FOR SHARE`;
             await tx.$queryRaw`SELECT id FROM "Asset" WHERE id IN (${Prisma.join(uniqueIds)}) ORDER BY id FOR UPDATE`;
             const assets = await tx.asset.findMany({ where: { id: { in: uniqueIds } }, include: { sku: { select: { skuCode: true } }, currentLocation: { select: { kind: true } } } });
             if (assets.length !== uniqueIds.length) throw new BadRequestException('Um ou mais patrimônios não existem mais');
             if (assets.some(a => a.currentLocationId !== initial.find(previous => previous.id === a.id)?.currentLocationId)) throw new ConflictException('Patrimônio alterado por outra operação; recarregue');
-            if (assets.some(a => !a.currentLocationId || a.status === 'BAIXADO')) throw new ConflictException('Patrimônio fora do estoque; nada foi aplicado');
+            if (assets.some(a => !a.currentLocationId || a.status !== 'ATIVO')) throw new ConflictException('Patrimônio indisponível no almoxarifado; nada foi aplicado');
             if (assets.some(a => a.currentLocation?.kind === 'CLIENT')) throw new BadRequestException('Use a devolução do cliente para preservar a custódia');
-            if (data.destinationLocationId && assets.some(a => a.currentLocation?.kind !== 'INTERNAL' || a.status !== 'ATIVO')) throw new ConflictException('Somente patrimônios disponíveis em estoques internos podem ser enviados ao cliente');
-            if (moveType.requiresApproval) throw new BadRequestException('Este tipo exige aprovação. Registre a saída individual ou um envio com destino.');
+            if (assets.some(a => a.currentLocation?.kind !== 'INTERNAL')) throw new ConflictException('Somente patrimônios de almoxarifados internos podem sair por este fluxo');
+            if (moveType.requiresApproval && !approved) throw new BadRequestException('Este tipo exige aprovação');
             await tx.stockMovement.createMany({
                 data: assets.map((a) => ({
                     typeId: moveType.id,
                     skuId: a.skuId,
                     fromLocationId: a.currentLocationId,
-                    toLocationId: data.destinationLocationId ?? null,
+                    toLocationId: destination.id,
                     qty: 1,
                     reason: data.reason,
-                    referenceType: data.destinationLocationId ? 'CLIENT_SHIPMENT' : null,
+                    referenceType: internalDestination?.referenceType ?? 'CLIENT_SHIPMENT',
                     referenceId: requestId,
                     createdByInternalUserId: data.userId,
                     pinValidatedAt: now,
@@ -427,33 +464,56 @@ export class InventoryService {
             });
             await tx.asset.updateMany({
                 where: { id: { in: assets.map((a) => a.id) } },
-                data: data.destinationLocationId
-                    ? { currentLocationId: data.destinationLocationId, lastExitReason: null, status: 'EM_USO' }
-                    : { currentLocationId: null, lastExitReason: data.reason, status: data.newStatus },
+                data: { currentLocationId: destination.id, lastExitReason: internalDestination ? data.reason : null, status: internalDestination?.status ?? 'EM_USO' },
             });
             await tx.assetEvent.createMany({
                 data: assets.map((a) => ({ assetId: a.id, description: data.eventDescription, createdByInternalUserId: data.userId })),
             });
             await tx.auditLog.createMany({
                 data: assets.map((a) => ({
-                    action: data.destinationLocationId ? 'CLIENT_SHIPMENT_BATCH' : 'STOCK_EXIT_BATCH',
+                    action: internalDestination ? internalDestination.referenceType : 'CLIENT_SHIPMENT_BATCH',
                     entityType: 'Asset',
                     entityId: a.id,
                     userId: data.userId,
-                    details: { assetCode: a.assetCode, sku: a.sku.skuCode, reason: data.reason, status: data.destinationLocationId ? 'EM_USO' : data.newStatus, destinationLocationId: data.destinationLocationId ?? null },
+                    details: { assetCode: a.assetCode, sku: a.sku.skuCode, reason: data.reason, status: internalDestination?.status ?? 'EM_USO', destinationLocationId: destination.id },
                 })),
             });
-            await tx.auditLog.create({ data: { action: 'STOCK_EXIT_BATCH_REQUEST', entityType: 'InventoryBatchExit', entityId: requestId, userId: data.userId, details: { assetIds: uniqueIds, destinationLocationId: data.destinationLocationId ?? null, reason: data.reason, processed: assets.length } } });
+            await tx.auditLog.create({ data: { action: 'STOCK_EXIT_BATCH_REQUEST', entityType: 'InventoryBatchExit', entityId: requestId, userId: data.userId, details: { assetIds: uniqueIds, requestedDestinationLocationId: data.destinationLocationId ?? null, destinationLocationId: destination.id, reason: data.reason, processed: assets.length } } });
             return assets.length;
-        }, { timeout: 60000, maxWait: 15000 });
+    }
 
-        return { processed };
+    private async processBatchWriteOff(id: string, approverId: string, pin: string, approved: boolean) {
+        await this.validatePin(approverId, pin);
+        return this.prisma.$transaction(async tx => {
+            await tx.$queryRaw`SELECT id FROM "ApprovalRequest" WHERE id = ${id} FOR UPDATE`;
+            const request = await tx.approvalRequest.findUnique({ where: { id } });
+            if (!request || request.requestType !== 'BATCH_WRITE_OFF') throw new NotFoundException('Baixa não encontrada');
+            if (request.status !== 'PENDING') throw new ConflictException('Baixa já processada');
+            if (request.requestedById === approverId) throw new BadRequestException('Outra pessoa precisa aprovar a baixa');
+            let processed = 0;
+            if (approved) {
+                const payload = request.payloadJson as { assetIds?: string[]; reason?: string; eventDescription?: string } | null;
+                if (!payload?.assetIds?.length || !payload.reason || !payload.eventDescription) throw new BadRequestException('Solicitação de baixa inválida');
+                const destination = internalExitDestination(payload.reason);
+                if (destination?.status !== 'BAIXADO') throw new BadRequestException('Motivo de baixa inválido');
+                const moveType = await tx.movementType.findUnique({ where: { name: 'Baixa' } });
+                if (!moveType || !moveType.isFinalWriteOff || moveType.setsAssetStatus !== 'BAIXADO') throw new BadRequestException('Tipo de baixa definitiva não configurado');
+                processed = await this.executeBatchExit(tx, { assetIds: payload.assetIds, reason: payload.reason,
+                    eventDescription: payload.eventDescription, newStatus: 'BAIXADO', userId: request.requestedById }, id, moveType, destination, true);
+            }
+            await tx.approvalRequest.update({ where: { id }, data: { status: approved ? 'APPROVED' : 'REJECTED', approvedById: approverId } });
+            await tx.auditLog.create({ data: { action: approved ? 'BATCH_WRITE_OFF_APPROVED' : 'BATCH_WRITE_OFF_REJECTED', entityType: 'ApprovalRequest',
+                entityId: id, userId: approverId, details: { processed } } });
+            return { approvalRequestId: id, status: approved ? 'APPROVED' : 'REJECTED', processed };
+        }, { timeout: 60_000, maxWait: 15_000 });
     }
 
     // ── Approve exit ──
     async approveExit(approvalRequestId: string, approverId: string, pin: string) {
         const kind = await this.prisma.approvalRequest.findUnique({ where: { id: approvalRequestId }, select: { requestType: true } });
         if (kind?.requestType === 'CUSTODY_TRANSFER') return this.custody.processApproval(approvalRequestId, approverId, pin, true);
+        if (kind?.requestType === 'UNINSTALLATION') return this.uninstallations.processApproval(approvalRequestId, approverId, pin, true);
+        if (kind?.requestType === 'BATCH_WRITE_OFF') return this.processBatchWriteOff(approvalRequestId, approverId, pin, true);
         await this.validatePin(approverId, pin);
         const request = await this.prisma.approvalRequest.findUnique({ where: { id: approvalRequestId } });
         if (!request) throw new NotFoundException('Solicitação não encontrada');
@@ -488,6 +548,8 @@ export class InventoryService {
     async rejectExit(approvalRequestId: string, approverId: string, pin: string) {
         const kind = await this.prisma.approvalRequest.findUnique({ where: { id: approvalRequestId }, select: { requestType: true } });
         if (kind?.requestType === 'CUSTODY_TRANSFER') return this.custody.processApproval(approvalRequestId, approverId, pin, false);
+        if (kind?.requestType === 'UNINSTALLATION') return this.uninstallations.processApproval(approvalRequestId, approverId, pin, false);
+        if (kind?.requestType === 'BATCH_WRITE_OFF') return this.processBatchWriteOff(approvalRequestId, approverId, pin, false);
         await this.validatePin(approverId, pin);
         const request = await this.prisma.approvalRequest.findUnique({ where: { id: approvalRequestId } });
         if (!request) throw new NotFoundException('Solicitação não encontrada');
