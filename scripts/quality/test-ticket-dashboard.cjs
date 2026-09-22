@@ -340,6 +340,7 @@ async function main() {
     if (process.argv.includes('--panels')) await require('./test-vehicles-browser.cjs')({ run, browser, base, shots, fixedNow });
     if (process.argv.includes('--projects-agenda')) await require('./test-projects-agenda-browser.cjs')({ run, browser, base, shots, fixedNow });
     if (process.argv.includes('--structures')) await require('./test-structures-browser.cjs')({ run, browser, base, shots, fixedNow });
+    if (process.argv.includes('--followup-search')) await require('./test-followup-company-search-browser.cjs')({ run, browser, base });
     if (process.argv.includes('--maintenance')) await require('./test-maintenance-list-browser.cjs')({ run, browser, base, fixedNow });
 }
 main().catch(error => { console.error(error); cases.push({ name: 'Harness startup', passed: false, error: error.message }); }).finally(async () => {

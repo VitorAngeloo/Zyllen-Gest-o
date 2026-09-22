@@ -22,6 +22,7 @@ export interface SearchableSelectProps {
     emptyText?: string;
     loadingText?: string;
     disabled?: boolean;
+    required?: boolean;
     loading?: boolean;
     className?: string;
 }
@@ -37,6 +38,7 @@ export function SearchableSelect({
     emptyText = "Nenhum resultado",
     loadingText = "Carregando...",
     disabled = false,
+    required = false,
     loading = false,
     className,
 }: SearchableSelectProps) {
@@ -102,6 +104,7 @@ export function SearchableSelect({
                         aria-expanded="true"
                         aria-controls={listId}
                         aria-autocomplete="list"
+                        aria-required={required}
                         aria-activedescendant={filtered[highlight] ? `${listId}-${highlight}` : undefined}
                         autoComplete="off"
                         disabled={disabled}
@@ -130,6 +133,7 @@ export function SearchableSelect({
                     aria-expanded="false"
                     aria-controls={listId}
                     aria-haspopup="listbox"
+                    aria-required={required}
                     disabled={disabled}
                     onClick={openAndFocus}
                     onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); openAndFocus(); } }}

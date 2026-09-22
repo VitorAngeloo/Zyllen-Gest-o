@@ -23,6 +23,7 @@
     "test:trips:browser": "node scripts/quality/test-trips-browser.cjs",
     "test:structures": "node scripts/quality/test-structures.cjs",
     "test:structures:browser": "node scripts/quality/test-ticket-dashboard.cjs --structures --projects-agenda --trips",
+    "test:followups:browser": "node scripts/quality/test-ticket-dashboard.cjs --followup-search",
     "test:inventory:custody": "node scripts/quality/test-inventory-custody.cjs",
     "test:inventory:custody:browser": "node scripts/quality/test-inventory-custody-browser.cjs",
     "test:inventory:statistics": "node scripts/quality/test-inventory-statistics.cjs",

@@ -1,6 +1,6 @@
 "use client";
 import { followupsApi } from "@web/features/followups/api/followups-api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
@@ -17,17 +17,23 @@ export function NewFollowupForm({ onBack, fetchOpts, qc, onCreated }: {
     onCreated: (f: Followup) => void;
 }) {
     const [companySearch, setCompanySearch] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
     const [selectedProjectId, setSelectedProjectId] = useState("");
     const [responsibleName, setResponsibleName] = useState("");
     const [responsibleContact, setResponsibleContact] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    // Companies search
-    const { data: companies } = useQuery({
-        queryKey: ["companies-search", companySearch],
-        queryFn: () => followupsApi.searchCompanies<{ data: Company[] }>(encodeURIComponent(companySearch), fetchOpts),
-        enabled: companySearch.length >= 1 && !selectedCompany,
+    useEffect(() => {
+        const timeout = setTimeout(() => setDebouncedSearch(companySearch.trim()), 300);
+        return () => clearTimeout(timeout);
+    }, [companySearch]);
+
+    // Busca pelo nome no catálogo de empresas, sem consultar a cada tecla.
+    const { data: companies, isFetching: searchingCompanies, isError: companySearchError, refetch: retryCompanySearch } = useQuery({
+        queryKey: ["companies-search", debouncedSearch],
+        queryFn: () => followupsApi.searchCompanies<{ data: Company[] }>(debouncedSearch, fetchOpts),
+        enabled: debouncedSearch.length >= 1 && !selectedCompany,
     });
 
     // Projects of the selected company
@@ -116,15 +122,22 @@ export function NewFollowupForm({ onBack, fetchOpts, qc, onCreated }: {
                                 <input
                                     value={companySearch}
                                     onChange={(e) => setCompanySearch(e.target.value)}
+                                    aria-label="Buscar cliente"
+                                    autoComplete="off"
                                     placeholder="Buscar empresa pelo nome..."
                                     className="w-full pl-10 pr-4 h-10 rounded-md bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] text-white text-sm placeholder:text-[var(--zyllen-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--zyllen-highlight)]/30"
                                     autoFocus
                                 />
                             </div>
-                            {companies?.data && companies.data.length > 0 && (
+                            {companySearch.trim() && companySearch.trim() !== debouncedSearch && <p role="status" className="text-xs text-[var(--zyllen-muted)]">Buscando clientes...</p>}
+                            {companySearch.trim() === debouncedSearch && companySearchError && <div role="alert" className="flex items-center gap-2 text-xs text-red-200">Não foi possível buscar clientes. <Button type="button" variant="ghost" size="sm" onClick={() => retryCompanySearch()}>Tentar novamente</Button></div>}
+                            {searchingCompanies && companySearch.trim() === debouncedSearch && <p role="status" className="text-xs text-[var(--zyllen-muted)]">Buscando clientes...</p>}
+                            {!companySearchError && !searchingCompanies && companySearch.trim() === debouncedSearch && debouncedSearch && companies?.data?.length === 0 && <p role="status" className="text-xs text-[var(--zyllen-muted)]">Nenhum cliente encontrado.</p>}
+                            {!companySearchError && !searchingCompanies && companySearch.trim() === debouncedSearch && companies?.data && companies.data.length > 0 && (
                                 <div className="max-h-48 overflow-y-auto rounded-md border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]">
                                     {companies.data.map((c) => (
                                         <button
+                                            type="button"
                                             key={c.id}
                                             onClick={() => { setSelectedCompany(c); setSelectedProjectId(""); setCompanySearch(""); }}
                                             className="w-full text-left px-3 py-2.5 hover:bg-[var(--zyllen-highlight)]/10 transition-colors border-b border-[var(--zyllen-border)] last:border-0"

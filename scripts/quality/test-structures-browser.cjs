@@ -57,7 +57,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     await run('Project creation omits the room/totem field and does not create a structure implicitly', async () => {
         const s = await setup({ route: '/dashboard/projetos?aba=projetos' }); try {
             await s.page.getByRole('button', { name: 'Novo projeto', exact: true }).click(); const d = dialog(s.page);
-            await d.getByLabel('Cliente', { exact: true }).selectOption(s.company.id); await d.getByLabel('Nome do projeto').fill('Projeto sem sala vinculada QA');
+            await d.getByRole('combobox', { name: 'Cliente' }).click(); await d.getByRole('option', { name: s.company.name, exact: true }).click(); await d.getByLabel('Nome do projeto').fill('Projeto sem sala vinculada QA');
             await d.getByLabel('Endereço').fill('Rua de teste, 10');
             await expect(d.getByLabel('Sala ou totem atendido (opcional)')).toHaveCount(0);
             await expect(d.getByRole('button', { name: 'Cadastrar sala ou totem', exact: true })).toHaveCount(0);

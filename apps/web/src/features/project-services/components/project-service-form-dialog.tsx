@@ -8,6 +8,7 @@ import { useAuth } from '@web/features/auth/context/auth-context';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@web/components/ui/dialog';
 import { Button } from '@web/components/ui/button';
 import { Input } from '@web/components/ui/input';
+import { SearchableSelect } from '@web/components/ui/searchable-select';
 import { Textarea } from '@web/components/ui/textarea';
 import { PROJECT_SERVICE_COPY as copy, PROJECTS_AGENDA_COPY as workspaceCopy, STRUCTURES_COPY as structureCopy } from '@web/lib/brand-voice';
 import { StructureHistory } from '@web/features/structures/components/structure-history';
@@ -39,6 +40,7 @@ export function ProjectServiceFormDialog({ editing, initialDates, choices, optio
     const companyHasAddress = Boolean(selectedCompany?.address || selectedCompany?.city || selectedCompany?.state);
     const dialogRef = useRef<HTMLDivElement>(null);
     const titleId = useId();
+    const companyFieldId = useId();
     useEffect(() => {
         const previous = document.activeElement as HTMLElement | null;
         dialogRef.current?.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled), button:not(:disabled)')?.focus();
@@ -77,12 +79,12 @@ export function ProjectServiceFormDialog({ editing, initialDates, choices, optio
             <form id="project-service-form" autoComplete="off" className="space-y-5" onSubmit={event => { event.preventDefault(); save.mutate(); }}>
             <fieldset disabled={save.isPending || !canSave} className="space-y-5">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label={copy.company}><select aria-label={copy.company} required value={form.companyId} disabled={!!editing} className={fieldClass} onChange={event => {
-                        const company = choices.companies.find(item => item.id === event.target.value);
-                        setForm(current => ({ ...current, companyId: event.target.value, projectId: undefined, followupId: null, name: '',
+                    <div className="min-w-0 space-y-1 text-xs text-[var(--zyllen-muted)]"><label htmlFor={companyFieldId}>{copy.company}</label><SearchableSelect id={companyFieldId} ariaLabel={copy.company} placeholder={copy.chooseCompany} searchPlaceholder="Digite o nome do cliente" emptyText="Nenhum cliente encontrado" value={form.companyId} options={choices.companies.map(company => ({ value: company.id, label: company.name }))} disabled={!!editing || !canSave || save.isPending} required className={fieldClass} onValueChange={companyId => {
+                        const company = choices.companies.find(item => item.id === companyId);
+                        setForm(current => ({ ...current, companyId, projectId: undefined, followupId: null, name: '',
                             address: company?.address ?? '', city: company?.city ?? '', state: company?.state ?? '',
                             structureId: null, removalCycleId: null, allowConflicts: false }));
-                    }}><option value="">{copy.chooseCompany}</option>{choices.companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}</select></Field>
+                    }} /></div>
                     {!editing && <Field label={copy.existingProject}><select aria-label={copy.existingProject} className={fieldClass} value={form.projectId ?? ''} onChange={event => {
                         const project = choices.projects.find(item => item.id === event.target.value);
                         setForm(current => ({ ...current, projectId: project?.id, followupId: null, name: project?.name ?? '',

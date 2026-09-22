@@ -20,7 +20,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     }
     async function setup({ permissions = ['dashboard.view', 'schedule.view', 'schedule.create', 'schedule.update'], mobile = false, empty = false, failures = {} } = {}) {
         const records = empty ? [] : [record('Pendente normal QA'), record('Urgente agendado QA', { marker, urgency: 2, type: 'REMOVAL', contractors: [contractor], status: 'SCHEDULED', schedule: { id: crypto.randomUUID(), startDate: start, endDate: end } })];
-        const choices = { companies: [company], projects: [{ id: crypto.randomUUID(), name: 'Cadastro antigo QA', companyId: company.id, address: 'Rua da obra, 42', city: 'Goiânia', state: 'GO', hasService: false }, { id: crypto.randomUUID(), name: 'Projeto já usado QA', companyId: company.id, address: null, city: null, state: null, hasService: true }], markers: [marker], followups: [], internalUsers: [tech], contractors: [contractor] };
+        const choices = { companies: [company, { id: crypto.randomUUID(), name: 'Cliente alternativo QA' }], projects: [{ id: crypto.randomUUID(), name: 'Cadastro antigo QA', companyId: company.id, address: 'Rua da obra, 42', city: 'Goiânia', state: 'GO', hasService: false }, { id: crypto.randomUUID(), name: 'Projeto já usado QA', companyId: company.id, address: null, city: null, state: null, hasService: true }], markers: [marker], followups: [], internalUsers: [tech], contractors: [contractor] };
         const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 } });
         const requests = [], errors = [];
         await context.addInitScript(() => { localStorage.setItem('accessToken', 'synthetic-projects'); localStorage.setItem('userType', 'internal'); });
@@ -97,7 +97,12 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             await data.page.getByLabel('Novo marcador', { exact: true }).fill('Totem QA');
             await data.page.getByRole('button', { name: 'Adicionar marcador' }).click();
             await data.page.getByRole('button', { name: 'Novo projeto', exact: true }).click();
-            await dialog(data.page).getByLabel('Cliente', { exact: true }).selectOption(company.id);
+            await dialog(data.page).getByRole('combobox', { name: 'Cliente' }).click();
+            await dialog(data.page).getByRole('combobox', { name: 'Cliente' }).fill('projetos');
+            await expect(dialog(data.page).getByRole('option', { name: company.name })).toBeVisible();
+            await expect(dialog(data.page).getByRole('option', { name: 'Cliente alternativo QA' })).toHaveCount(0);
+            await dialog(data.page).getByRole('option', { name: company.name }).click();
+            await expect(dialog(data.page).getByRole('combobox', { name: 'Cliente' })).toContainText(company.name);
             await expect(dialog(data.page).getByLabel('Endereço', { exact: true })).toHaveValue(company.address);
             await expect(dialog(data.page).getByLabel('Cidade', { exact: true })).toHaveValue(company.city);
             await expect(dialog(data.page).getByLabel('UF', { exact: true })).toHaveValue(company.state);
@@ -166,7 +171,8 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         const data = await setup({ mobile: true });
         try {
             await data.page.getByRole('button', { name: 'Novo projeto' }).click();
-            await dialog(data.page).getByLabel('Cliente', { exact: true }).selectOption(company.id);
+            await dialog(data.page).getByRole('combobox', { name: 'Cliente' }).click();
+            await dialog(data.page).getByRole('option', { name: company.name }).click();
             await dialog(data.page).getByLabel('Nome do projeto').fill('Rascunho móvel QA');
             await dialog(data.page).getByLabel('Endereço', { exact: true }).fill('Rua móvel, 10');
             await dialog(data.page).getByLabel('Início previsto').fill(localTime(start));

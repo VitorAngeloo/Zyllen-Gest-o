@@ -29,11 +29,11 @@ export const followupsApi = {
     },
 
     listProjects<T = unknown>(companyId: PathValue, options?: RequestOptions) {
-        return apiClient.get<T>(`/clients/companies/${companyId}/projects`, options);
+        return apiClient.get<T>(`/clients/companies/${companyId}/projects-public`, options);
     },
 
     searchCompanies<T = unknown>(search: PathValue, options?: RequestOptions) {
-        return apiClient.get<T>(`/clients/companies?search=${search}&limit=20`, options);
+        return apiClient.get<T>(`/clients/companies/search?q=${encodeURIComponent(String(search ?? ""))}`, options);
     },
 
     getFollowup<T = unknown>(id: PathValue, options?: RequestOptions) {
