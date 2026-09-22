@@ -14,6 +14,7 @@ import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { internalExitDestination, type CreateBatchEntryInput, type CreateBatchExitInput } from '@zyllen/shared';
+import { resolveProjectStock } from './project-stock';
 
 @Injectable()
 export class InventoryService {
@@ -384,8 +385,9 @@ export class InventoryService {
         const moveType = await this.prisma.movementType.findFirst({ where: { name: 'Saída' } });
         if (!moveType) throw new NotFoundException('Tipo de movimentação "Saída" não encontrado');
         const internalDestination = internalExitDestination(data.reason);
-        if (internalDestination && data.destinationLocationId) throw new BadRequestException('Este motivo usa um estoque interno automático');
-        if (!internalDestination && !data.destinationLocationId) throw new BadRequestException('Selecione um cliente e projeto para esta saída');
+        if (internalDestination && (data.destinationLocationId || data.companyId || data.projectId)) throw new BadRequestException('Este motivo usa um estoque interno automático');
+        if (!internalDestination && !data.destinationLocationId && !(data.companyId && data.projectId)) throw new BadRequestException('Selecione um cliente e projeto para esta saída');
+        if (!internalDestination && Boolean(data.companyId) !== Boolean(data.projectId)) throw new BadRequestException('Informe o cliente e o projeto de destino');
         if (internalDestination && data.newStatus !== internalDestination.status) throw new BadRequestException('O estado não corresponde ao motivo da saída');
 
         if (internalDestination?.status === 'BAIXADO') {
@@ -426,14 +428,19 @@ export class InventoryService {
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${requestId}))`;
             const destination = internalDestination
                 ? await tx.location.upsert({ where: { name: internalDestination.locationName }, update: {}, create: { name: internalDestination.locationName, kind: 'INTERNAL' } })
-                : await tx.location.findUnique({ where: { id: data.destinationLocationId! } });
+                : data.companyId && data.projectId
+                    ? await resolveProjectStock(tx, { companyId: data.companyId, projectId: data.projectId, actorId: data.userId })
+                    : await tx.location.findUnique({ where: { id: data.destinationLocationId! } });
             if (!destination || (internalDestination ? destination.kind !== 'INTERNAL' : destination.kind !== 'CLIENT' || !destination.companyId || !destination.projectId)) {
                 throw new BadRequestException('O estoque de destino não corresponde ao motivo selecionado');
             }
             const previous = await tx.auditLog.findFirst({ where: { action: 'STOCK_EXIT_BATCH_REQUEST', entityType: 'InventoryBatchExit', entityId: requestId }, orderBy: { createdAt: 'desc' } });
             if (previous) {
-                const details = previous.details as { assetIds?: string[]; requestedDestinationLocationId?: string | null; destinationLocationId?: string | null; processed?: number; reason?: string } | null;
-                if (previous.userId !== data.userId || (details?.requestedDestinationLocationId ?? (internalDestination ? null : details?.destinationLocationId) ?? null) !== (data.destinationLocationId ?? null) || details?.reason !== data.reason || [...(details?.assetIds ?? [])].sort().join() !== uniqueIds.join()) throw new ConflictException('Identificador já utilizado em outra saída em lote');
+                const details = previous.details as { assetIds?: string[]; requestedDestinationLocationId?: string | null; requestedCompanyId?: string | null; requestedProjectId?: string | null; destinationLocationId?: string | null; processed?: number; reason?: string } | null;
+                const sameDestination = data.companyId && data.projectId
+                    ? details?.requestedCompanyId === data.companyId && details?.requestedProjectId === data.projectId
+                    : (details?.requestedDestinationLocationId ?? (internalDestination ? null : details?.destinationLocationId) ?? null) === (data.destinationLocationId ?? null);
+                if (previous.userId !== data.userId || !sameDestination || details?.reason !== data.reason || [...(details?.assetIds ?? [])].sort().join() !== uniqueIds.join()) throw new ConflictException('Identificador já utilizado em outra saída em lote');
                 return details?.processed ?? uniqueIds.length;
             }
             const initial = await tx.asset.findMany({ where: { id: { in: uniqueIds } }, select: { id: true, currentLocationId: true } });
@@ -478,7 +485,7 @@ export class InventoryService {
                     details: { assetCode: a.assetCode, sku: a.sku.skuCode, reason: data.reason, status: internalDestination?.status ?? 'EM_USO', destinationLocationId: destination.id },
                 })),
             });
-            await tx.auditLog.create({ data: { action: 'STOCK_EXIT_BATCH_REQUEST', entityType: 'InventoryBatchExit', entityId: requestId, userId: data.userId, details: { assetIds: uniqueIds, requestedDestinationLocationId: data.destinationLocationId ?? null, destinationLocationId: destination.id, reason: data.reason, processed: assets.length } } });
+            await tx.auditLog.create({ data: { action: 'STOCK_EXIT_BATCH_REQUEST', entityType: 'InventoryBatchExit', entityId: requestId, userId: data.userId, details: { assetIds: uniqueIds, requestedDestinationLocationId: data.destinationLocationId ?? null, requestedCompanyId: data.companyId ?? null, requestedProjectId: data.projectId ?? null, destinationLocationId: destination.id, reason: data.reason, processed: assets.length } } });
             return assets.length;
     }
 

@@ -10,7 +10,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
 
     async function setup(route = '/dashboard/estoque?aba=assets') {
         const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, timezoneId: 'America/Sao_Paulo', reducedMotion: 'reduce' });
-        const company = { id: crypto.randomUUID(), name: 'Cliente estoque QA', projects: [{ id: crypto.randomUUID(), name: 'Projeto estoque QA' }] };
+        const company = { id: crypto.randomUUID(), name: 'Cliente estoque QA', projects: [{ id: crypto.randomUUID(), name: 'Projeto estoque QA' }, { id: crypto.randomUUID(), name: 'Projeto sem estoque QA' }] };
         const internalLocation = { id: crypto.randomUUID(), name: 'Almoxarifado Skyline QA', kind: 'INTERNAL', companyId: null, projectId: null, company: null, project: null, isMainWarehouse: null, _count: { assets: 1 } };
         const clientLocation = { id: crypto.randomUUID(), name: 'Estoque Projeto QA', kind: 'CLIENT', companyId: company.id, projectId: company.projects[0].id, company: { id: company.id, name: company.name }, project: company.projects[0], isMainWarehouse: null, _count: { assets: 1 } };
         const transferType = { id: crypto.randomUUID(), name: 'Transferência', requiresApproval: false };
@@ -48,6 +48,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             }
             if (url.pathname === '/assets/lookup/QA-00001') return respond({ data: internalAsset });
             if (url.pathname === '/assets/lookup/QA-00002') return respond({ data: clientAsset });
+            if (url.pathname === '/assets') return respond({ data: [internalAsset] });
             if (url.pathname === '/inventory/movement-types') return respond({ data: [transferType, entryType, exitType] });
             if (url.pathname === '/inventory/exit-reasons') return respond({ data: ['Envio para projeto', 'Manutenção', 'Baixa', 'Uso interno'].map(name => ({ id: crypto.randomUUID(), name })) });
             if (url.pathname === '/locations') return respond({ data: [internalLocation, clientLocation] });
@@ -98,23 +99,51 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         } finally { await state.context.close(); }
     });
 
-    await run('Inventory workspace: batch exit persists the selected client and project destination', async () => {
+    await run('Inventory workspace: first batch exit sends client and project so the API can create its stock', async () => {
         const state = await setup('/dashboard/estoque?aba=batchExit');
         try {
             const search = state.page.getByPlaceholder('Bipe a etiqueta ou digite código/nome...');
             await search.fill(state.internalAsset.assetCode); await search.press('Enter');
+            await expect(state.page.getByText('Itens para saída (1)', { exact: true })).toBeVisible();
             await state.page.getByLabel('Cliente').selectOption(state.company.id);
-            await state.page.getByLabel('Projeto').selectOption(state.company.projects[0].id);
+            await state.page.getByLabel('Projeto').selectOption(state.company.projects[1].id);
             await state.page.getByLabel('Motivo da saída').selectOption('Envio para projeto');
             await state.page.getByLabel('Evento na timeline').fill('Enviado ao projeto QA');
             await state.page.getByLabel('PIN').fill('1234');
+            await state.page.waitForTimeout(100);
             await state.page.getByRole('button', { name: /Dar saída em 1 item/ }).click();
+            await expect.poll(() => state.requests.some(item => item.path === '/inventory/exit-batch' && item.method === 'POST')).toBe(true);
             const request = state.requests.find(item => item.path === '/inventory/exit-batch' && item.method === 'POST');
-            assert.equal(request.body.destinationLocationId, state.clientLocation.id);
+            assert.equal(request.body.companyId, state.company.id);
+            assert.equal(request.body.projectId, state.company.projects[1].id);
+            assert.equal(request.body.destinationLocationId, undefined);
             assert.equal(request.body.newStatus, 'EM_USO');
             assert.deepEqual(request.body.assetIds, [state.internalAsset.id]);
             assert.deepEqual(state.errors, []);
             await state.page.screenshot({ path: path.join(shots, 'inventory-workspace-batch-exit.png'), fullPage: true });
+        } finally { await state.context.close(); }
+    });
+    await run('Inventory workspace: individual exit also lets the API resolve a project without stock', async () => {
+        const state = await setup('/dashboard/estoque?aba=exit');
+        try {
+            const search = state.page.getByPlaceholder(/Digite ou bipe o código/);
+            await search.fill(state.internalAsset.assetCode);
+            await state.page.getByRole('button', { name: new RegExp(state.internalAsset.assetCode) }).click();
+            await state.page.getByLabel('Cliente').selectOption(state.company.id);
+            await state.page.getByLabel('Projeto').selectOption(state.company.projects[1].id);
+            await state.page.getByLabel('Motivo da saída').selectOption('Envio para projeto');
+            await state.page.getByLabel('Evento na timeline').fill('Enviado pela saída individual QA');
+            await state.page.getByLabel('PIN').fill('1234');
+            assert.equal(await state.page.locator('form').evaluate(form => form.checkValidity()), true);
+            await state.page.waitForTimeout(100);
+            await state.page.getByRole('button', { name: 'Registrar Saída', exact: true }).click();
+            await expect.poll(() => state.requests.some(item => item.path === '/inventory/exit-batch' && item.method === 'POST')).toBe(true);
+            const request = state.requests.find(item => item.path === '/inventory/exit-batch' && item.method === 'POST');
+            assert.equal(request.body.companyId, state.company.id);
+            assert.equal(request.body.projectId, state.company.projects[1].id);
+            assert.equal(request.body.destinationLocationId, undefined);
+            assert.deepEqual(request.body.assetIds, [state.internalAsset.id]);
+            assert.deepEqual(state.errors, []);
         } finally { await state.context.close(); }
     });
     await run('Inventory workspace: maintenance exit routes automatically without client or project fields', async () => {
@@ -122,12 +151,15 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         try {
             const search = state.page.getByPlaceholder('Bipe a etiqueta ou digite código/nome...');
             await search.fill(state.internalAsset.assetCode); await search.press('Enter');
+            await expect(state.page.getByText('Itens para saída (1)', { exact: true })).toBeVisible();
             await state.page.getByLabel('Motivo da saída').selectOption('Manutenção');
             await expect(state.page.getByText(/Destino automático: Manutenção/)).toBeVisible();
             await expect(state.page.getByLabel('Cliente', { exact: true })).toHaveCount(0);
             await state.page.getByLabel('Evento na timeline').fill('Encaminhado para manutenção QA');
             await state.page.getByLabel('PIN').fill('1234');
+            await state.page.waitForTimeout(100);
             await state.page.getByRole('button', { name: /Dar saída em 1 item/ }).click();
+            await expect.poll(() => state.requests.some(item => item.path === '/inventory/exit-batch' && item.method === 'POST')).toBe(true);
             const request = state.requests.find(item => item.path === '/inventory/exit-batch' && item.method === 'POST');
             assert.equal(request.body.destinationLocationId, undefined);
             assert.equal(request.body.newStatus, 'EM_MANUTENCAO');

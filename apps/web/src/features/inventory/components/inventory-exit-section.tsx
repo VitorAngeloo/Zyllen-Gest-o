@@ -68,6 +68,7 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
                                     skus={skus?.data ?? []}
                                     value={exitSkuId}
                                     onChange={(id) => { setExitSkuId(id); setExitAsset(null); setExitCodeQuery(""); }}
+                                    required={false}
                                 />
                             </div>
 
@@ -167,14 +168,14 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
                             {!internalDestination && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label className="text-[var(--zyllen-muted)]">Cliente *</Label>
-                                    <select value={exitCompanyId} onChange={(e) => { setExitCompanyId(e.target.value); setExitProjectId(""); }} required className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
+                                    <select aria-label="Cliente" value={exitCompanyId} onChange={(e) => { setExitCompanyId(e.target.value); setExitProjectId(""); }} required className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm">
                                         <option value="">Selecione...</option>
                                         {companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[var(--zyllen-muted)]">Projeto *</Label>
-                                    <select value={exitProjectId} onChange={(e) => setExitProjectId(e.target.value)} required disabled={!exitCompanyId} className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm disabled:opacity-50">
+                                    <select aria-label="Projeto" value={exitProjectId} onChange={(e) => setExitProjectId(e.target.value)} required disabled={!exitCompanyId} className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm disabled:opacity-50">
                                         <option value="">Selecione...</option>
                                         {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
                                     </select>
@@ -185,6 +186,7 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Motivo da Saída</Label>
                                 <select
+                                    aria-label="Motivo da saída"
                                     value={exitNewMotivo}
                                     onChange={(e) => setExitNewMotivo(e.target.value)}
                                     required
@@ -197,6 +199,7 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">Detalhe (opcional)</Label>
                                 <Input
+                                    aria-label="Detalhe da saída"
                                     value={exitNewReason}
                                     onChange={(e) => setExitNewReason(e.target.value)}
                                     placeholder="Detalhes adicionais..."
@@ -212,6 +215,7 @@ export function InventoryExitSection({ controller }: { controller: InventoryCont
                             <div className="space-y-2">
                                 <Label className="text-[var(--zyllen-muted)]">PIN</Label>
                                 <Input
+                                    aria-label="PIN"
                                     type="password"
                                     autoComplete="new-password"
                                     maxLength={4}

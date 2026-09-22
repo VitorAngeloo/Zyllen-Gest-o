@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { internalExitDestination } from './exit-destination';
 
 export const createStockEntrySchema = z.object({
     skuId: z.string().uuid('ID do item inválido'),
@@ -68,6 +69,8 @@ export const createBatchExitSchema = z.object({
     requestId: z.string().uuid().optional(),
     assetIds: z.array(z.string().uuid()).min(1).max(100),
     destinationLocationId: z.string().uuid().optional(),
+    companyId: z.string().uuid().optional(),
+    projectId: z.string().uuid().optional(),
     reason: z.string().trim().min(1).max(2000),
     newStatus: z.enum(['EM_USO', 'EM_MANUTENCAO', 'BAIXADO']).default('EM_USO'),
     eventDescription: z.string().trim().min(1).max(2000),
@@ -78,6 +81,18 @@ export const createBatchExitSchema = z.object({
     }
     if (value.destinationLocationId && value.newStatus !== 'EM_USO') {
         context.addIssue({ code: 'custom', path: ['newStatus'], message: 'Envios para cliente devem ficar em uso' });
+    }
+    if (Boolean(value.companyId) !== Boolean(value.projectId)) {
+        context.addIssue({ code: 'custom', path: ['projectId'], message: 'Informe o cliente e o projeto de destino' });
+    }
+    if (value.destinationLocationId && value.projectId) {
+        context.addIssue({ code: 'custom', path: ['destinationLocationId'], message: 'Informe o projeto ou o estoque de destino, não ambos' });
+    }
+    if (value.projectId && value.newStatus !== 'EM_USO') {
+        context.addIssue({ code: 'custom', path: ['newStatus'], message: 'Envios para projeto devem ficar em uso' });
+    }
+    if (internalExitDestination(value.reason) && (value.destinationLocationId || value.projectId || value.companyId)) {
+        context.addIssue({ code: 'custom', path: ['projectId'], message: 'Este motivo usa um estoque interno automático' });
     }
 });
 export type CreateBatchExitInput = z.infer<typeof createBatchExitSchema>;

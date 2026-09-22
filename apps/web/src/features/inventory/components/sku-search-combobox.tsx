@@ -5,7 +5,7 @@ import { Search, X } from "lucide-react";
 
 
 
-export function SkuSearchCombobox({ skus, value, onChange }: { skus: any[]; value: string; onChange: (id: string) => void }) {
+export function SkuSearchCombobox({ skus, value, onChange, required = true }: { skus: any[]; value: string; onChange: (id: string) => void; required?: boolean }) {
     const [query, setQuery] = useState("");
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -76,7 +76,7 @@ export function SkuSearchCombobox({ skus, value, onChange }: { skus: any[]; valu
                 </div>
             )}
             {/* Hidden input for form validation */}
-            <input type="text" value={value} autoComplete="off" required tabIndex={-1} className="sr-only" onChange={() => {}} />
+            <input type="text" value={value} autoComplete="off" required={required} tabIndex={-1} className="sr-only" onChange={() => {}} />
         </div>
     );
 }

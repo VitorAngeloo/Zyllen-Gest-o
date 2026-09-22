@@ -25,6 +25,9 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
     const unknown = await prisma.asset.create({ data: { assetCode: 'CQA-LEGACY', skuId: sku.id } });
     const inLegacy = await prisma.asset.create({ data: { assetCode: 'CQA-LEGACY-LOCAL', skuId: sku.id, currentLocationId: legacy.id } });
     const project = await prisma.project.create({ data: { name: 'Unidade cliente QA', companyId: company.id } });
+    const projectWithoutStock = await prisma.project.create({ data: { name: 'Projeto sem estoque QA', companyId: company.id } });
+    const failedProject = await prisma.project.create({ data: { name: 'Projeto com saída inválida QA', companyId: company.id } });
+    const concurrentProject = await prisma.project.create({ data: { name: 'Projeto simultâneo QA', companyId: company.id } });
     let warehouse, destination, other, spare;
     const assets = [];
     const asset = async () => { const row = await prisma.asset.create({ data: { assetCode: 'CQA-' + crypto.randomUUID(), skuId: sku.id, currentLocationId: warehouse.id } }); assets.push(row); return row; };
@@ -127,21 +130,43 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         status(await http('/assets', { method: 'POST', body: { skuId: sku.id, currentLocationId: destination.id } }), 409);
         assert.equal((await prisma.asset.findUnique({ where: { id } })).currentLocationId, destination.id);
     });
-    await run('Inventory batches: exit binds client/project and entry infers every origin with timeline and idempotency', async () => {
+    await run('Inventory batches: first project exit creates its stock and later exits reuse it', async () => {
         await prisma.movementType.upsert({ where: { name: 'Saída' }, create: { name: 'Saída' }, update: { requiresApproval: false, isFinalWriteOff: false } });
         const first = await asset();
         const second = await prisma.asset.create({ data: { assetCode: 'CQA-' + crypto.randomUUID(), skuId: sku.id, currentLocationId: spare.id } });
         const exitRequestId = crypto.randomUUID();
-        const exitBody = { requestId: exitRequestId, assetIds: [first.id, second.id], destinationLocationId: destination.id, reason: 'Envio lote QA', newStatus: 'EM_USO', eventDescription: 'Enviado ao projeto QA', pin };
+        const exitBody = { requestId: exitRequestId, assetIds: [first.id, second.id], companyId: company.id, projectId: projectWithoutStock.id, reason: 'Envio lote QA', newStatus: 'EM_USO', eventDescription: 'Enviado ao projeto QA', pin };
         const exited = value(await http('/inventory/exit-batch', { actor: requester, method: 'POST', body: exitBody }), 201);
         assert.equal(exited.processed, 2);
-        assert.equal((await prisma.asset.count({ where: { id: { in: exitBody.assetIds }, currentLocationId: destination.id, status: 'EM_USO' } })), 2);
+        const automaticStock = await prisma.location.findFirstOrThrow({ where: { kind: 'CLIENT', companyId: company.id, projectId: projectWithoutStock.id } });
+        assert.equal(await prisma.location.count({ where: { kind: 'CLIENT', companyId: company.id, projectId: projectWithoutStock.id } }), 1);
+        assert.equal(await prisma.auditLog.count({ where: { action: 'PROJECT_STOCK_CREATED_AUTOMATICALLY', entityId: automaticStock.id } }), 1);
+        assert.equal((await prisma.asset.count({ where: { id: { in: exitBody.assetIds }, currentLocationId: automaticStock.id, status: 'EM_USO' } })), 2);
         const exitMovements = await prisma.stockMovement.findMany({ where: { referenceId: exitRequestId }, orderBy: { assetId: 'asc' } });
-        assert.equal(exitMovements.length, 2); assert(exitMovements.every(movement => movement.toLocationId === destination.id && movement.referenceType === 'CLIENT_SHIPMENT'));
+        assert.equal(exitMovements.length, 2); assert(exitMovements.every(movement => movement.toLocationId === automaticStock.id && movement.referenceType === 'CLIENT_SHIPMENT'));
         assert.deepEqual(new Set(exitMovements.map(movement => movement.fromLocationId)), new Set([warehouse.id, spare.id]));
         assert.equal(await prisma.assetEvent.count({ where: { assetId: { in: exitBody.assetIds }, description: exitBody.eventDescription } }), 2);
         assert.equal(value(await http('/inventory/exit-batch', { actor: requester, method: 'POST', body: exitBody }), 201).processed, 2);
         assert.equal(await prisma.stockMovement.count({ where: { referenceId: exitRequestId } }), 2);
+
+        const later = await asset();
+        const laterBody = { ...exitBody, requestId: crypto.randomUUID(), assetIds: [later.id] };
+        assert.equal(value(await http('/inventory/exit-batch', { actor: requester, method: 'POST', body: laterBody }), 201).processed, 1);
+        assert.equal((await prisma.asset.findUniqueOrThrow({ where: { id: later.id } })).currentLocationId, automaticStock.id);
+        assert.equal(await prisma.location.count({ where: { kind: 'CLIENT', companyId: company.id, projectId: projectWithoutStock.id } }), 1);
+
+        const invalidBody = { ...exitBody, requestId: crypto.randomUUID(), assetIds: [crypto.randomUUID()], projectId: failedProject.id };
+        status(await http('/inventory/exit-batch', { actor: requester, method: 'POST', body: invalidBody }), 400);
+        assert.equal(await prisma.location.count({ where: { projectId: failedProject.id } }), 0);
+
+        const concurrentAssets = [await asset(), await asset()];
+        const concurrentResults = await Promise.all(concurrentAssets.map(row => http('/inventory/exit-batch', { actor: requester, method: 'POST', body: {
+            ...exitBody, requestId: crypto.randomUUID(), assetIds: [row.id], projectId: concurrentProject.id,
+        } })));
+        assert(concurrentResults.every(response => response.status === 201), JSON.stringify(concurrentResults));
+        const concurrentStock = await prisma.location.findFirstOrThrow({ where: { projectId: concurrentProject.id } });
+        assert.equal(await prisma.location.count({ where: { projectId: concurrentProject.id } }), 1);
+        assert.equal(await prisma.asset.count({ where: { id: { in: concurrentAssets.map(row => row.id) }, currentLocationId: concurrentStock.id } }), 2);
 
         const entryRequestId = crypto.randomUUID();
         const entryBody = { requestId: entryRequestId, assetIds: exitBody.assetIds, toLocationId: warehouse.id, movementTypeId: type.id, reason: 'Retorno lote QA', eventDescription: 'Retornou ao estoque QA', returnStatus: 'ATIVO', pin };
@@ -149,7 +174,7 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         assert.equal(entered.processed, 2);
         assert.equal(await prisma.asset.count({ where: { id: { in: entryBody.assetIds }, currentLocationId: warehouse.id, status: 'ATIVO' } }), 2);
         const entryMovements = await prisma.stockMovement.findMany({ where: { referenceId: entryRequestId } });
-        assert.equal(entryMovements.length, 2); assert(entryMovements.every(movement => movement.fromLocationId === destination.id && movement.toLocationId === warehouse.id && movement.referenceType === 'CLIENT_RETURN'));
+        assert.equal(entryMovements.length, 2); assert(entryMovements.every(movement => movement.fromLocationId === automaticStock.id && movement.toLocationId === warehouse.id && movement.referenceType === 'CLIENT_RETURN'));
         assert.equal(await prisma.assetEvent.count({ where: { assetId: { in: entryBody.assetIds }, description: entryBody.eventDescription } }), 2);
         assert.equal(value(await http('/inventory/entry-batch', { actor: entryOnly, method: 'POST', body: entryBody }), 201).processed, 2);
         assert.equal(await prisma.stockMovement.count({ where: { referenceId: entryRequestId } }), 2);

@@ -298,7 +298,7 @@ export function useInventoryController() {
         mutationFn: (data: any) => {
             const reasonText = [data.motivo, data.reason].filter(Boolean).join(" — ");
             return inventoryApi.createBatchExit({ requestId: crypto.randomUUID(), assetIds: [data.assetId],
-                destinationLocationId: data.destinationLocationId, reason: reasonText,
+                companyId: data.companyId, projectId: data.projectId, reason: reasonText,
                 newStatus: data.internalDestination?.status ?? "EM_USO", eventDescription: data.eventDescription, pin: data.pin }, fetchOpts);
         },
         onSuccess: (result: any) => {
@@ -306,6 +306,7 @@ export function useInventoryController() {
             qc.invalidateQueries({ queryKey: ["balances"] });
             qc.invalidateQueries({ queryKey: ["movements"] });
             qc.invalidateQueries({ queryKey: ["custody"] });
+            qc.invalidateQueries({ queryKey: ["custody-options"] });
             qc.invalidateQueries({ queryKey: ["exit-sku-assets", exitSkuId] });
             setExitAsset(null);
             setExitCodeQuery("");
@@ -418,6 +419,8 @@ export function useInventoryController() {
             setBatchMotivo(""); setBatchDetail(""); setBatchStatus(""); setBatchEvent(""); setBatchPin(""); setBatchCompanyId(""); setBatchProjectId("");
             qc.invalidateQueries({ queryKey: ["balances"] });
             qc.invalidateQueries({ queryKey: ["movements"] });
+            qc.invalidateQueries({ queryKey: ["custody"] });
+            qc.invalidateQueries({ queryKey: ["custody-options"] });
             setTimeout(() => batchScanRef.current?.focus(), 50);
         },
         onError: (e: any) => toast.error(e.message),
@@ -430,13 +433,12 @@ export function useInventoryController() {
         if (!internalDestination && (!batchCompanyId || !batchProjectId)) { toast.error("Selecione o cliente e o projeto de destino"); return; }
         if (!batchEvent.trim()) { toast.error("Descreva o evento da timeline"); return; }
         if (!batchPin) { toast.error("Informe o PIN"); return; }
-        const destinationLocationId = internalDestination ? undefined : custodyOptions?.data?.locations.find(location => location.kind === "CLIENT" && location.companyId === batchCompanyId && location.projectId === batchProjectId)?.id;
-        if (!internalDestination && !destinationLocationId) { toast.error("O projeto selecionado ainda não possui um estoque identificado"); return; }
         const reason = [batchMotivo, batchDetail.trim()].filter(Boolean).join(" — ");
         batchExitMut.mutate({
             requestId: crypto.randomUUID(),
             assetIds: [...batchQueue.keys()],
-            destinationLocationId,
+            companyId: internalDestination ? undefined : batchCompanyId,
+            projectId: internalDestination ? undefined : batchProjectId,
             reason,
             newStatus: internalDestination?.status ?? "EM_USO",
             eventDescription: batchEvent.trim(),
@@ -644,8 +646,6 @@ export function useInventoryController() {
             toast.error("Este patrimônio não possui local definido. Edite o patrimônio antes de dar saída.");
             return;
         }
-        const destinationLocationId = internalDestination ? undefined : custodyOptions?.data?.locations.find(location => location.kind === "CLIENT" && location.companyId === exitCompanyId && location.projectId === exitProjectId)?.id;
-        if (!internalDestination && !destinationLocationId) { toast.error("O projeto selecionado ainda não possui um estoque identificado"); return; }
         if (internalDestination) {
             exitMut.mutate({ skuId: exitAsset.skuId, locationId: exitAsset.currentLocationId, pin: exitNewPin,
                 motivo: exitNewMotivo, reason: exitNewReason, eventDescription: exitNewEvent.trim(), assetId: exitAsset.id, internalDestination });
@@ -659,7 +659,8 @@ export function useInventoryController() {
             reason: exitNewReason,
             eventDescription: exitNewEvent.trim(),
             assetId: exitAsset.id,
-            destinationLocationId,
+            companyId: exitCompanyId,
+            projectId: exitProjectId,
         });
     };
 
