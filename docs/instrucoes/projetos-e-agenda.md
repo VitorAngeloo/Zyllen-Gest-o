@@ -22,7 +22,7 @@ O formulário de **Novo projeto** não apresenta mais **Sala ou totem atendido**
 
 O menu **Projetos e Agenda** abre `/dashboard/projetos`, inicialmente em **Visão geral**. A tela reúne cinco abas, respeitando `schedule.view` e a sessão interna:
 
-- **Visão geral:** indicadores de projetos e de instalações/desinstalações/viagens, com período compartilhado, atualização manual ou a cada 30 segundos. Falha de uma consulta preserva a outra seção. O filtro de serviço, dentro dos indicadores de projetos, vale somente para essa seção.
+- **Visão geral:** indicadores de projetos e de instalações/desinstalações/viagens, com período compartilhado, atualização manual ou a cada 30 segundos. A hierarquia separa a situação atual dos resultados do período; viagens agendadas futuras permanecem visíveis no resumo atual mesmo quando estão fora do intervalo histórico. Falha de uma consulta preserva a outra seção. O filtro de serviço, dentro dos indicadores de projetos, vale somente para essa seção.
 - **Projetos:** cadastro e lista de instalações/desinstalações, incluindo pendentes sem data, filtros, paginação, responsáveis e status.
 - **Agenda:** calendário completo de projetos agendados, viagens e compromissos avulsos, com visualização em lista. Busca e filtros de tipo/status usam o mesmo escopo nas duas visualizações; todas as páginas de agendamentos são consultadas.
 - **Viagens:** consolidação de deslocamentos criados por projetos, com filtros, responsáveis, detalhes e ações de realização. Não há entrada separada de viagens na sidebar.
@@ -54,7 +54,7 @@ Cada serviço vincula no máximo um `Schedule`. Seu intervalo é a única fonte 
 
 Uma vez agendado, o intervalo é mantido nas edições; cancelar é uma ação de status, que preserva o evento e o histórico. Não há remoção física de serviços nesta entrega. Agendamentos avulsos e recorrências da Agenda continuam disponíveis; novos agendamentos de um projeto já operacional são feitos pela gestão desse projeto, sem criar um segundo serviço ou série para ele.
 
-Conflitos de responsáveis internos e terceirizados são verificados na nova gestão. Conflito retorna aviso e exige confirmação explícita para prosseguir. Movimentos pelo calendário que conflitem são rejeitados e revertidos visualmente; ajustar ou confirmar pelo formulário. A cor do projeto aparece na borda e não substitui a cor do instalador nem a urgência textual.
+Conflitos de responsáveis internos e terceirizados são verificados na nova gestão. Conflito retorna aviso e exige confirmação explícita para prosseguir. Movimentos pelo calendário que conflitem são rejeitados e revertidos visualmente; ajustar ou confirmar pelo formulário. Nos eventos vinculados a projeto, a cor escolhida preenche o cartão do calendário e também sua borda; o texto branco recebe contorno e sombra pretos para continuar legível sobre cores claras. Compromissos avulsos continuam usando a cor do instalador, e a urgência textual permanece disponível.
 
 Datas do formulário usam o fuso do navegador e são enviadas em ISO com offset. Gravações SQL da agenda convertem explicitamente para UTC, inclusive quando a sessão PostgreSQL usa outro fuso.
 
@@ -76,7 +76,7 @@ Projetos podem ser finalizados/cancelados mesmo quando um responsável históric
 
 ## Dashboard geral de projetos
 
-Acessar **Visão geral** em Projetos e Agenda. Os indicadores de projetos são uma seção de consulta, com os mesmos requisitos de `schedule.view`, sem criação, edição, arraste ou alteração de status. Para operar, selecionar a aba **Projetos**; a troca não concede permissões de escrita. O endereço anterior `/dashboard/projetos/painel` leva à visão geral. O espelho sem login permanece em rota própria, conforme [painel de acompanhamento](painel-de-acompanhamento.md).
+Acessar **Visão geral** em Projetos e Agenda. Os indicadores de projetos são uma seção de consulta, com os mesmos requisitos de `schedule.view`, sem criação, edição, arraste ou alteração de status. O layout usa leitura progressiva: **Situação atual** concentra ativos, andamento, pendências e agendamentos; **Resultados do período** reúne conclusões e cancelamentos; os cartões de acompanhamento aparecem abaixo em grade compacta, usando a cor do projeto como apoio visual. Para operar, selecionar a aba **Projetos**; a troca não concede permissões de escrita. O endereço anterior `/dashboard/projetos/painel` leva à visão geral. O espelho sem login permanece em rota própria, conforme [painel de acompanhamento](painel-de-acompanhamento.md).
 
 | Indicador | Regra |
 |---|---|

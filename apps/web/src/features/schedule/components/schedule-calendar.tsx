@@ -12,6 +12,7 @@ import ptBrLocale from "@fullcalendar/core/locales/pt-br";
 
 import { toast } from "sonner";
 import { TRIP_COPY } from '@web/lib/brand-voice';
+import type { RequestOptions } from '@web/lib/api-client';
 
 // ── Types (mirrors page.tsx) ──────────────────────────────────────────────────
 
@@ -31,13 +32,6 @@ function toLocalDatetimeStr(input: string | Date): string {
     }
 }
 
-const STATUS_OPACITY: Record<string, number> = {
-    SCHEDULED: 1,
-    IN_PROGRESS: 1,
-    DONE: 0.6,
-    CANCELLED: 0.3,
-};
-
 const TYPE_ICONS: Record<string, string> = {
     INSTALLATION: "⚡",
     MAINTENANCE: "🔧",
@@ -52,26 +46,29 @@ interface AgendaCalendarProps {
     schedules: CalendarSchedule[];
     onEventClick: (schedule: CalendarSchedule) => void;
     onDateSelect: (start: string, end: string) => void;
-    fetchOpts: Record<string, any>;
+    fetchOpts: RequestOptions;
     onScheduleUpdated: () => void;
     canEdit?: boolean;
     canCreate?: boolean;
 }
 
 export default function AgendaCalendar({ schedules, onEventClick, onDateSelect, fetchOpts, onScheduleUpdated, canEdit = true, canCreate = true }: AgendaCalendarProps) {
-    const events = schedules.map((s) => ({
-        id: s.id,
-        title: s.title,
-        start: s.startDate,
-        end: s.endDate,
-        backgroundColor: s.installers[0]?.agendaColor ?? "#3B82F6",
-        borderColor: s.trip ? '#38BDF8' : s.projectService?.color ?? "transparent",
-        textColor: "#ffffff",
-        classNames: s.status === "CANCELLED" ? ["fc-event-cancelled"] : [],
-        editable: canEdit && s.status !== "CANCELLED" && s.status !== "DONE",
-        urgency: s.projectService?.urgency ?? 0,
-        extendedProps: { schedule: s },
-    }));
+    const events = schedules.map((s) => {
+        const projectColor = s.projectService && /^#[a-fA-F0-9]{6}$/.test(s.projectService.color) ? s.projectService.color : null;
+        return {
+            id: s.id,
+            title: s.title,
+            start: s.startDate,
+            end: s.endDate,
+            backgroundColor: projectColor ?? s.installers[0]?.agendaColor ?? "#3B82F6",
+            borderColor: projectColor ?? (s.trip ? '#38BDF8' : "transparent"),
+            textColor: "#ffffff",
+            classNames: [projectColor ? "fc-event-project-color" : "", s.status === "CANCELLED" ? "fc-event-cancelled" : ""].filter(Boolean),
+            editable: canEdit && s.status !== "CANCELLED" && s.status !== "DONE",
+            urgency: s.projectService?.urgency ?? 0,
+            extendedProps: { schedule: s },
+        };
+    });
 
     function handleEventClick(info: EventClickArg) {
         info.jsEvent.preventDefault();

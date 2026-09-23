@@ -1,22 +1,45 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const runtime = process.env.AUDIT_RUNTIME_ROOT || 'C:/Users/SERVIDOR ZYLLEN/.cache/codex-runtimes/codex-primary-runtime/dependencies';
 const { expect } = require(path.join(runtime, 'node/node_modules/playwright/test'));
 
 module.exports = async ({ run, browser, base, fixedNow }) => {
+    const previewAttachments = Array.from({ length: 6 }, (_, index) => ({
+        id: `att-${index + 1}`,
+        fileName: `registro-instalacao-${index + 1}.mp4`,
+        mimeType: 'video/mp4',
+    }));
     const orders = Array.from({ length: 115 }, (_, index) => ({
         id: `os-${index}`, osNumber: `OS-QA-${String(index).padStart(4, '0')}`,
         status: index === 40 ? 'IN_PROGRESS' : 'OPEN', formType: 'INSTALACAO_SALA',
         clientName: index === 40 ? 'Santa Ines QA' : `Cliente QA ${index}`,
+        clientCity: index === 40 ? 'São Paulo' : null, clientState: index === 40 ? 'SP' : null,
+        location: index === 40 ? 'Avenida Integra, 240 · Vila Zyllen · São Paulo' : null,
+        contactName: index === 40 ? 'Responsável QA' : null, contactPhone: index === 40 ? '(11) 90000-0040' : null,
+        startedAt: index === 40 ? new Date(fixedNow - 2 * 86400000).toISOString() : null,
+        endedAt: index === 40 ? new Date(fixedNow - 60000).toISOString() : null,
         createdAt: new Date(fixedNow - index * 60_000).toISOString(),
         openedById: index === 0 ? 'user-qa' : 'another-user-qa', openedByContractorId: null,
         openedBy: { name: 'Colaborador QA' }, openedByContractor: null, asset: null, project: null,
+        formData: index === 40 ? {
+            roomModel: 'Retangular', screenDimensions: '366 × 280 cm', hasOutlets: 'Sim', internetType: 'Cabeada',
+            easyAccess: 'Sim', safeLocation: 'Sim', displayType: 'Projetor', displayModel: 'Optoma',
+            computerConfig: 'CPU montado na Skyline', soundEquipment: 'Receiver Demon, 3 arandelas e 1 subwoofer JBL',
+            tabletTotem: 'Tablet Samsung S6', cameraInstalled: 'Sim', anydeskAlias: '151 967 7703',
+            logbook: 'Instalação concluída, automação validada e apresentação configurada.',
+            witnessName: 'Acompanhante QA', witnessDocument: 'REGISTRO-QA-0040',
+        } : {},
     }));
 
     async function setup(role, route) {
         const requests = [], errors = [];
         const context = await browser.newContext({ viewport: { width: 1440, height: 1050 } });
-        await context.addInitScript(() => { localStorage.setItem('accessToken', 'synthetic-os-qa'); localStorage.setItem('userType', 'internal'); });
+        await context.addInitScript(() => {
+            localStorage.setItem('accessToken', 'synthetic-os-qa');
+            localStorage.setItem('userType', 'internal');
+            window.print = () => { window.__zyllenPrintRequested = true; };
+        });
         await context.route('**/*', async interception => {
             const request = interception.request(), url = new URL(request.url());
             if (!['127.0.0.1', 'localhost'].includes(url.hostname) && !['data:', 'blob:'].includes(url.protocol)) return interception.abort();
@@ -40,6 +63,9 @@ module.exports = async ({ run, browser, base, fixedNow }) => {
                 const page = Number(url.searchParams.get('page') || 1), limit = Number(url.searchParams.get('limit') || 20);
                 return respond({ data: filtered.slice((page - 1) * limit, page * limit), total: filtered.length, page, limit });
             }
+            if (url.pathname === '/maintenance/os-40/attachments') return respond({ data: previewAttachments });
+            if (/^\/maintenance\/os-\d+\/attachments$/.test(url.pathname)) return respond({ data: [] });
+            if (/^\/maintenance\/os-\d+\/followup-blocks$/.test(url.pathname)) return respond({ data: [] });
             return respond({ data: [] });
         });
         const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
@@ -91,6 +117,38 @@ module.exports = async ({ run, browser, base, fixedNow }) => {
             await pagination.getByRole('button', { name: 'Próxima' }).click();
             await expect(s.page.getByText('OS-QA-0114')).toBeVisible();
             assert.deepEqual(s.errors, []);
+        } finally { await s.context.close(); }
+    });
+
+    await run('OS PDF uses the official Zyllen identity and keeps the operational content readable', async () => {
+        const s = await setup('Gestor', '/dashboard/minhas-os');
+        try {
+            await s.page.getByRole('button', { name: 'Abrir detalhes da OS OS-QA-0040' }).click();
+            await expect(s.page.getByRole('button', { name: 'Gerar PDF' })).toBeVisible();
+            const popupPromise = s.page.waitForEvent('popup');
+            await s.page.getByRole('button', { name: 'Gerar PDF' }).click();
+            const pdfPage = await popupPromise;
+            await expect(pdfPage.locator('.document')).toBeVisible();
+            await expect(pdfPage.locator('.brand-lockup img')).toHaveAttribute('src', /^data:image\/svg\+xml;base64,/);
+            await expect.poll(() => pdfPage.locator('.brand-lockup img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+            await expect(pdfPage.locator('.document-header')).toContainText('OS-QA-0040');
+            await expect(pdfPage.locator('.summary-strip')).toContainText('Santa Ines QA');
+            await expect(pdfPage.locator('.detail-list')).toContainText('CPU montado na Skyline');
+            await expect(pdfPage.locator('.attachment-item')).toHaveCount(6);
+            await expect(pdfPage.locator('.attachment-placeholder')).toHaveCount(6);
+            await expect(pdfPage.locator('.brand-watermark')).toHaveCount(1);
+            await expect(pdfPage.locator('.brand-watermark .watermark-ink path')).toHaveCount(2);
+            await expect(pdfPage.locator('.brand-watermark .watermark-accent path')).toHaveCount(2);
+            await expect(pdfPage.locator('.brand-spine')).toHaveCount(1);
+
+            const output = process.env.AUDIT_OS_PDF_OUTPUT;
+            if (output) {
+                fs.mkdirSync(path.dirname(output), { recursive: true });
+                await pdfPage.pdf({ path: output, format: 'A4', printBackground: true, preferCSSPageSize: true });
+            }
+
+            assert.deepEqual(s.errors, []);
+            await pdfPage.close();
         } finally { await s.context.close(); }
     });
 };

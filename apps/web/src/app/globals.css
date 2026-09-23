@@ -321,6 +321,18 @@ select optgroup {
   font-size: 0.8rem;
 }
 
+.zyllen-calendar .fc-event-project-color,
+.zyllen-calendar .fc-event-project-color .fc-event-main,
+.zyllen-calendar .fc-event-project-color .fc-event-main-frame {
+  color: #fff !important;
+  -webkit-text-stroke: 0.35px rgba(0, 0, 0, 0.95);
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.9),
+    1px -1px 0 rgba(0, 0, 0, 0.9),
+    -1px 1px 0 rgba(0, 0, 0, 0.9),
+    1px 1px 0 rgba(0, 0, 0, 0.9);
+}
+
 .zyllen-calendar .fc-event-cancelled {
   opacity: 0.4;
   text-decoration: line-through;

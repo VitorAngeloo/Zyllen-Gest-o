@@ -18,6 +18,18 @@ Em **Minhas OS**, Administrador e Gestor começam na visão **Todas as OS**. Pod
 
 Regressão da interface: `pnpm test:maintenance:browser`, após `pnpm validate:isolated`. O teste usa respostas sintéticas e não grava no banco compartilhado.
 
+## PDF da ordem de serviço
+
+Os três portais usam o mesmo gerador em `apps/web/src/features/maintenance/utils/os-pdf.ts`. O documento deve preservar a leitura operacional em A4 e a identidade da Zyllen Systems sem competir com os dados:
+
+- logotipo vetorial oficial `public/brand/zyllen-wordmark.svg` no cabeçalho;
+- base branca, texto `#2C2C2C` e verde `#ABFF10` restrito aos elementos de assinatura visual;
+- cabeçalho assimétrico com painel escuro à esquerda e planos diagonais, seções com numeração em bloco e marca d'água baseada no `Z` oficial em sobreposição grafite e verde;
+- informações gerais em grade, detalhes em linhas e anexos em cartões, com controle de quebra de página;
+- impressão somente depois do carregamento de logotipo, assinaturas e fotos.
+
+Qualquer alteração nesse gerador afeta as visões interna, de cliente e de parceiro. Não crie versões visuais divergentes por portal e não remova campos, assinaturas ou anexos do conteúdo exportado.
+
 ## Criação de OS e upload em duas etapas
 
 ```ts

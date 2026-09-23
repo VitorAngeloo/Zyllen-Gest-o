@@ -151,6 +151,7 @@ function ContractorMaintenanceInner() {
             openedBy: selectedOS.openedBy?.name || selectedOS.openedByContractor?.name || undefined,
             createdAt: selectedOS.createdAt,
             formData: selectedOS.formData || undefined,
+            asset: selectedOS.asset || undefined,
             attachments: detailAttachments.map((att) => ({
                 id: att.id,
                 fileName: att.fileName,

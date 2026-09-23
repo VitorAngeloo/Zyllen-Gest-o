@@ -48,10 +48,11 @@ Abrir **Projetos e Agenda → Visão geral**, seção **Instalações e viagens*
 |---|---|
 | Instalações concluídas | `ProjectService` de instalação, atualmente `DONE`, com `Schedule.completedAt` real no período |
 | Desinstalações concluídas | Mesma regra para serviço de desinstalação |
-| Viagens previstas | `Trip` atualmente planejada/em andamento com saída prevista no período |
+| Viagens agendadas | `Trip` atualmente planejada, qualquer que seja sua data futura; este é o destaque da situação atual |
+| Saídas previstas no período | `Trip` atualmente planejada/em andamento com saída prevista dentro do período selecionado |
 | Viagens realizadas | `Trip` atualmente `DONE`, com retorno real no período |
 
-Exibe também planejadas/em viagem atualmente. Contagens usam todos os registros, sem depender da página da gestão ou multiplicar viagem por serviços/responsáveis. Início do período é inclusivo, término exclusivo; dias do navegador são convertidos a UTC, com intervalo máximo de 366 dias. Conversões SQL são explícitas mesmo quando a sessão PostgreSQL está em outro fuso.
+O painel separa **Operação atual** de **Resultados do período**. Assim, uma viagem planejada para depois do intervalo histórico continua destacada como agendada; a contagem de saídas previstas no período permanece disponível como contexto temporal. Contagens usam todos os registros, sem depender da página da gestão ou multiplicar viagem por serviços/responsáveis. Início do período é inclusivo, término exclusivo; dias do navegador são convertidos a UTC, com intervalo máximo de 366 dias. Conversões SQL são explícitas mesmo quando a sessão PostgreSQL está em outro fuso.
 
 As cinco seções são limitadas a cinco registros cada: próximas instalações futuras por início previsto; instalações relevantes ativas por urgência/cadastro; últimas instalações e desinstalações por conclusão real no período, da mais recente à mais antiga; próximas viagens interestaduais futuras por saída prevista. ID resolve empates. Pendentes sem data podem estar nos relevantes; status inesperados não são reclassificados automaticamente. Previsões e destaques independem do filtro histórico.
 

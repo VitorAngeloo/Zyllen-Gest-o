@@ -140,9 +140,12 @@ export default function MinhasOsPage() {
             location: selectedOS.location,
             contactName: selectedOS.contactName,
             contactPhone: selectedOS.contactPhone,
+            startedAt: selectedOS.startedAt,
+            endedAt: selectedOS.endedAt,
             openedBy: selectedOS.openedBy?.name || selectedOS.openedByContractor?.name,
             createdAt: selectedOS.createdAt,
             formData: selectedOS.formData,
+            asset: selectedOS.asset,
             attachments: detailAttachments.map((att) => ({
                 id: att.id,
                 fileName: att.fileName,

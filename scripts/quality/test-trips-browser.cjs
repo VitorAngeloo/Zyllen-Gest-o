@@ -183,12 +183,14 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     await run('Operations UI: contextual totals, five separate read-only sections, actual-date gaps and unbooked travel', async () => {
         const data = await setup({ route: '/dashboard/operacoes' });
         try {
-            await expect(data.page.getByRole('heading', { name: 'Instalações e viagens', exact: true })).toBeVisible(); for (const [key, value] of Object.entries({ installations: 5, removals: 5, 'planned-trips': 0, 'completed-trips': 1 })) await expect(metric(data.page, key)).toHaveText(String(value));
+            await expect(data.page.getByRole('heading', { name: 'Instalações e viagens', exact: true })).toBeVisible(); for (const [key, value] of Object.entries({ installations: 5, removals: 5, 'planned-trips': 2, 'planned-trips-in-period': 0, 'completed-trips': 1 })) await expect(metric(data.page, key)).toHaveText(String(value));
             for (const name of ['Próximas instalações', 'Instalações relevantes', 'Últimas instalações concluídas', 'Últimas desinstalações concluídas', 'Próximas viagens interestaduais']) await expect(data.page.getByRole('region', { name, exact: true })).toBeVisible();
             await expect(data.page.getByRole('region', { name: 'Últimas instalações concluídas' }).locator('[data-operation-service]')).toHaveCount(5);
             await expect(data.page.getByRole('region', { name: 'Instalações relevantes' })).toContainText('Sem agendamento'); await expect(data.page.getByText(/finalizados sem data real/)).toBeVisible(); await expect(data.page.getByText(/precisam de viagem/)).toBeVisible();
             await expect(data.page.getByRole('button', { name: /Salvar|Editar|Iniciar|Finalizar/ })).toHaveCount(0); assert(data.requests.every(value => value.method === 'GET')); assert(!data.requests.some(value => value.path === '/trips' || value.path === '/trips/options'));
-            await data.page.screenshot({ path: path.join(shots, 'operations-desktop.png'), fullPage: true, animations: 'disabled' }); assert.deepEqual(data.errors, []);
+            await data.page.screenshot({ path: path.join(shots, 'operations-desktop.png'), fullPage: true, animations: 'disabled' });
+            await data.page.getByRole('region', { name: 'Instalações e viagens', exact: true }).screenshot({ path: path.join(shots, 'operations-section-desktop.png'), animations: 'disabled' });
+            assert.deepEqual(data.errors, []);
         } finally { await data.context.close(); }
     });
     await run('Operations UI: custom local period maps to UTC; invalid dates suppress fetch and upcoming executions stay current', async () => {

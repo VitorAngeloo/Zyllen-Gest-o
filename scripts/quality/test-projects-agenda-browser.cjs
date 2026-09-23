@@ -40,7 +40,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             } });
             if (url.pathname === '/trips/statistics') return state.failOperations ? respond({ error: { message: 'Falha sintética dos indicadores de operações QA' } }, 503) : respond({ data: {
                 generatedAt: new Date(fixedNow).toISOString(), period: { start: url.searchParams.get('start'), end: url.searchParams.get('end') }, installationsCompleted: 0, removalsCompleted: 0, tripsPlanned: 0, tripsCompleted: 0,
-                current: { plannedTrips: 0, tripsInProgress: 0 }, dataQuality: { servicesCompletedWithoutDate: 0, tripsCompletedWithoutDate: 0, travelWithoutBooking: 0, unclassified: 0 },
+                current: { plannedTrips: 1, tripsInProgress: 0 }, dataQuality: { servicesCompletedWithoutDate: 0, tripsCompletedWithoutDate: 0, travelWithoutBooking: 0, unclassified: 0 },
                 nextInstallations: [], relevantInstallations: [], latestInstallations: [], latestRemovals: [], nextInterstateTrips: [],
             } });
             if (url.pathname === '/trips') return respond({ data: [], total: 0, page: 1, limit: 50 });
@@ -81,6 +81,9 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             await expect(s.page.getByRole('tab')).toHaveCount(5);
             await expect(s.page.locator('[data-project-metric="active"] [data-metric-value]')).toHaveText('2');
             await expect(s.page.locator('[data-operation-metric="installations"] [data-metric-value]')).toHaveText('0');
+            await expect(s.page.locator('[data-operation-metric="planned-trips"] [data-metric-value]')).toHaveText('1');
+            await expect(s.page.locator('[data-operation-metric="planned-trips-in-period"] [data-metric-value]')).toHaveText('0');
+            await expect(s.page.getByRole('region', { name: 'Operação atual', exact: true })).toContainText('inclusive as programadas para datas futuras');
             await expect(s.page.getByRole('link', { name: 'Projetos e Agenda', exact: true })).toHaveCount(1);
             await expect(s.page.getByRole('link', { name: 'Viagens', exact: true })).toHaveCount(0);
             await expect(s.page.getByRole('heading', { level: 1 })).toHaveCount(1);
@@ -100,7 +103,9 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             assert(await s.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
             await tab(s.page, 'Projetos').click(); await expect(s.page.getByText(/Nenhum projeto encontrado/)).toBeVisible();
             await s.page.getByRole('button', { name: 'Novo projeto', exact: true }).click();
-            await expect(popup(s.page).getByLabel('Cliente', { exact: true }).locator('option')).toHaveCount(2);
+            await popup(s.page).getByRole('combobox', { name: 'Cliente', exact: true }).click();
+            const companyOption = popup(s.page).getByRole('option', { name: 'Cliente unificado QA', exact: true });
+            await expect(companyOption).toBeVisible(); await companyOption.click();
             await s.page.keyboard.press('Escape');
             await tab(s.page, 'Viagens').click(); await expect(s.page.getByText(/Nenhuma viagem encontrada/)).toBeVisible();
             await expect(s.page.locator('[role="alert"]:not(#__next-route-announcer__)')).toHaveCount(0);
@@ -173,7 +178,13 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         const s = await setup({ route: '/dashboard/projetos?aba=agenda&visao=lista', many: true }); try {
             await expect(s.page.getByText('Compromisso adicional QA 101', { exact: true })).toBeVisible(); assert(s.requests.some(request => request.path === '/schedule' && request.query.page === '2'));
             await s.page.getByLabel('Tipo dos agendamentos').selectOption('INSTALLATION'); await expect(s.page.getByText('Compromisso adicional QA 101', { exact: true })).toHaveCount(0);
-            await s.page.getByRole('button', { name: 'Calendário', exact: true }).click(); await expect(event(s.page, s.records[1].name)).toBeVisible(); await expect(event(s.page, 'Compromisso avulso unificado QA')).toHaveCount(0);
+            await s.page.getByRole('button', { name: 'Calendário', exact: true }).click();
+            const projectEvent = event(s.page, s.records[1].name);
+            await expect(projectEvent).toBeVisible();
+            await expect(projectEvent).toHaveClass(/fc-event-project-color/);
+            await expect(projectEvent).toHaveCSS('background-color', 'rgb(171, 255, 16)');
+            assert.notEqual(await projectEvent.evaluate(element => getComputedStyle(element).textShadow), 'none', 'Project event text keeps a dark outline over light colors');
+            await expect(event(s.page, 'Compromisso avulso unificado QA')).toHaveCount(0);
             await expect(s.page.getByLabel('Tipo dos agendamentos')).toHaveValue('INSTALLATION');
             await s.page.goBack(); await expect(s.page.getByRole('button', { name: 'Calendário', exact: true })).toBeVisible(); await expect(s.page.getByText(s.records[1].name, { exact: true })).toBeVisible();
             assert.deepEqual(writes(s), []); assert.deepEqual(s.errors, []);
