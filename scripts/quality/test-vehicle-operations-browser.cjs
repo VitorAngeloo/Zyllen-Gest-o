@@ -68,8 +68,10 @@ async function main() {
             await page.goto(base + '/dashboard/carros/movimentacoes');
             await expect(page.getByRole('heading', { name: 'Retiradas e devoluções' })).toBeVisible();
             await expect(page.getByRole('link', { name: 'Carros', exact: true })).toBeVisible();
+            await expect(page.getByRole('region', { name: 'Resumo das movimentações' })).toBeVisible();
             await page.getByRole('button', { name: 'Registrar retirada' }).click();
             const checkout = page.getByRole('form', { name: 'Retirada de Fiorino QA' });
+            await expect(checkout.getByText('Etapa 1 de 2')).toBeVisible();
             await page.screenshot({ path: path.join(shots, 'vehicle-checkout-mobile.png'), fullPage: true, animations: 'disabled' });
             await checkout.getByRole('button', { name: 'Tirar foto', exact: true }).scrollIntoViewIfNeeded();
             await page.screenshot({ path: path.join(shots, 'vehicle-photo-mobile.png'), animations: 'disabled' });
@@ -87,6 +89,7 @@ async function main() {
             await expect(page.getByRole('button', { name: 'Registrar devolução' })).toBeVisible();
             await page.getByRole('button', { name: 'Registrar devolução' }).click();
             const returned = page.getByRole('form', { name: 'Devolução de Fiorino QA' });
+            await expect(returned.getByText('Etapa 2 de 2')).toBeVisible();
             await returned.getByLabel(/Quilometragem na devolução/).fill('120');
             const returnPhoto = page.waitForEvent('filechooser');
             await returned.getByRole('button', { name: 'Tirar foto', exact: true }).click();
