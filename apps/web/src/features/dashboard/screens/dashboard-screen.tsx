@@ -1,9 +1,8 @@
 "use client";
-import { useState, useMemo, useRef } from "react";
+import { useState, useRef } from "react";
 import { useAuth, useAuthedFetch } from "@web/features/auth/context/auth-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@web/lib/api-client";
-import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Badge } from "@web/components/ui/badge";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -12,20 +11,14 @@ import { Select, SelectOption } from "@web/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter } from "@web/components/ui/dialog";
 import { PageHeader } from "@web/components/ui/page-header";
 import { toast } from "sonner";
-import { AlertCircle, CheckCircle2, XCircle, Shield } from "lucide-react";
+import { AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { TicketDashboardBoard } from "@web/features/tickets/components/ticket-dashboard-board";
-import { ticketApi } from '@web/features/tickets/api/ticket-api';
 import { PanelMirrorSettings } from "@web/features/panels/components/panel-mirror-settings";
+import { AttentionClientSettings } from "@web/features/panels/components/attention-client-settings";
 import { DashboardOperationalOverview } from "../components/dashboard-operational-overview";
+import { DashboardSectionHeader } from "../components/dashboard-section-header";
 import InternalDashboardScreen from './internal-dashboard-screen';
-import { getGreeting, DASHBOARD_SUBTITLE, TOASTS, DASHBOARD_OPERATIONAL_COPY as operationalCopy } from "@web/lib/brand-voice";
-
-/* ─── Attention level helper ─── */
-function getAttentionLevel(count: number) {
-    if (count >= 6) return { label: "Alerta Máximo", color: "text-red-400", bg: "bg-red-500/10", border: "border-l-red-500", badge: "destructive" as const, ring: "ring-red-500/20" };
-    if (count >= 4) return { label: "Atenção", color: "text-amber-400", bg: "bg-amber-500/10", border: "border-l-amber-500", badge: "warning" as const, ring: "ring-amber-500/20" };
-    return { label: "Normal", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-l-emerald-500", badge: "success" as const, ring: "ring-emerald-500/20" };
-}
+import { getGreeting, DASHBOARD_SUBTITLE, TOASTS } from "@web/lib/brand-voice";
 
 function FullDashboardPage() {
     const { user, hasPermission } = useAuth();
@@ -62,13 +55,6 @@ function FullDashboardPage() {
         queryKey: ["internal-users"],
         queryFn: () => apiClient.get<{ data: any[] }>("/tickets/internal-users", fetchOpts),
         enabled: canViewTickets && isManagerOrAdmin,
-    });
-
-    const clientAttentionQuery = useQuery({
-        queryKey: ["tickets", 'client-attention', user?.id],
-        queryFn: ({ signal }) => ticketApi.listForClientAttention({ ...fetchOpts, signal }),
-        enabled: !!user && canViewTickets,
-        refetchInterval: 30_000,
     });
 
     const { data: approvals } = useQuery({
@@ -145,24 +131,6 @@ function FullDashboardPage() {
         return pin;
     };
 
-    /* ─── Client attention monitor (last 7 days) ─── */
-    const clientAttention = useMemo(() => {
-        if (!clientAttentionQuery.data) return [];
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        const recentTickets = clientAttentionQuery.data.filter(t => new Date(t.createdAt) >= sevenDaysAgo && t.company?.name);
-        const grouped = new Map<string, { id: string; name: string; count: number }>();
-
-        for (const t of recentTickets) {
-            const name = t.company!.name, id = t.company!.id ?? name;
-            if (!grouped.has(id)) grouped.set(id, { id, name, count: 0 });
-            grouped.get(id)!.count++;
-        }
-
-        return [...grouped.values()].sort((a, b) => b.count - a.count);
-    }, [clientAttentionQuery.data]);
-
     /* ─── Handlers ─── */
     const handleAssignClick = (ticketId: string) => {
         setAssigningTicketId(ticketId);
@@ -203,7 +171,7 @@ function FullDashboardPage() {
     };
 
     return (
-        <div className="space-y-8 pb-6">
+        <div className="space-y-10 pb-6">
             {/* Header */}
             <PageHeader
                 eyebrow="Visão geral"
@@ -214,18 +182,20 @@ function FullDashboardPage() {
 
             {/* Pending Approvals */}
             {pendingApprovals > 0 && (
-                <Card className="bg-[var(--zyllen-bg)] border-amber-500/30">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-white flex items-center gap-2">
+                <section aria-label="Aprovações pendentes" className="space-y-3">
+                    <header className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                            <p className="flex items-center gap-2 text-sm font-semibold text-white">
                             <AlertCircle size={20} className="text-amber-400" />
                             Aprovações Pendentes
-                            <Badge variant="warning">{pendingApprovals}</Badge>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-2">
+                            </p>
+                            <p className="mt-1 text-xs text-[var(--zyllen-muted)]">Solicitações de estoque que precisam de uma decisão.</p>
+                        </div>
+                        <Badge variant="warning">{pendingApprovals}</Badge>
+                    </header>
+                    <div className="divide-y divide-amber-400/15 border-y border-amber-400/25 bg-amber-500/[0.025]">
                             {approvals?.data?.slice(0, 5).map((req: any) => (
-                                <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)]">
+                                <div key={req.id} className="flex items-center justify-between gap-4 border-l-2 border-l-amber-400/70 px-3 py-3 sm:px-4">
                                     <div className="min-w-0 flex-1">
                                         <span className="text-sm text-white">{req.requestType === 'UNINSTALLATION' ? 'Conferência de desinstalação' : req.requestType === 'BATCH_WRITE_OFF' ? 'Baixa de estoque' : req.requestType}</span>
                                         {req.requestType === 'UNINSTALLATION' && <p className="text-xs text-amber-200">{req.payloadJson?.returnedAssetIds?.length ?? 0} devolvidos · {(req.payloadJson?.assetIds?.length ?? 0) - (req.payloadJson?.returnedAssetIds?.length ?? 0)} perdas</p>}
@@ -236,14 +206,14 @@ function FullDashboardPage() {
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <Button size="sm" variant="ghost" className="text-green-400 hover:text-green-300 hover:bg-green-400/10 h-8 w-8 p-0" onClick={() => {
+                                        <Button aria-label={`Aprovar solicitação de ${req.requestedBy?.name ?? 'colaborador'}`} size="sm" variant="ghost" className="text-green-400 hover:text-green-300 hover:bg-green-400/10 h-8 w-8 p-0" onClick={() => {
                                             const pin = requestApprovalPin();
                                             if (!pin) return;
                                             approveMut.mutate({ id: req.id, pin });
                                         }} disabled={approveMut.isPending || rejectMut.isPending}>
                                             <CheckCircle2 size={18} />
                                         </Button>
-                                        <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10 h-8 w-8 p-0" onClick={() => {
+                                        <Button aria-label={`Rejeitar solicitação de ${req.requestedBy?.name ?? 'colaborador'}`} size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10 h-8 w-8 p-0" onClick={() => {
                                             const pin = requestApprovalPin();
                                             if (!pin) return;
                                             rejectMut.mutate({ id: req.id, pin });
@@ -253,60 +223,19 @@ function FullDashboardPage() {
                                     </div>
                                 </div>
                             ))}
-                        </div>
-                    </CardContent>
-                </Card>
+                    </div>
+                </section>
             )}
 
-            <div className={`grid items-start gap-8 ${canViewTickets && (hasPermission('inventory.view') || hasPermission('schedule.view') || hasPermission('vehicles.view')) ? 'xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]' : ''}`}>
-                {canViewTickets && <div className="min-w-0"><TicketDashboardBoard isManagerOrAdmin={isManagerOrAdmin} onAssign={handleAssignClick} onClose={handleCloseClick} onReassign={handleReassignClick} /></div>}
-                <div className="min-w-0"><DashboardOperationalOverview /></div>
+            <div data-dashboard-primary className={canViewTickets ? "grid min-w-0 items-start gap-8 xl:grid-cols-[minmax(0,1.35fr)_minmax(400px,0.9fr)]" : "min-w-0"}>
+                {canViewTickets && <section data-dashboard-zone="tickets" aria-label="Atendimento atual" className="min-w-0 space-y-5">
+                    <DashboardSectionHeader index="01" eyebrow="Atendimento" title="Equipe e clientes, cada um em sua fila" description="Duas leituras permanentes, com indicadores próprios e os chamados mais antigos primeiro." />
+                    <TicketDashboardBoard isManagerOrAdmin={isManagerOrAdmin} onAssign={handleAssignClick} onClose={handleCloseClick} onReassign={handleReassignClick} />
+                </section>}
+                <div className="min-w-0"><DashboardOperationalOverview compact={canViewTickets} /></div>
             </div>
 
-            {/* ─── Panel 3: Monitor de Atenção — Clientes (últimos 7 dias) ─── */}
-            {canViewTickets && (
-                <Card className="bg-[var(--zyllen-bg)] border-[var(--zyllen-border)]">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-white text-base flex items-center gap-2">
-                            <Shield size={18} className="text-cyan-400" />
-                            Monitor de Atenção — Clientes
-                            <span className="text-xs text-[var(--zyllen-muted)] font-normal ml-auto">últimos 7 dias</span>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {clientAttentionQuery.isError && <div role="alert" className="mb-3 text-sm text-red-200"><p>{clientAttentionQuery.data ? operationalCopy.stale : operationalCopy.failed}</p><Button size="sm" variant="ghost" onClick={() => { void clientAttentionQuery.refetch(); }}>{operationalCopy.retry}</Button></div>}
-                        {clientAttentionQuery.isLoading ? <p role="status" className="text-sm text-[var(--zyllen-muted)]">{operationalCopy.loading}</p> : clientAttention.length > 0 ? (
-                            <div className="space-y-2">
-                                {clientAttention.map((c) => {
-                                    const level = getAttentionLevel(c.count);
-                                    return (
-                                        <div
-                                            key={c.id}
-                                            className={`flex items-center justify-between p-3 rounded-lg border-l-4 ${level.border} ${level.bg} ${level.ring} ring-1`}
-                                        >
-                                            <div className="min-w-0 flex-1">
-                                                <p className={`text-sm font-semibold ${level.color}`}>{c.name}</p>
-                                                <p className="text-xs text-[var(--zyllen-muted)]">
-                                                    {c.count} chamado{c.count !== 1 ? "s" : ""} nos últimos 7 dias
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-2 shrink-0 ml-2">
-                                                <Badge variant={level.badge}>{level.label}</Badge>
-                                                <span className={`text-lg font-bold ${level.color}`}>{c.count}</span>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : clientAttentionQuery.data && (
-                            <div className="text-center py-8">
-                                <Shield size={36} className="mx-auto text-cyan-400/30 mb-2" />
-                                <p className="text-sm text-[var(--zyllen-muted)]">Nenhum chamado registrado nos últimos 7 dias</p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
+            {canViewTickets && <AttentionClientSettings />}
 
             {/* ─── PIN Dialog (Assign) ─── */}
             <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>

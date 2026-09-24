@@ -33,7 +33,7 @@ function ticket(id, overrides = {}) {
 function fixtures() {
     return [
         ticket('boundary'),
-        ticket('old', { title: 'Impressora do financeiro', createdAt: date(70), priority: 'CRITICAL',
+        ticket('old', { title: 'Impressora do financeiro', createdAt: date(310), priority: 'CRITICAL',
             attachments: [{ id: 'attachment-qa', fileName: 'foto-qa.png', filePath: '/media/private/ticket/attachment-qa' }],
             messages: [{ id: 'message-qa', authorType: 'external', content: 'Mensagem completa do solicitante QA', createdAt: date(60) }],
         }),
@@ -64,6 +64,7 @@ async function setup({ role = 'Administrador', permissions = ['dashboard.view', 
         if (url.pathname === '/auth/me/permissions') return respond({ data: permissions });
         if (url.pathname === '/tickets/my-internal/pending-rating') return respond({ data: null });
         if (url.pathname === '/tickets/internal-users') return respond({ data: [{ id: 'tech-qa', name: 'Técnico QA', role: { name: 'Técnico' } }] });
+        if (url.pathname === '/personal-panel/attention-clients') return respond({ data: { selected: [], options: [] } });
         if (url.pathname === '/vehicles/statistics') return respond({ data: { generatedAt: new Date(fixedNow).toISOString(), activeVehicles: 0, occupiedVehicles: 0, availableVehicles: 0, current: [], upcoming: [] } });
         if (url.pathname === '/personal-panel/statistics') return respond({ data: { view: 'estoque', data: {
             generatedAt: new Date(fixedNow).toISOString(), period: { start: new Date(fixedNow - 30 * 86400000).toISOString(), end: new Date(fixedNow).toISOString() },
@@ -91,7 +92,7 @@ async function setup({ role = 'Administrador', permissions = ['dashboard.view', 
                 current: { pending: pending.length, inProgress: visible.filter(t => t.status === 'IN_PROGRESS' && !t.closedAt).length,
                     waitingClient: visible.filter(t => t.status === 'WAITING_CLIENT' && !t.closedAt).length,
                     resolved: visible.filter(t => t.status === 'RESOLVED').length,
-                    needingAttention: visible.filter(t => ['OPEN', 'IN_PROGRESS'].includes(t.status) && !t.closedAt && fixedNow - Date.parse(t.createdAt) >= 3_600_000).length,
+                    needingAttention: visible.filter(t => ['OPEN', 'IN_PROGRESS'].includes(t.status) && !t.closedAt && fixedNow - Date.parse(t.createdAt) >= (t.source === 'INTERNAL' ? 5 * 3_600_000 : 3_600_000)).length,
                     averagePendingSeconds: pending.length ? Math.round(pending.reduce((total, t) => total + Math.max(0, fixedNow - Date.parse(t.createdAt)), 0) / pending.length / 1000) : null,
                     oldestPendingAt: pending.map(t => t.createdAt).sort()[0] || null,
                 },
@@ -137,22 +138,21 @@ async function main() {
         web.stdout.on('data', data => { logs.push(data.toString()); if (data.toString().includes('Ready in')) { clearTimeout(timer); resolve(); } });
     });
     browser = await chromium.launch({ executablePath: process.env.AUDIT_CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
-    await run('Client attention monitor: all pages count separately by client identity, including equal display names', async () => {
-        const items = Array.from({ length: 103 }, (_, index) => ticket('monitor-' + index, { company: { id: index < 60 ? 'company-a' : 'company-b', name: 'Mesmo nome QA' } }));
-        const s = await setup({ tickets: items });
-        const monitor = s.page.locator('[data-slot="card"]').filter({ hasText: 'Monitor de Atenção — Clientes' });
-        await expect(monitor.getByText('60 chamados nos últimos 7 dias', { exact: true })).toBeVisible();
-        await expect(monitor.getByText('43 chamados nos últimos 7 dias', { exact: true })).toBeVisible();
-        assert(s.requests.some(request => request.path === '/tickets' && !request.params.status && request.params.page === '2'));
+    await run('Client and internal tickets have separate persistent actionable views', async () => {
+        const s = await setup();
+        const internal = s.page.locator('[data-ticket-source="INTERNAL"]'), clients = s.page.locator('[data-ticket-source="CLIENT"]');
+        await expect(internal.getByRole('heading', { name: 'Atendimentos internos', exact: true })).toBeVisible();
+        await expect(clients.getByRole('heading', { name: 'Atendimentos de clientes', exact: true })).toBeVisible();
+        await expect(internal.locator('[data-ticket-id="old"]')).toContainText('Interno');
+        await expect(internal.locator('[data-ticket-id="progress"]')).toHaveCount(0);
+        await expect(clients.locator('[data-ticket-id="progress"]')).toContainText('Cliente');
+        await expect(clients.locator('[data-ticket-id="progress"]')).toContainText('Empresa QA');
+        await expect(clients.locator('[data-ticket-id="old"]')).toHaveCount(0);
+        assert(s.requests.some(r => r.path === '/tickets' && r.params.source === 'INTERNAL'));
+        assert(s.requests.some(r => r.path === '/tickets' && r.params.source === 'CLIENT'));
+        await expect(s.page.getByText('Monitor de Atenção — Clientes', { exact: true })).toHaveCount(0);
+        await expect(s.page.locator('[data-attention-client-settings]')).toBeVisible();
         assert.deepEqual(s.errors, []); await s.context.close();
-    });
-    await run('Client attention monitor: initial query failure stays visible and retry recovers without a false empty message', async () => {
-        const s = await setup({ failures: { attention: true } });
-        const monitor = s.page.locator('[data-slot="card"]').filter({ hasText: 'Monitor de Atenção — Clientes' });
-        await s.page.clock.runFor(5000); await expect(monitor.getByRole('button', { name: 'Tentar novamente', exact: true })).toBeVisible();
-        await expect(monitor.getByText('Nenhum chamado registrado nos últimos 7 dias', { exact: true })).toHaveCount(0);
-        s.failures.attention = false; await monitor.getByRole('button', { name: 'Tentar novamente', exact: true }).click();
-        await expect(monitor.getByText('Empresa QA', { exact: true })).toBeVisible(); await s.context.close();
     });
     await run('Cards preserve request information in both states; oldest first and alert based on opening', async () => {
         const { context, page, errors } = await setup();
@@ -166,8 +166,9 @@ async function main() {
             await expect(card(page, 'progress')).toContainText('Técnico QA');
             await expect(card(page, 'progress')).toContainText('5min 00s');
             await expect(card(page, 'old')).toContainText('Prioridade Crítica');
-            assert.deepEqual(await page.locator('[data-ticket-column="open"] article').evaluateAll(items => items.map(i => i.dataset.ticketId)), ['old', 'boundary']);
-            await expect(page.getByRole('status').filter({ hasText: '2 chamados precisam' })).toBeVisible();
+            assert.deepEqual(await page.locator('[data-ticket-source="INTERNAL"] [data-ticket-column="open"] article').evaluateAll(items => items.map(i => i.dataset.ticketId)), ['old', 'boundary']);
+            await expect(page.locator('[data-ticket-source="INTERNAL"]').getByRole('status').filter({ hasText: '1 chamado precisa' })).toBeVisible();
+            await expect(page.locator('[data-ticket-source="CLIENT"]').getByRole('status').filter({ hasText: '1 chamado precisa' })).toBeVisible();
             await card(page, 'progress').getByRole('button', { name: /^Ver detalhes:/ }).click();
             await expect(detail(page)).toContainText('cliente@example.test');
             await expect(detail(page)).toContainText('Projeto QA');
@@ -177,42 +178,39 @@ async function main() {
             await page.keyboard.press('Escape'); await expect(detail(page)).toHaveCount(0);
             assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Ver detalhes: Rede da sala indisponível');
             await page.screenshot({ path: path.join(shots, 'desktop-dashboard.png'), fullPage: true, animations: 'disabled' });
-            await page.locator('[aria-label="Visão dos atendimentos"]').screenshot({ path: path.join(shots, 'desktop-indicators.png'), animations: 'disabled' });
+            await page.locator('[data-ticket-source="INTERNAL"]').screenshot({ path: path.join(shots, 'desktop-internal-tickets.png'), animations: 'disabled' });
+            await page.locator('[data-ticket-source="CLIENT"]').screenshot({ path: path.join(shots, 'desktop-client-tickets.png'), animations: 'disabled' });
             assert.deepEqual(errors, []);
         } finally { await context.close(); }
     });
-    await run('Compact indicators filter source and period while retaining older current pending tickets', async () => {
+    await run('Compact indicators keep independent source views and periods while retaining older current pending tickets', async () => {
         const tickets = [...fixtures(), ticket('legacy-pending', { createdAt: date(40 * 24 * 60) }),
             ticket('closed-before', { status: 'CLOSED', createdAt: date(45 * 24 * 60), closedAt: date(2 * 24 * 60) }),
             ticket('waiting', { status: 'WAITING_CLIENT', assignedToInternalUserId: 'tech-qa' }),
             ticket('resolved', { status: 'RESOLVED', assignedToInternalUserId: 'tech-qa' })];
         const { context, page, requests, errors } = await setup({ tickets, timezoneId: 'America/Sao_Paulo' });
-        const metric = key => page.locator(`[data-ticket-metric="${key}"] [data-metric-value]`);
+        const sourceView = source => page.locator(`[data-ticket-source="${source}"]`);
+        const metric = (source, key) => sourceView(source).locator(`[data-ticket-metric="${key}"] [data-metric-value]`);
         try {
-            await expect(metric('opened')).toHaveText('5'); await expect(metric('closed')).toHaveText('1');
-            await expect(metric('pending')).toHaveText('3'); await expect(metric('in-progress')).toHaveText('1');
-            await expect(metric('attention')).toHaveText('3'); await expect(metric('wait')).toContainText('h');
-            await expect(page.getByRole('list', { name: 'Aberturas por setor' })).toContainText('Financeiro');
-            await expect(page.getByRole('list', { name: 'Aberturas por setor' })).toContainText('Clientes');
-            await page.getByLabel('Período dos indicadores', { exact: true }).selectOption('7_DAYS');
-            await expect(metric('opened')).toHaveText('5'); await expect(metric('pending')).toHaveText('3');
+            await expect(metric('INTERNAL', 'opened')).toHaveText('4'); await expect(metric('INTERNAL', 'closed')).toHaveText('1');
+            await expect(metric('INTERNAL', 'pending')).toHaveText('3'); await expect(metric('INTERNAL', 'in-progress')).toHaveText('0');
+            await expect(metric('INTERNAL', 'attention')).toHaveText('2'); await expect(metric('INTERNAL', 'wait')).toContainText('h');
+            await expect(metric('CLIENT', 'opened')).toHaveText('1'); await expect(metric('CLIENT', 'in-progress')).toHaveText('1');
+            await expect(metric('CLIENT', 'attention')).toHaveText('1');
+            await expect(sourceView('INTERNAL').getByRole('list', { name: 'Aberturas por setor' })).toContainText('Financeiro');
+            await expect(sourceView('CLIENT').getByRole('list', { name: 'Aberturas por setor' })).toContainText('Clientes');
+            await sourceView('INTERNAL').getByLabel('Período dos indicadores', { exact: true }).selectOption('7_DAYS');
+            await expect(metric('INTERNAL', 'opened')).toHaveText('4'); await expect(metric('INTERNAL', 'pending')).toHaveText('3');
             await expect(card(page, 'legacy-pending')).toBeVisible();
-            await page.getByLabel('Origem dos chamados', { exact: true }).selectOption('INTERNAL');
-            await expect(metric('opened')).toHaveText('4'); await expect(metric('in-progress')).toHaveText('0');
-            await expect(card(page, 'progress')).toHaveCount(0); await expect(card(page, 'legacy-pending')).toBeVisible();
-            await expect(page.getByRole('list', { name: 'Aberturas por setor' })).not.toContainText('Clientes');
-            await page.getByLabel('Origem dos chamados', { exact: true }).selectOption('CLIENT');
-            await expect(metric('opened')).toHaveText('1'); await expect(metric('pending')).toHaveText('0');
-            await expect(metric('wait')).toHaveText('—'); await expect(card(page, 'progress')).toBeVisible();
-            await expect(card(page, 'legacy-pending')).toHaveCount(0);
-            await page.getByLabel('Período dos indicadores', { exact: true }).selectOption('CUSTOM');
-            await page.getByLabel('Data inicial', { exact: true }).fill('2026-03-05');
-            await page.getByLabel('Data final', { exact: true }).fill('2026-03-04');
-            await expect(page.getByRole('alert').filter({ hasText: 'Informe datas válidas' })).toBeVisible();
-            await expect(metric('opened')).toHaveCount(0);
-            await page.getByLabel('Data final', { exact: true }).fill('2026-03-06');
-            await expect(metric('opened')).toHaveText('0'); await expect(metric('in-progress')).toHaveText('1');
-            await expect(page.getByText('Nenhum chamado aberto no período selecionado.', { exact: true })).toBeVisible();
+            await expect(sourceView('INTERNAL').locator('[data-ticket-id="progress"]')).toHaveCount(0);
+            await expect(sourceView('CLIENT').locator('[data-ticket-id="legacy-pending"]')).toHaveCount(0);
+            await sourceView('CLIENT').getByLabel('Período dos indicadores', { exact: true }).selectOption('CUSTOM');
+            await sourceView('CLIENT').getByLabel('Data inicial', { exact: true }).fill('2026-03-05');
+            await sourceView('CLIENT').getByLabel('Data final', { exact: true }).fill('2026-03-04');
+            await expect(sourceView('CLIENT').getByRole('alert').filter({ hasText: 'Informe datas válidas' })).toBeVisible();
+            await expect(metric('CLIENT', 'opened')).toHaveCount(0);
+            await sourceView('CLIENT').getByLabel('Data final', { exact: true }).fill('2026-03-06');
+            await expect(metric('CLIENT', 'opened')).toHaveText('0'); await expect(metric('CLIENT', 'in-progress')).toHaveText('1');
             assert(requests.some(r => r.path === '/tickets/statistics' && r.params.start === '2026-03-05T03:00:00.000Z' && r.params.end === '2026-03-07T03:00:00.000Z'));
             assert(!requests.some(r => r.path === '/tickets/statistics' && Date.parse(r.params.end) <= Date.parse(r.params.start)));
             assert.equal(page.url(), base + '/dashboard'); assert.deepEqual(errors, []);
@@ -223,28 +221,28 @@ async function main() {
         const { context, page } = await setup({ failures });
         try {
             await page.clock.runFor(1200);
-            const alert = page.getByRole('alert').filter({ hasText: 'Não foi possível atualizar os indicadores' });
+            const alert = page.locator('[data-ticket-source="INTERNAL"]').getByRole('alert').filter({ hasText: 'Não foi possível atualizar os indicadores' });
             await expect(alert).toBeVisible(); await expect(card(page, 'old')).toBeVisible();
             await card(page, 'old').getByRole('button', { name: /^Ver detalhes:/ }).click();
             await expect(detail(page)).toContainText('Descrição completa do pedido old.');
             await page.keyboard.press('Escape');
             delete failures['/tickets/statistics'];
             await alert.getByRole('button', { name: 'Tentar novamente', exact: true }).click();
-            await expect(page.locator('[data-ticket-metric="opened"] [data-metric-value]')).toHaveText('3');
+            await expect(page.locator('[data-ticket-source="INTERNAL"] [data-ticket-metric="opened"] [data-metric-value]')).toHaveText('2');
         } finally { await context.close(); }
     });
-    await run('One-hour threshold activates live on card and open popup without navigating or polling', async () => {
-        const tickets = fixtures(); tickets.find(t => t.id === 'boundary').createdAt = new Date(fixedNow - 3_599_000).toISOString();
+    await run('Five-hour internal threshold activates live on card and open popup without navigating or polling', async () => {
+        const tickets = fixtures(); tickets.find(t => t.id === 'boundary').createdAt = new Date(fixedNow - (5 * 3_600_000 - 1_000)).toISOString();
         const { context, page, requests } = await setup({ tickets });
         try {
             await card(page, 'boundary').getByRole('button', { name: /^Ver detalhes:/ }).click();
             await expect(detail(page)).toContainText('Descrição completa do pedido boundary.');
-            await expect(detail(page).getByText('Atenção: aberto há 1 hora ou mais', { exact: true })).toHaveCount(0);
+            await expect(detail(page).getByText('Atenção: tempo limite excedido', { exact: true })).toHaveCount(0);
             const count = requests.filter(r => r.path === '/tickets' && r.params.status).length;
             await page.clock.setFixedTime(fixedNow + 2100);
             await page.clock.runFor(2100);
             await expect(card(page, 'boundary')).toHaveAttribute('data-attention', 'true');
-            await expect(detail(page)).toContainText('Atenção: aberto há 1 hora ou mais');
+            await expect(detail(page)).toContainText('Atenção: tempo limite excedido');
             assert.equal(requests.filter(r => r.path === '/tickets' && r.params.status).length, count);
             assert.equal(page.url(), base + '/dashboard');
         } finally { await context.close(); }
@@ -288,8 +286,8 @@ async function main() {
         try {
             await expect(card(own.page, 'progress')).toBeVisible(); await expect(card(own.page, 'foreign')).toHaveCount(0);
             assert(own.requests.some(r => r.params.status === 'IN_PROGRESS' && r.params.assignedToId === 'tech-qa'));
-            await expect(own.page.locator('[data-ticket-metric="in-progress"] [data-metric-value]')).toHaveText('1');
-            await expect(own.page.getByText(/Abertos para todos e atendimentos atribuídos a você/)).toBeVisible();
+            await expect(own.page.locator('[data-ticket-source="CLIENT"] [data-ticket-metric="in-progress"] [data-metric-value]')).toHaveText('1');
+            await expect(own.page.locator('[data-ticket-source="CLIENT"]').getByText(/Abertos para todos e atendimentos atribuídos a você/)).toBeVisible();
             await expect(own.page.getByRole('button', { name: 'Mover', exact: true })).toHaveCount(0);
         } finally { await own.context.close(); }
     });
@@ -310,7 +308,7 @@ async function main() {
             await page.screenshot({ path: path.join(shots, 'mobile-details.png'), animations: 'disabled' });
             await page.keyboard.press('Escape');
             await page.screenshot({ path: path.join(shots, 'mobile-dashboard.png'), fullPage: true, animations: 'disabled' });
-            await page.locator('[aria-label="Visão dos atendimentos"]').screenshot({ path: path.join(shots, 'mobile-indicators.png'), animations: 'disabled' });
+            await page.locator('[data-ticket-source="INTERNAL"]').screenshot({ path: path.join(shots, 'mobile-internal-tickets.png'), animations: 'disabled' });
             assert.deepEqual(errors, []);
         } finally { await context.close(); }
     });

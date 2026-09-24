@@ -1,7 +1,12 @@
 import { TicketStatus } from "@zyllen/shared";
 import type { TicketSummary } from "../types/ticket.types";
 
-export const TICKET_ATTENTION_AFTER_MS = 60 * 60 * 1000;
+export const CLIENT_TICKET_ATTENTION_AFTER_MS = 60 * 60 * 1000;
+export const INTERNAL_TICKET_ATTENTION_AFTER_MS = 5 * 60 * 60 * 1000;
+
+export function ticketAttentionAfterMs(ticket: Pick<TicketSummary, 'source'>): number {
+    return ticket.source === 'INTERNAL' ? INTERNAL_TICKET_ATTENTION_AFTER_MS : CLIENT_TICKET_ATTENTION_AFTER_MS;
+}
 
 export function elapsedSince(since: string | null | undefined, until: number): number {
     if (!since) return 0;
@@ -22,7 +27,7 @@ export function formatTicketElapsed(ms: number): string {
 export function needsTicketAttention(ticket: TicketSummary, now: number): boolean {
     return !ticket.closedAt &&
         (ticket.status === TicketStatus.OPEN || ticket.status === TicketStatus.IN_PROGRESS) &&
-        elapsedSince(ticket.createdAt, now) >= TICKET_ATTENTION_AFTER_MS;
+        elapsedSince(ticket.createdAt, now) >= ticketAttentionAfterMs(ticket);
 }
 
 export function ticketTimes(ticket: TicketSummary, now: number) {

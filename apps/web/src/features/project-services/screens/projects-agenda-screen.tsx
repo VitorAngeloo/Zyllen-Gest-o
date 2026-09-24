@@ -50,7 +50,7 @@ function Workspace() {
         else query.delete('visao');
         router.push(`/dashboard/projetos?${query}`, { scroll: false });
     }
-    if (isLoading) return <Skeleton className="h-48 rounded-xl" />;
+    if (isLoading) return <Skeleton className="h-48 rounded-lg" />;
     if (!user || userType !== 'internal' || !hasPermission('schedule.view')) return <p className="text-sm text-[var(--zyllen-muted)]">{projectCopy.noAccess}</p>;
     return <div className="min-w-0 space-y-5">
         <PageHeader eyebrow="Operação" title={copy.title} description={copy.description} />

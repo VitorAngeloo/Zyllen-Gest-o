@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
-import { PANEL_IDS, PANEL_PERMISSIONS, type PanelId, type PanelMirrorInput, type PanelMirrorStatus } from '@zyllen/shared';
+import { PANEL_IDS, PANEL_PERMISSION_OPTIONS, type PanelId, type PanelMirrorInput, type PanelMirrorStatus } from '@zyllen/shared';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 
 export interface PanelActor { id: string; role: { name: string }; views: PanelId[] }
@@ -10,8 +10,8 @@ export class PanelAccessService {
     async owner(id: string): Promise<PanelActor> {
         const user = await this.prisma.retry(() => this.prisma.internalUser.findUnique({ where: { id }, select: { id: true, isActive: true, role: { select: { name: true, permissions: { select: { screenPermission: { select: { screen: true, action: true } } } } } } } }));
         if (!user?.isActive) throw new ForbiddenException('Acesso ao painel indisponível');
-        const permissions = user.role.name === 'Administrador' ? Object.values(PANEL_PERMISSIONS) : user.role.permissions.map(({ screenPermission }) => `${screenPermission.screen}.${screenPermission.action}`);
-        return { id, role: { name: user.role.name }, views: PANEL_IDS.filter(view => permissions.includes(PANEL_PERMISSIONS[view])) };
+        const permissions = user.role.permissions.map(({ screenPermission }) => `${screenPermission.screen}.${screenPermission.action}`);
+        return { id, role: { name: user.role.name }, views: user.role.name === 'Administrador' ? [...PANEL_IDS] : PANEL_IDS.filter(view => PANEL_PERMISSION_OPTIONS[view].some(permission => permissions.includes(permission))) };
     }
     require(actor: PanelActor, view: PanelId) { if (!actor.views.includes(view)) throw new ForbiddenException('Esta visão não está disponível neste painel'); }
     async status(ownerId: string): Promise<PanelMirrorStatus> {
@@ -29,6 +29,17 @@ export class PanelAccessService {
             await tx.auditLog.create({ data: { action: 'PANEL_MIRROR_GENERATED', entityType: 'PanelMirror', entityId: row.id, userId: ownerId, details: { views: input.views } } });
         });
         return { path: `/painel/espelho/${token}`, views: input.views };
+    }
+    async update(ownerId: string, input: PanelMirrorInput): Promise<PanelMirrorStatus> {
+        const actor = await this.owner(ownerId);
+        for (const view of input.views) this.require(actor, view);
+        await this.prisma.$transaction(async tx => {
+            const row = await tx.panelMirror.findUnique({ where: { ownerId } });
+            if (!row || row.revokedAt) throw new NotFoundException('Nenhum link ativo para atualizar');
+            await tx.panelMirror.update({ where: { id: row.id }, data: { views: input.views } });
+            await tx.auditLog.create({ data: { action: 'PANEL_MIRROR_UPDATED', entityType: 'PanelMirror', entityId: row.id, userId: ownerId, details: { views: input.views } } });
+        });
+        return this.status(ownerId);
     }
     async revoke(ownerId: string) {
         await this.owner(ownerId);

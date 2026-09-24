@@ -37,10 +37,10 @@ function TicketList({ title, icon: Icon, total, items, empty }: {
         <CardContent className="px-4 sm:px-5">
             {items.length ? <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
                 {items.map(item => {
-                    const overdue = Date.now() - Date.parse(item.createdAt) >= 3_600_000;
+                    const overdue = Date.now() - Date.parse(item.createdAt) >= 5 * 3_600_000;
                     const badge = priority[item.priority] ?? priority.MEDIUM;
                     return <article key={item.id} data-internal-ticket={item.id} className={`rounded-lg border bg-[var(--zyllen-bg-dark)] p-4 ${overdue ? 'border-red-400/60 motion-safe:animate-pulse' : 'border-white/10'}`}>
-                        <div className="flex flex-wrap items-center gap-2"><Badge variant={badge.variant}>Prioridade {badge.label}</Badge>{overdue && <span className="text-xs font-semibold text-red-300">Aguardando há mais de 1 hora</span>}</div>
+                        <div className="flex flex-wrap items-center gap-2"><Badge variant={badge.variant}>Prioridade {badge.label}</Badge>{overdue && <span className="text-xs font-semibold text-red-300">Aguardando há mais de 5 horas</span>}</div>
                         <h3 className="mt-2 break-words text-sm font-semibold text-white">{item.title}</h3>
                         <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-white/75">{item.description}</p>
                         <div className="mt-3 border-t border-white/10 pt-3 text-xs text-[var(--zyllen-muted)]">

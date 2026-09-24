@@ -4,7 +4,8 @@ const crypto = require('node:crypto');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client, thirdParty, company, internal }) => {
-    const all = ['atendimentos', 'projetos', 'operacoes', 'estoque'];
+    const all = ['atendimentos', 'atendimentos-clientes', 'clientes-atencao', 'projetos', 'operacoes', 'estoque', 'carros'];
+    const statisticViews = ['atendimentos', 'atendimentos-clientes', 'projetos', 'operacoes', 'estoque'];
     const period = { start: new Date(Date.now() - 86400000).toISOString(), end: new Date().toISOString() };
     const reader = await internal('Leitor de painel QA', ['tickets.view', 'inventory.view']);
     const request = async (route, actor = null, method = 'GET', body) => {
@@ -20,6 +21,7 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         for (const actor of [null, client, thirdParty, unprivileged]) {
             assert.equal((await request('/personal-panel/mirror', actor)).status, actor ? 403 : 401);
             assert.equal((await request('/personal-panel/mirror', actor, 'POST', { views: ['estoque'] })).status, actor ? 403 : 401);
+            assert.equal((await request('/personal-panel/mirror', actor, 'PUT', { views: ['estoque'] })).status, actor ? 403 : 401);
         }
         assert.equal(await prisma.panelMirror.count(), 0);
         for (const body of [{ views: [] }, { views: ['estoque', 'estoque'] }, { views: ['invalid'] }, { views: ['estoque'], ownerId: reader.id }]) assert.equal((await request('/personal-panel/mirror', admin, 'POST', body)).status, 400);
@@ -33,14 +35,49 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         const status = ok(await request('/personal-panel/mirror', admin)); assert.equal(status.active, true); assert.deepEqual(status.views, all); assert(!JSON.stringify(status).includes(token));
         const response = await request(root(link)); assert.deepEqual(ok(response), { views: all }); assert.match(response.headers.get('cache-control'), /no-store/); assert.equal(response.headers.get('referrer-policy'), 'no-referrer'); assert.match(response.headers.get('x-robots-tag'), /noindex/);
     });
+    await run('Panel: updating an active mirror changes its views without replacing the anonymous token', async () => {
+        const before = await prisma.panelMirror.findUnique({ where: { ownerId: admin.id } });
+        const selected = ['atendimentos', 'atendimentos-clientes'];
+        const updated = ok(await request('/personal-panel/mirror', admin, 'PUT', { views: selected }));
+        const after = await prisma.panelMirror.findUnique({ where: { ownerId: admin.id } });
+        assert.deepEqual(updated.views, selected);
+        assert.equal(after.tokenHash, before.tokenHash);
+        assert.deepEqual(ok(await request(root(link))).views, selected);
+        assert.equal(await prisma.auditLog.count({ where: { entityId: after.id, action: 'PANEL_MIRROR_UPDATED' } }), 1);
+        ok(await request('/personal-panel/mirror', admin, 'PUT', { views: all }));
+        assert.deepEqual(ok(await request(root(link))).views, all);
+    });
     await run('Panel: empty project/operation data returns successful neutral statistics; mirror and native totals agree', async () => {
-        for (const view of all) {
+        for (const view of statisticViews) {
             const native = ok(await stats(view, null, admin)), mirror = ok(await stats(view, link)); assert.equal(mirror.view, view);
             if (view === 'projetos') { assert.equal(mirror.data.current.total, 0); assert.deepEqual(mirror.data.current, native.data.current); }
             if (view === 'operacoes') { assert.equal(mirror.data.current.plannedTrips, 0); assert.deepEqual(mirror.data.current, native.data.current); }
-            if (view === 'atendimentos') assert.equal(mirror.data.current.pending, 0);
+            if (view === 'atendimentos' || view === 'atendimentos-clientes') assert.equal(mirror.data.current.pending, 0);
             if (view === 'estoque') assert.deepEqual(mirror.data.totals, native.data.totals);
         }
+    });
+    await run('Panel: attention clients are curated by an authenticated owner and the mirror exposes only minimal contact data', async () => {
+        assert.equal((await request('/personal-panel/attention-clients', unprivileged)).status, 403);
+        assert.equal((await request('/personal-panel/attention-clients', client)).status, 403);
+        await prisma.company.update({ where: { id: company.id }, data: { phone: '(11) 99999-0000' } });
+        const search = ok(await request('/personal-panel/attention-clients?q=Cliente', admin));
+        assert.equal(search.options.find(item => item.id === company.id).contactPhone, null);
+        const saved = ok(await request('/personal-panel/attention-clients', admin, 'PUT', { companyIds: [company.id] }));
+        assert.deepEqual(saved.selected.map(item => item.id), [company.id]);
+        assert.equal(saved.selected[0].name, company.name);
+        const mirror = ok(await request(root(link) + '/attention-clients'));
+        assert.deepEqual(mirror.map(item => item.id), [company.id]);
+        assert.equal(mirror[0].contactPhone, '(11) 99999-0000');
+        assert(!/email|passwordHash|pin4Hash|cpf|address/.test(JSON.stringify(mirror)));
+        assert.equal((await request('/personal-panel/attention-clients', admin, 'PUT', { companyIds: [company.id, company.id] })).status, 400);
+        assert.equal((await request(root(link) + '/attention-clients', null, 'PUT', { companyIds: [] })).status, 404);
+    });
+    await run('Panel: car mirror reports availability, current use and current or future reservations without accepting writes', async () => {
+        const vehicles = ok(await request(root(link) + '/vehicles'));
+        assert.equal(typeof vehicles.activeVehicles, 'number');
+        assert(Array.isArray(vehicles.current));
+        assert(Array.isArray(vehicles.upcoming));
+        assert.equal((await request(root(link) + '/vehicles', null, 'POST', {})).status, 404);
     });
     await run('Panel: inventory includes existing unclassified locations and real asset statuses without requiring a main warehouse', async () => {
         const category = await prisma.category.create({ data: { name: 'Estoque existente painel QA' } });
@@ -78,6 +115,7 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
     });
     const ticket = async extra => prisma.ticket.create({ data: { title: 'Pedido identificável QA', description: 'Descrição completa que continua disponível no popup.', source: 'INTERNAL', internalUserId: admin.id, ...extra } });
     const open = await ticket({}), own = await ticket({ status: 'IN_PROGRESS', assignedToInternalUserId: tech.id }), other = await ticket({ status: 'IN_PROGRESS', assignedToInternalUserId: admin.id });
+    const clientOpen = await prisma.ticket.create({ data: { title: 'Pedido de cliente identificável QA', description: 'Descrição do chamado de cliente no espelho.', source: 'CLIENT', companyId: company.id, externalUserId: client.id, status: 'OPEN' } });
     const closed = await ticket({ status: 'CLOSED', closedAt: new Date() });
     await prisma.ticketAttachment.create({ data: { ticketId: open.id, fileName: 'privado.png', filePath: '/uploads/private/panel-qa.png' } });
     let technicianLink;
@@ -87,12 +125,27 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         const detail = ok(await request(root(technicianLink) + '/tickets/' + open.id)); assert.equal(detail.title, open.title); assert.equal(detail.description, open.description); assert.equal(detail.internalUser.name, admin.name); assert.deepEqual(detail.attachments, []); assert.deepEqual(detail.messages, []);
         assert(!/passwordHash|pin4Hash|email|phone|filePath|private\/panel/.test(JSON.stringify(detail)));
         assert.equal((await request(root(technicianLink) + '/tickets/' + other.id)).status, 404);
+        assert.equal((await request(root(technicianLink) + '/tickets?status=OPEN&source=CLIENT')).status, 403);
+        assert.equal((await request(root(technicianLink) + '/tickets/' + clientOpen.id)).status, 403);
         assert.equal((await request(root(link) + '/tickets/' + closed.id)).status, 404);
         assert.equal((await request(root(technicianLink) + '/tickets/not-a-uuid')).status, 400);
         assert.equal(ok(await stats('atendimentos', technicianLink)).data.current.inProgress, 1);
     });
+    await run('Panel: client and internal ticket views cannot read each other through query or detail routes', async () => {
+        const clientLink = await generate(reader, ['atendimentos-clientes']);
+        const clientRows = await request(root(clientLink) + '/tickets?status=OPEN&source=CLIENT');
+        assert.equal(clientRows.status, 200);
+        assert.deepEqual(clientRows.body.data.map(item => item.id), [clientOpen.id]);
+        assert.equal((await request(root(clientLink) + '/tickets?status=OPEN&source=INTERNAL')).status, 403);
+        assert.equal((await request(root(clientLink) + '/tickets/' + open.id)).status, 403);
+        assert.equal(ok(await request(root(clientLink) + '/tickets/' + clientOpen.id)).source, 'CLIENT');
+        const indicators = ok(await stats('atendimentos-clientes', clientLink));
+        assert.equal(indicators.view, 'atendimentos-clientes');
+        assert.equal(indicators.data.source, 'CLIENT');
+        assert.equal((await stats('atendimentos', clientLink)).status, 403);
+    });
     await run('Panel: paging is bounded and tokens cannot write or access other authenticated modules', async () => {
-        const r = await request(root(link) + '/tickets?status=OPEN&limit=1'); assert.equal(r.status, 200); assert.equal(r.body.total, 1); assert.equal(r.body.limit, 1); assert.equal(r.body.data.length, 1);
+        const r = await request(root(link) + '/tickets?status=OPEN&source=INTERNAL&limit=1'); assert.equal(r.status, 200); assert.equal(r.body.total, 1); assert.equal(r.body.limit, 1); assert.equal(r.body.data.length, 1);
         for (const query of ['status=CLOSED', 'status=OPEN&limit=101', 'status=OPEN&assignedToId=' + admin.id]) assert.equal((await request(root(link) + '/tickets?' + query)).status, 400);
         assert.equal((await request(root(link), null, 'POST', { views: all })).status, 404);
         assert.equal((await request('/tickets?token=' + link.path.split('/').pop())).status, 401);
@@ -116,7 +169,7 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
     });
     await run('Panel: data reads change no business records; failed audit rolls back token replacement atomically', async () => {
         const before = { tickets: await prisma.ticket.count(), assets: await prisma.asset.count(), services: await prisma.projectService.count(), movements: await prisma.stockMovement.count() };
-        for (const view of all) ok(await stats(view, link));
+        for (const view of statisticViews) ok(await stats(view, link));
         assert.deepEqual({ tickets: await prisma.ticket.count(), assets: await prisma.asset.count(), services: await prisma.projectService.count(), movements: await prisma.stockMovement.count() }, before);
         await prisma.$executeRawUnsafe(`CREATE FUNCTION fail_panel_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'PANEL_MIRROR_GENERATED' THEN RAISE EXCEPTION 'panel audit rollback QA'; END IF; RETURN NEW; END $$`);
         await prisma.$executeRawUnsafe('CREATE TRIGGER fail_panel_audit BEFORE INSERT ON "AuditLog" FOR EACH ROW EXECUTE FUNCTION fail_panel_audit()');

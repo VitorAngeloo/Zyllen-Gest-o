@@ -77,7 +77,7 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
     });
     await run('Vehicles: reservation is not physical occupancy; checkout, late return and history use actual events', async () => {
         const current = ok(await http('/vehicles/reservations', 'POST', reserveInput({ vehicleId: other.id, startDate: time(-1), endDate: time(1) }), crew), 201);
-        let stats = ok(await http('/vehicles/statistics')); assert.equal(stats.activeVehicles, 2); assert.equal(stats.occupiedVehicles, 0); assert.equal(stats.availableVehicles, 2);
+        let stats = ok(await http('/vehicles/statistics')); assert.equal(stats.activeVehicles, 2); assert.equal(stats.occupiedVehicles, 0); assert.equal(stats.availableVehicles, 2); assert(stats.upcoming.some(item => item.id === current.id));
         assert.equal((await http('/vehicles/dashboard', 'GET', undefined, crew)).status, 403);
         assert.equal((await http('/vehicles/dashboard', 'GET', undefined, admin)).status, 200);
         assert.equal((await photoRequest('/vehicles/reservations/' + current.id + '/checkout', { driverId: crew.id, clientName: 'Cliente QA', destination: 'Obra QA', purpose: 'INSTALACAO', odometerOut: 15000, fuelOut: 'METADE', hadDamageOut: 'false' }, reader)).status, 403);

@@ -20,7 +20,8 @@ export class TicketStatisticsService {
         const startUtc = Prisma.sql`(${start.toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
         const endUtc = Prisma.sql`(${end.toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
         const nowUtc = Prisma.sql`(${now.toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
-        const attentionUtc = Prisma.sql`(${new Date(now.getTime() - 3_600_000).toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
+        const clientAttentionUtc = Prisma.sql`(${new Date(now.getTime() - 3_600_000).toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
+        const internalAttentionUtc = Prisma.sql`(${new Date(now.getTime() - 5 * 3_600_000).toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
         const manager = ['Administrador', 'Gestor'].includes(actor.role?.name ?? '');
         // Match the board: everyone sees open tickets; other states are their own assignments.
         const source = query.source === 'ALL' ? Prisma.sql`TRUE` : Prisma.sql`t.source = ${query.source}`;
@@ -35,8 +36,10 @@ export class TicketStatisticsService {
                     COUNT(*) FILTER (WHERE t.status = 'IN_PROGRESS' AND t."closedAt" IS NULL) AS "inProgress",
                     COUNT(*) FILTER (WHERE t.status = 'WAITING_CLIENT' AND t."closedAt" IS NULL) AS "waitingClient",
                     COUNT(*) FILTER (WHERE t.status = 'RESOLVED') AS resolved,
-                    COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'IN_PROGRESS') AND t."closedAt" IS NULL
-                        AND t."createdAt" <= ${attentionUtc}) AS attention,
+                    COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'IN_PROGRESS') AND t."closedAt" IS NULL AND (
+                        (t.source = 'INTERNAL' AND t."createdAt" <= ${internalAttentionUtc}) OR
+                        (t.source = 'CLIENT' AND t."createdAt" <= ${clientAttentionUtc})
+                    )) AS attention,
                     AVG(GREATEST(0, EXTRACT(EPOCH FROM (${nowUtc} - t."createdAt"))))
                         FILTER (WHERE t.status = 'OPEN' AND t."closedAt" IS NULL AND t."assignedToInternalUserId" IS NULL)::float8 AS "averagePendingSeconds",
                     MIN(t."createdAt") FILTER (WHERE t.status = 'OPEN' AND t."closedAt" IS NULL AND t."assignedToInternalUserId" IS NULL) AS "oldestPendingAt"

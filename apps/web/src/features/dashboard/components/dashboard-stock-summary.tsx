@@ -15,7 +15,7 @@ export function DashboardStockSummary() {
                 <DashboardMetric domain="inventory" id="available" label={copy.available} value={data.scope?.available ?? null} />
                 <DashboardMetric domain="inventory" id="maintenance" label={copy.maintenance} value={data.scope?.maintenance ?? null} /></div>
             <p className="text-xs text-[var(--zyllen-muted)]">{copy.availabilityContext}</p>
-            {(data.totals.unclassified > 0 || data.totals.unlocated > 0) && <div data-stock-classification className="rounded-lg border border-amber-400/25 bg-amber-500/5 p-3 text-xs text-amber-200">
+            {(data.totals.unclassified > 0 || data.totals.unlocated > 0) && <div data-stock-classification className="rounded-md border border-amber-400/25 bg-amber-500/5 p-3 text-xs text-amber-200">
                 {data.totals.unclassified > 0 && <p>{copy.unclassified(data.totals.unclassified)}</p>}{data.totals.unlocated > 0 && <p>{copy.unlocated(data.totals.unlocated)}</p>}<Link href="/dashboard/estoque?aba=locations" className="mt-2 inline-block underline">{stockCopy.identifyLocations}</Link></div>}
             {data.totals.assets === 0 && <p className="text-sm text-[var(--zyllen-muted)]">{copy.stockEmpty}</p>}
             {data.replenishmentConfigured && <p className={data.criticalCount ? 'text-sm text-amber-300' : 'text-sm text-[var(--zyllen-muted)]'}>{copy.critical}: <strong>{data.criticalCount}</strong></p>}

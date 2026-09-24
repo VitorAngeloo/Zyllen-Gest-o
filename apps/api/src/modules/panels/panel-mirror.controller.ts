@@ -6,7 +6,7 @@ import { Public } from '../auth/public.decorator';
 import { PanelAccessService } from './panel-access.service';
 import { PanelDataService } from './panel-data.service';
 import { PanelCacheInterceptor } from './panel-cache.interceptor';
-@Public() @Controller('panel-mirrors') @UseGuards(ThrottlerGuard) @Throttle({ default: { limit: 180, ttl: 60_000 } }) @UseInterceptors(PanelCacheInterceptor)
+@Public() @Controller('panel-mirrors') @UseGuards(ThrottlerGuard) @Throttle({ auth: { limit: 180, ttl: 60_000 }, api: { limit: 180, ttl: 60_000 } }) @UseInterceptors(PanelCacheInterceptor)
 export class PanelMirrorController {
     constructor(private readonly access: PanelAccessService, private readonly data: PanelDataService) {}
     @Get(':token')
@@ -17,4 +17,8 @@ export class PanelMirrorController {
     async tickets(@Param('token') token: string, @Query(new ZodValidationPipe(panelTicketsQuerySchema)) query: PanelTicketsQuery) { return this.data.listTickets(await this.access.mirror(token), query); }
     @Get(':token/tickets/:id')
     async ticket(@Param('token') token: string, @Param('id', new ParseUUIDPipe()) id: string) { return { data: await this.data.ticket(await this.access.mirror(token), id) }; }
+    @Get(':token/attention-clients')
+    async attentionClients(@Param('token') token: string) { return { data: (await this.data.attentionClients(await this.access.mirror(token))).selected }; }
+    @Get(':token/vehicles')
+    async vehicles(@Param('token') token: string) { return { data: await this.data.vehicles(await this.access.mirror(token)) }; }
 }

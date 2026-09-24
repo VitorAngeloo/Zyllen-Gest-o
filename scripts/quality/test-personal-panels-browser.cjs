@@ -5,13 +5,16 @@ const { spawnSync } = require('node:child_process');
 module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     const runtime = process.env.AUDIT_RUNTIME_ROOT || 'C:/Users/SERVIDOR ZYLLEN/.cache/codex-runtimes/codex-primary-runtime/dependencies';
     const { expect } = require(path.join(runtime, 'node/node_modules/playwright/test'));
-    const token = 'P'.repeat(43), all = ['atendimentos', 'projetos', 'operacoes', 'estoque'];
-    async function setup({ query = '', permissions = ['dashboard.view', 'tickets.view', 'schedule.view', 'inventory.view'], role = 'Gestor', views = all, mirror = false, mobile = false, loggedOut = false, fail = {}, empty = false, malformed = false, legacy = false, former = false, viewport, dense = false } = {}) {
+    const token = 'P'.repeat(43), all = ['atendimentos', 'atendimentos-clientes', 'clientes-atencao', 'projetos', 'operacoes', 'estoque', 'carros'];
+    async function setup({ query = '', permissions = ['dashboard.view', 'tickets.view', 'schedule.view', 'inventory.view'], role = 'Gestor', views = all, savedViews = views, active = false, mirror = false, mobile = false, loggedOut = false, fail = {}, empty = false, malformed = false, legacy = false, former = false, viewport, dense = false } = {}) {
         const context = await browser.newContext({ viewport: viewport ?? (mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 }), timezoneId: 'America/Sao_Paulo', reducedMotion: 'reduce', permissions: ['clipboard-read', 'clipboard-write'] });
-        const requests = [], errors = [], state = { fail, empty, malformed, dense, bonus: 0, active: false, generatedViews: all, views };
+        const requests = [], errors = [], attentionCompanies = [{ id: '20000000-0000-4000-8000-000000000001', name: 'Cliente atenção QA', contactName: 'Responsável QA', contactPhone: '(11) 99999-0000' }];
+        const companyDirectory = [...attentionCompanies, { id: '20000000-0000-4000-8000-000000000002', name: 'Cliente disponível QA', cnpj: '12.345.678/0001-90', contactName: null, contactPhone: null }];
+        const state = { fail, empty, malformed, dense, bonus: 0, active, generatedViews: savedViews, views, attentionCompanies };
         await context.addCookies([{ name: 'mirrorMustOmit', value: 'synthetic-cookie', domain: '127.0.0.1', path: '/', httpOnly: true }]);
         await context.addInitScript(({ loggedOut }) => { if (!loggedOut) { localStorage.setItem('accessToken', 'synthetic-personal-panel-qa'); localStorage.setItem('userType', 'internal'); } }, { loggedOut });
-        const ticket = { id: '10000000-0000-4000-8000-000000000001', title: 'Chamado completo no painel QA', description: 'Descrição integral do chamado QA', source: 'INTERNAL', status: 'OPEN', priority: 'HIGH', createdAt: new Date(fixedNow - 80 * 60000).toISOString(), firstResponseAt: null, internalUser: { name: 'Solicitante painel QA', sector: 'Financeiro' }, externalUser: null, company: null, assignedTo: null, attachments: [], messages: [], closedAt: null, rating: null, resolutionNotes: null, assignedToInternalUserId: null };
+        const ticket = { id: '10000000-0000-4000-8000-000000000001', title: 'Chamado completo no painel QA', description: 'Descrição integral do chamado QA', source: 'INTERNAL', status: 'OPEN', priority: 'HIGH', createdAt: new Date(fixedNow - 320 * 60000).toISOString(), firstResponseAt: null, internalUser: { name: 'Solicitante painel QA', sector: 'Financeiro' }, externalUser: null, company: null, assignedTo: null, attachments: [], messages: [], closedAt: null, rating: null, resolutionNotes: null, assignedToInternalUserId: null };
+        const clientTicket = { ...ticket, id: '10000000-0000-4000-8000-000000000002', title: 'Chamado do cliente no painel QA', source: 'CLIENT', createdAt: new Date(fixedNow - 90 * 60000).toISOString(), internalUser: null, externalUser: { name: 'Solicitante cliente QA', company: { name: 'Cliente QA' }, project: null }, company: { name: 'Cliente QA' } };
         const internalDashboard = {
             generatedAt: new Date(fixedNow).toISOString(),
             tickets: {
@@ -25,7 +28,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             const request = route.request(), url = new URL(request.url());
             if (!['127.0.0.1', 'localhost'].includes(url.hostname) && !['data:', 'blob:'].includes(url.protocol)) return route.abort();
             if (url.port !== '3999') return route.continue();
-            const respond = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': base, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Authorization,Content-Type', 'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS' }, body: JSON.stringify(data) });
+            const respond = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': base, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Authorization,Content-Type', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS' }, body: JSON.stringify(data) });
             if (request.method() === 'OPTIONS') return respond({});
             const params = Object.fromEntries(url.searchParams), method = request.method(), headers = request.headers();
             requests.push({ path: url.pathname, params, method, headers, body: request.postData() ? request.postDataJSON() : null });
@@ -39,19 +42,38 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             if (url.pathname === '/personal-panel/mirror') {
                 if (state.fail.management) return respond({ error: { message: 'Falha ao salvar link QA' } }, 503);
                 if (method === 'POST') { state.active = true; state.generatedViews = request.postDataJSON().views; return respond({ data: { path: '/painel/espelho/' + token, views: state.generatedViews } }, 201); }
+                if (method === 'PUT') { state.generatedViews = request.postDataJSON().views; state.views = state.generatedViews; return respond({ data: { active: true, views: state.generatedViews, updatedAt: new Date(fixedNow).toISOString() } }); }
                 if (method === 'DELETE') { state.active = false; return respond({ data: null }); }
                 return respond({ data: { active: state.active, views: state.generatedViews, updatedAt: null } });
             }
+            if (url.pathname === '/personal-panel/attention-clients') {
+                if (state.fail.attention) return respond({ error: { message: 'Seleção indisponível QA' } }, state.fail.attention);
+                if (method === 'PUT') { const ids = request.postDataJSON().companyIds; state.attentionCompanies = companyDirectory.filter(company => ids.includes(company.id)); }
+                return respond({ data: { selected: state.attentionCompanies, options: [] } });
+            }
+            if (url.pathname === '/clients/companies/search') {
+                const term = String(params.q ?? '').toLocaleLowerCase('pt-BR');
+                return respond({ data: companyDirectory.filter(company => !term || company.name.toLocaleLowerCase('pt-BR').includes(term) || String(company.cnpj ?? '').includes(term)) });
+            }
+            if (url.pathname === publicRoot + '/attention-clients') return respond({ data: state.attentionCompanies });
             if (url.pathname === '/tickets' || url.pathname === publicRoot + '/tickets') {
-                const rows = !state.dense ? params.status === 'OPEN' ? [ticket] : [] : Array.from({ length: 8 }, (_, index) => ({ ...ticket, id: `10000000-0000-4000-8000-${String(index + (params.status === 'OPEN' ? 1 : 20)).padStart(12, '0')}`, title: `${params.status === 'OPEN' ? 'Pedido aberto' : 'Pedido em atendimento'} ${index + 1} · unidade de demonstração`, status: params.status, createdAt: new Date(fixedNow - (80 + index * 12) * 60000).toISOString() }));
+                const source = params.source === 'CLIENT' ? 'CLIENT' : 'INTERNAL';
+                const baseTicket = source === 'CLIENT' ? clientTicket : ticket;
+                const rows = !state.dense ? params.status === 'OPEN' ? [baseTicket] : [] : Array.from({ length: 8 }, (_, index) => ({ ...baseTicket, id: `10000000-0000-4000-8000-${String(index + (params.status === 'OPEN' ? (source === 'CLIENT' ? 101 : 1) : (source === 'CLIENT' ? 120 : 20))).padStart(12, '0')}`, title: `${source === 'CLIENT' ? 'Cliente' : 'Interno'} · ${params.status === 'OPEN' ? 'pedido aberto' : 'pedido em atendimento'} ${index + 1}`, status: params.status, createdAt: new Date(fixedNow - (80 + index * 12) * 60000).toISOString() }));
                 return respond({ data: rows, total: rows.length, page: 1, limit: 100 });
             }
             if (url.pathname === '/tickets/' + ticket.id || url.pathname === publicRoot + '/tickets/' + ticket.id) return respond({ data: ticket });
-            if (url.pathname === '/vehicles/statistics') return state.fail.vehicles ? respond({error:{message:'Carros indisponíveis QA'}},state.fail.vehicles) : respond({ data: { generatedAt: new Date(fixedNow).toISOString(), activeVehicles: state.empty ? 0 : 2, occupiedVehicles: state.empty ? 0 : 1, availableVehicles: state.empty ? 0 : 1, upcoming: [], current: [] } });
+            if (url.pathname === '/tickets/' + clientTicket.id || url.pathname === publicRoot + '/tickets/' + clientTicket.id) return respond({ data: clientTicket });
+            const vehicleUse = { id: 'vehicle-current-qa', title: 'Uso atual QA', vehicle: { id: 'vehicle-1', name: 'Carro QA 1', plate: 'QA-0001', active: true }, responsible: { id: 'person-1', name: 'Responsável QA' }, startDate: new Date(fixedNow - 3600000).toISOString(), endDate: new Date(fixedNow + 3600000).toISOString(), cancelledAt: null, notes: null, use: { driver: { id: 'person-1', name: 'Motorista QA', sector: 'Operação' } } };
+            const vehicleFuture = { id: 'vehicle-next-qa', title: 'Reserva futura QA', vehicle: { id: 'vehicle-2', name: 'Carro QA 2', plate: 'QA-0002', active: true }, responsible: { id: 'person-2', name: 'Outro responsável QA' }, startDate: new Date(fixedNow + 7200000).toISOString(), endDate: new Date(fixedNow + 10800000).toISOString(), cancelledAt: null, notes: null, use: null };
+            const vehicleStatistics = { generatedAt: new Date(fixedNow).toISOString(), activeVehicles: state.empty ? 0 : 2, occupiedVehicles: state.empty ? 0 : 1, availableVehicles: state.empty ? 0 : 1, overdueVehicles: 0, upcoming: state.empty ? [] : [vehicleFuture], current: state.empty ? [] : [vehicleUse] };
+            if (url.pathname === '/vehicles/statistics') return state.fail.vehicles ? respond({error:{message:'Carros indisponíveis QA'}},state.fail.vehicles) : respond({ data: vehicleStatistics });
+            if (url.pathname === publicRoot + '/vehicles') return respond({ data: vehicleStatistics });
             if (url.pathname === '/schedule') return respond({ data: state.empty ? [] : [{ id: 'upcoming-qa', title: 'Visita à unidade QA', type: 'INSTALLATION', status: 'SCHEDULED', startDate: new Date(fixedNow + 3600000).toISOString(), endDate: new Date(fixedNow + 7200000).toISOString(), companyName: 'Cliente agenda QA', projectName: 'Próximo projeto QA', installers: [{ id: 'installer-qa', name: 'Equipe agenda QA' }], address: 'Endereço agenda QA', notes: 'Detalhes do compromisso QA' }], total: state.empty ? 0 : 1 });
             const period = { start: params.start, end: params.end }, generatedAt = new Date(fixedNow).toISOString();
             const data = {
                 atendimentos: { generatedAt, period, source: params.source || 'ALL', scope: 'ALL', openedInPeriod: 1, closedInPeriod: 0, current: { pending: 1, inProgress: 0, waitingClient: 0, resolved: 0, needingAttention: 1, averagePendingSeconds: 4800, oldestPendingAt: ticket.createdAt }, sectors: [{ source: 'INTERNAL', name: 'Financeiro', openedInPeriod: 1 }] },
+                'atendimentos-clientes': { generatedAt, period, source: 'CLIENT', scope: 'ALL', openedInPeriod: 1, closedInPeriod: 0, current: { pending: 1, inProgress: 0, waitingClient: 0, resolved: 0, needingAttention: 1, averagePendingSeconds: 5400, oldestPendingAt: clientTicket.createdAt }, sectors: [{ source: 'CLIENT', name: 'Clientes', openedInPeriod: 1 }] },
                 projetos: { generatedAt, period, type: 'ALL', current: { total: state.empty ? 0 : 5, active: state.empty ? 0 : 4 + state.bonus, pending: state.empty ? 0 : 1, scheduled: state.empty ? 0 : 2, inProgress: state.empty ? 0 : 1, done: state.empty ? 0 : 1, cancelled: 0 }, completedInPeriod: state.empty ? 0 : 1, cancelledInPeriod: 0, dataQuality: { completedWithoutDate: 0, cancelledWithoutDate: 0, unclassified: 0 }, highlights: [] },
                 operacoes: state.malformed ? {} : { generatedAt, period, installationsCompleted: 0, removalsCompleted: 0, tripsCompleted: 0, tripsPlanned: 0, current: { plannedTrips: 0, tripsInProgress: 0 }, dataQuality: { servicesCompletedWithoutDate: 0, tripsCompletedWithoutDate: 0, travelWithoutBooking: 0, unclassified: 0 }, nextInstallations: [], relevantInstallations: [], latestInstallations: [], latestRemovals: [], nextInterstateTrips: [] },
                 estoque: { generatedAt, period: { start: new Date(fixedNow - 30 * 86400000).toISOString(), end: generatedAt }, context: 'ALL', location: null, totals: { skus: 6, assets: 40, unlocated: 2, unclassified: 1 }, scope: { assets: 38, available: 8, maintenance: 2 }, movements: [], topEntries: [{ skuId: 'stock-qa', skuCode: '895001', name: 'Produto em uso QA', quantity: 20 }], topExits: [], priorities: [], criticalCount: 0, minimumConfiguredCount: 0, replenishmentConfigured: false }
@@ -61,6 +83,10 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
                 data.atendimentos.current.inProgress = 8;
                 data.atendimentos.current.needingAttention = 16;
                 data.atendimentos.sectors = Array.from({ length: 9 }, (_, index) => ({ source: 'INTERNAL', name: `Setor de demonstração ${index + 1}`, openedInPeriod: index + 1 }));
+                data['atendimentos-clientes'].current.pending = 8;
+                data['atendimentos-clientes'].current.inProgress = 8;
+                data['atendimentos-clientes'].current.needingAttention = 16;
+                data['atendimentos-clientes'].sectors = [{ source: 'CLIENT', name: 'Clientes', openedInPeriod: 8 }];
                 data.projetos.highlights = Array.from({ length: 9 }, (_, index) => ({ id: `project-${index}`, projectId: `project-${index}`, name: `Projeto de demonstração ${index + 1}`, companyName: 'Cliente de demonstração', type: 'INSTALLATION', status: 'SCHEDULED', markerName: null, urgency: 1, color: '#ABFF10', relevant: false, startDate: generatedAt, endDate: null }));
                 const services = Array.from({ length: 5 }, (_, index) => ({ id: `service-${index}`, projectId: `project-${index}`, name: `Instalação de demonstração ${index + 1}`, companyName: 'Cliente de demonstração', type: 'INSTALLATION', status: 'SCHEDULED', markerName: null, urgency: 1, color: '#ABFF10', relevant: false, startDate: generatedAt, endDate: null, completedAt: null }));
                 data.operacoes.nextInstallations = services;
@@ -73,9 +99,9 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
                 data.estoque.topExits = ranking;
                 data.estoque.movements = ['ENTRY', 'SHIPMENT', 'RETURN', 'TRANSFER', 'EXIT', 'WRITE_OFF', 'REVERSAL', 'REVERTED', 'UNCLASSIFIED'].map((nature, index) => ({ nature, quantity: index + 1, records: 1 }));
             }
-            const view = url.pathname === '/tickets/statistics' ? 'atendimentos' : params.view;
+            const view = url.pathname === '/tickets/statistics' ? (params.source === 'CLIENT' ? 'atendimentos-clientes' : 'atendimentos') : params.view;
             if (state.fail[view]) return respond({ error: { message: 'Falha sintética QA' } }, 503);
-            if (url.pathname === '/tickets/statistics') return respond({ data: data.atendimentos });
+            if (url.pathname === '/tickets/statistics') return respond({ data: data[view] });
             if (url.pathname.endsWith('/statistics') && view) return respond({ data: { view, data: data[view] } });
             return respond({ data: [] });
         });
@@ -132,6 +158,14 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(s.page.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible();
         await expect(s.page.locator('[data-monitoring-panel]')).toHaveCount(0);
         await expect(s.page.locator('[data-dashboard-summary]')).toHaveCount(5);
+        await expect(s.page.getByRole('region', { name: 'Atendimento atual', exact: true })).toBeVisible();
+        await expect(s.page.getByRole('region', { name: 'Planejamento e execução', exact: true })).toBeVisible();
+        await expect(s.page.getByRole('region', { name: 'Recursos', exact: true })).toBeVisible();
+        const flow = await s.page.locator('[data-dashboard-zone]').evaluateAll(elements => elements.map(element => ({ label: element.getAttribute('data-dashboard-zone'), width: element.getBoundingClientRect().width, top: element.getBoundingClientRect().top })));
+        assert.deepEqual(flow.map(item => item.label), ['tickets', 'operation']);
+        assert(Math.abs(flow[0].top - flow[1].top) < 4, 'Atendimento e operação devem iniciar lado a lado');
+        assert(flow[0].width > flow[1].width, 'Atendimento deve receber mais largura sem comprimir a operação');
+        await expect(s.page.locator('[data-attention-client-settings]')).toContainText('Cliente atenção QA');
         await expect(s.page.locator('[data-inventory-metric="total"] [data-metric-value]')).toHaveText('40');
         await expect(s.page.locator('[data-stock-classification]')).toContainText('sem classificação');
         await expect(s.page.locator('[data-stock-classification]').getByRole('link', { name: 'Identificar locais', exact: true })).toHaveAttribute('href', '/dashboard/estoque?aba=locations');
@@ -139,19 +173,49 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(s.page.getByRole('link', { name: 'Abrir estoque', exact: true })).toHaveAttribute('href', '/dashboard/estoque');
         for (const name of ['Visão anterior', 'Próxima visão', 'Atualizar dados', 'Copiar link desta visão', 'Retomar rotação', 'Pausar rotação']) await expect(s.page.getByRole('button', { name, exact: true })).toHaveCount(0);
         await expect(s.page.getByLabel('Intervalo de troca')).toHaveCount(0);
-        await expect(s.page.locator('[data-ticket-id]')).toHaveCount(1);
-        await s.page.getByRole('button', { name: 'Assumir', exact: true }).click();
+        await expect(s.page.locator('[data-ticket-id]')).toHaveCount(2);
+        await expect(s.page.locator('[data-dashboard-summary="carros"]')).toContainText('Reserva futura QA');
+        await s.page.locator('[data-ticket-source="INTERNAL"]').getByRole('button', { name: 'Assumir', exact: true }).click();
         await expect(s.page.getByRole('heading', { name: 'Assumir Chamado', exact: true })).toBeVisible();
         await s.page.locator('[data-slot="dialog-content"]').getByRole('button', { name: 'Cancelar', exact: true }).click();
         await expect(metric(s.page, 'active')).toHaveText('4');
         await expect(s.page.getByRole('link', { name: 'Abrir projetos', exact: true })).toHaveAttribute('href', '/dashboard/projetos?aba=projetos');
         await s.page.clock.runFor(61000); await expect(s.page.locator('[data-dashboard-summary]')).toHaveCount(5);
-        await expect(s.page.locator('[data-ticket-id]')).toHaveCount(1);
+        await expect(s.page.locator('[data-ticket-id]')).toHaveCount(2);
         await expect(s.page.getByRole('button', { name: 'Espelho por link', exact: true })).toBeVisible();
         const request = s.requests.find(r => r.path === '/schedule'); assert.equal(request.params.status, 'SCHEDULED'); assert.equal(request.params.limit, '5'); assert(Date.parse(request.params.startDate) >= fixedNow);
         await s.page.locator('[data-upcoming-schedule="upcoming-qa"]').click(); await expect(s.page.getByRole('dialog')).toContainText('Detalhes do compromisso QA');
         await s.page.keyboard.press('Escape'); await expect(s.page.getByRole('dialog')).toHaveCount(0); await expect(s.page).toHaveURL(base + '/dashboard');
+        await s.page.locator('main').evaluate(element => { element.scrollTop = 0; });
+        await s.page.screenshot({ path: path.join(shots, 'dashboard-organized-desktop.png'), fullPage: true, animations: 'disabled' });
         assert(s.requests.filter(r => r.path === '/personal-panel/statistics').every(r => r.headers.authorization));
+        assert.deepEqual(s.errors, []); await s.context.close();
+    });
+    await run('Monitoring panel: attention clients search the existing directory and save an independent curated selection', async () => {
+        const s = await setup(), settings = s.page.locator('[data-attention-client-settings]');
+        await expect(settings.getByRole('heading', { name: 'Clientes de atenção', exact: true })).toBeVisible();
+        await expect(settings.locator('header')).toContainText('1/12');
+        await settings.getByLabel('Pesquisar clientes cadastrados', { exact: true }).fill('disponível');
+        await s.page.clock.runFor(350);
+        await expect(settings.getByText('Cliente disponível QA', { exact: true })).toBeVisible();
+        await settings.getByRole('button', { name: 'Adicionar Cliente disponível QA', exact: true }).click();
+        await expect(settings.locator('header')).toContainText('2/12');
+        await expect(settings.getByText('Cliente disponível QA', { exact: true })).toBeVisible();
+        const put = s.requests.findLast(request => request.path === '/personal-panel/attention-clients' && request.method === 'PUT');
+        assert.deepEqual(put.body.companyIds, ['20000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000002']);
+        await settings.getByRole('button', { name: 'Remover Cliente disponível QA', exact: true }).click();
+        await expect(settings.locator('header')).toContainText('1/12');
+        await settings.screenshot({ path: path.join(shots, 'dashboard-clientes-atencao.png'), animations: 'disabled' });
+        assert(s.requests.some(request => request.path === '/clients/companies/search' && request.params.q === 'disponível'));
+        assert.deepEqual(s.errors, []); await s.context.close();
+    });
+    await run('Monitoring panel: directory search remains readable when the saved attention selection is unavailable', async () => {
+        const s = await setup({ fail: { attention: 503 } }), settings = s.page.locator('[data-attention-client-settings]');
+        await expect(settings.getByRole('alert')).toContainText('A busca no cadastro continua disponível.');
+        await settings.getByLabel('Pesquisar clientes cadastrados', { exact: true }).fill('disponível');
+        await s.page.clock.runFor(350);
+        await expect(settings.getByText('Cliente disponível QA', { exact: true })).toBeVisible();
+        await expect(settings.getByRole('button', { name: 'Adicionar Cliente disponível QA', exact: true })).toBeDisabled();
         assert.deepEqual(s.errors, []); await s.context.close();
     });
     await run('Monitoring panel: both former authenticated addresses redirect to the dashboard without obsolete rotation parameters', async () => {
@@ -180,7 +244,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(card).toHaveAttribute('data-attention', 'true'); await card.getByRole('button', { name: 'Ver detalhes:', exact: false }).click();
         await expect(s.page.getByRole('dialog')).toContainText('Descrição integral do chamado QA');
         await s.page.clock.runFor(65000); await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'atendimentos');
-        await s.page.keyboard.press('Escape'); await expect(s.page.getByRole('dialog')).toHaveCount(0); await s.page.clock.runFor(61000); await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'projetos');
+        await s.page.keyboard.press('Escape'); await expect(s.page.getByRole('dialog')).toHaveCount(0); await s.page.clock.runFor(61000); await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'atendimentos-clientes');
         assert(!s.requests.some(r => /media|attachments/.test(r.path))); await s.context.close();
     });
     await run('Monitoring panel: empty projects and operations remain successful and show no misleading failure messages', async () => {
@@ -195,7 +259,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(s.page.getByRole('button', { name: 'Tentar novamente', exact: true })).toBeVisible(); await expect(s.page.locator('[data-inventory-metric]')).toHaveCount(0);
         await expect(metric(s.page, 'active')).toHaveText('4'); s.state.fail = {};
         const retry = s.page.getByRole('button', { name: 'Tentar novamente', exact: true }); await retry.click();
-        await expect(s.page.locator('[data-inventory-metric="total"] [data-metric-value]')).toHaveText('40'); await expect(s.page.getByRole('button', { name: 'Retomar rotação', exact: true })).toHaveCount(0); await expect(s.page.locator('[data-ticket-id]')).toHaveCount(1); await s.context.close();
+        await expect(s.page.locator('[data-inventory-metric="total"] [data-metric-value]')).toHaveText('40'); await expect(s.page.getByRole('button', { name: 'Retomar rotação', exact: true })).toHaveCount(0); await expect(s.page.locator('[data-ticket-id]')).toHaveCount(2); await s.context.close();
     });
     await run('Monitoring panel: a rendering failure is isolated and other dashboard summaries remain usable', async () => {
         const s = await setup({ malformed: true }); await expect(s.page.getByText('As outras continuam disponíveis.', { exact: false })).toBeVisible();
@@ -211,9 +275,9 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     });
     await run('Monitoring panel: dashboard and mirror settings respect account permissions and logged-out access requests no operational data', async () => {
         const scoped = await setup({ permissions: ['tickets.view'] });
-        await expect(selected(scoped.page)).toHaveCount(0); await expect(scoped.page.locator('[data-ticket-id]')).toHaveCount(1);
+        await expect(selected(scoped.page)).toHaveCount(0); await expect(scoped.page.locator('[data-ticket-id]')).toHaveCount(2);
         await scoped.page.getByRole('button', { name: 'Espelho por link', exact: true }).click();
-        await expect(scoped.page.getByRole('dialog').getByRole('checkbox')).toHaveCount(1);
+        await expect(scoped.page.getByRole('dialog').getByRole('checkbox')).toHaveCount(3);
         assert(!scoped.requests.some(r => r.path === '/personal-panel/statistics')); await scoped.context.close();
         for (const permissions of [['inventory.view'], ['schedule.view']]) {
             const s = await setup({ permissions }); const expected = permissions[0] === 'inventory.view' ? 'estoque' : 'projetos';
@@ -239,6 +303,19 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(viewNav(s.page).getByRole('button')).toHaveCount(1); await expect(s.page.locator('[data-ticket-id]')).toHaveCount(1);
         assert(!s.requests.some(r => r.params.view && r.params.view !== 'atendimentos')); await s.context.close();
     });
+    await run('Monitoring panel: internal and client tickets are independent views and requests use the authorized source', async () => {
+        const s = await setup({ mirror: true, loggedOut: true, views: ['atendimentos', 'atendimentos-clientes'], query: 'visao=atendimentos-clientes&pausado=1' });
+        await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'atendimentos-clientes');
+        await expect(s.page.getByText('Chamado do cliente no painel QA', { exact: true })).toBeVisible();
+        await expect(s.page.getByText('Chamado completo no painel QA', { exact: true })).toHaveCount(0);
+        assert(s.requests.some(r => r.path.endsWith('/tickets') && r.params.source === 'CLIENT'));
+        assert(s.requests.some(r => r.path.endsWith('/statistics') && r.params.view === 'atendimentos-clientes'));
+        await viewNav(s.page).getByRole('button', { name: 'Atendimentos internos', exact: true }).click();
+        await expect(s.page.getByText('Chamado completo no painel QA', { exact: true })).toBeVisible();
+        await expect(s.page.getByText('Chamado do cliente no painel QA', { exact: true })).toHaveCount(0);
+        assert(s.requests.some(r => r.path.endsWith('/tickets') && r.params.source === 'INTERNAL'));
+        await s.context.close();
+    });
     await run('Monitoring panel: revoked mirror hides cached content after metadata refresh and has no login/navigation links', async () => {
         const s = await setup({ mirror: true, loggedOut: true, query: 'visao=estoque&pausado=1' }); await expect(s.page.locator('[data-inventory-metric="scoped"] [data-metric-value]')).toHaveText('38');
         s.state.fail.metadata = true; await s.page.clock.runFor(16000); await expect(selected(s.page)).toHaveCount(0); await expect(s.page.getByRole('alert').filter({ hasText: 'Este espelho está indisponível' })).toBeVisible();
@@ -258,16 +335,50 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         assert(s.requests.filter(r => r.path === '/personal-panel/mirror').every(r => r.method === 'GET'));
         await d.getByRole('checkbox', { name: 'Projetos', exact: true }).uncheck(); await d.getByRole('button', { name: 'Gerar link', exact: true }).click();
         await expect(d.getByLabel('Link do espelho', { exact: true })).toHaveValue(base + '/painel/espelho/' + token);
-        const mutation = s.requests.find(r => r.method === 'POST'); assert.deepEqual(mutation.body.views, ['atendimentos', 'operacoes', 'estoque']);
+        const mutation = s.requests.find(r => r.method === 'POST'); assert.deepEqual(mutation.body.views, ['atendimentos', 'atendimentos-clientes', 'clientes-atencao', 'operacoes', 'estoque', 'carros']);
         await d.getByRole('button', { name: 'Copiar link do espelho', exact: true }).click(); const copied = await s.page.evaluate(() => navigator.clipboard.readText()); assert.equal(copied, base + '/painel/espelho/' + token); assert(!copied.includes('synthetic'));
         await d.getByRole('button', { name: 'Revogar link', exact: true }).click(); await expect(d.getByLabel('Link do espelho', { exact: true })).toHaveCount(0); await expect(d.getByRole('button', { name: 'Gerar link', exact: true })).toBeEnabled();
         await s.page.keyboard.press('Escape'); await expect(d).toHaveCount(0); await s.context.close();
+    });
+    await run('Monitoring panel: an active link exposes its actual views and can add client tickets without changing its address', async () => {
+        const s = await setup({ active: true, savedViews: ['atendimentos', 'estoque'] });
+        await s.page.getByRole('button', { name: 'Espelho por link', exact: true }).click();
+        const d = s.page.getByRole('dialog');
+        await expect(d.getByText('As marcações abaixo mostram exatamente as visões disponíveis nele.', { exact: false })).toBeVisible();
+        await expect(d.getByRole('checkbox', { name: 'Atendimentos internos', exact: true })).toBeChecked();
+        await expect(d.getByRole('checkbox', { name: 'Atendimentos de clientes', exact: true })).not.toBeChecked();
+        await expect(d.getByRole('checkbox', { name: 'Estoque', exact: true })).toBeChecked();
+        await d.getByRole('checkbox', { name: 'Atendimentos de clientes', exact: true }).check();
+        await d.getByRole('button', { name: 'Atualizar link atual', exact: true }).click();
+        await expect(d.getByText('Visões atualizadas. O endereço atual foi preservado.', { exact: true })).toBeVisible();
+        const mutation = s.requests.find(request => request.path === '/personal-panel/mirror' && request.method === 'PUT');
+        assert.deepEqual(mutation.body.views, ['atendimentos', 'estoque', 'atendimentos-clientes']);
+        assert(!s.requests.some(request => request.path === '/personal-panel/mirror' && request.method === 'POST'));
+        await s.context.close();
     });
     await run('Monitoring panel: mirror management failure preserves selections and can be retried', async () => {
         const s = await setup({ query: 'visao=estoque&pausado=1', fail: { management: false } }); await s.page.getByRole('button', { name: 'Espelho por link', exact: true }).click(); const d = s.page.getByRole('dialog');
         await expect(d.getByRole('button', { name: 'Gerar link', exact: true })).toBeEnabled(); await d.getByRole('checkbox', { name: 'Projetos', exact: true }).uncheck(); s.state.fail.management = true;
         await d.getByRole('button', { name: 'Gerar link', exact: true }).click(); await expect(d.getByText('Falha ao salvar link QA', { exact: true })).toBeVisible(); await expect(d.getByRole('checkbox', { name: 'Projetos', exact: true })).not.toBeChecked();
         s.state.fail.management = false; await d.getByRole('button', { name: 'Gerar link', exact: true }).click(); await expect(d.getByLabel('Link do espelho', { exact: true })).toBeVisible(); await s.context.close();
+    });
+    await run('Monitoring panel: curated clients and vehicle availability have dedicated readable mirror views', async () => {
+        const s = await setup({ mirror: true, loggedOut: true, viewport: { width: 1708, height: 817 }, query: 'visao=clientes-atencao&pausado=1' });
+        const fitsViewport = () => s.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && document.documentElement.scrollHeight <= innerHeight + 1);
+        await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'clientes-atencao');
+        await expect(s.page.getByText('Cliente atenção QA', { exact: true })).toBeVisible();
+        await expect(s.page.getByText('Responsável QA', { exact: false })).toBeVisible();
+        assert.equal(await s.page.getByText('Cliente atenção QA', { exact: true }).evaluate(element => getComputedStyle(element).animationName), 'none');
+        assert(await fitsViewport());
+        await s.page.screenshot({ path: path.join(shots, 'mirror-tv-clientes-atencao.png'), animations: 'disabled' });
+        await viewNav(s.page).getByRole('button', { name: 'Carros', exact: true }).click();
+        await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'carros');
+        await expect(s.page.getByText('Motorista QA', { exact: true })).toBeVisible();
+        await expect(s.page.getByText('Reserva futura QA', { exact: true })).toBeVisible();
+        await expect(s.page.getByText('Disponíveis', { exact: true })).toBeVisible();
+        assert(await fitsViewport());
+        await s.page.screenshot({ path: path.join(shots, 'mirror-tv-carros.png'), animations: 'disabled' });
+        assert.deepEqual(s.errors, []); await s.context.close();
     });
     await run('Monitoring panel: dense TV views fit the viewport and advance records without scrolling', async () => {
         const s = await setup({ mirror: true, loggedOut: true, dense: true, viewport: { width: 1708, height: 817 }, query: 'visao=atendimentos&pausado=1' });
@@ -286,7 +397,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await assertFrame();
         await s.page.screenshot({ path: path.join(shots, 'mirror-tv-atendimentos.png'), animations: 'disabled' });
         await s.page.clock.runFor(11000);
-        await expect(s.page.locator('[data-ticket-column="open"]')).toContainText('Pedido aberto 4');
+        await expect(s.page.locator('[data-ticket-column="open"]')).toContainText('pedido aberto 4');
         await assertFrame();
         for (const [name, marker] of [['Projetos', '[data-project-highlight]'], ['Instalações e viagens', '[data-operation-service]'], ['Estoque', '[data-inventory-ranking]']]) {
             await viewNav(s.page).getByRole('button', { name, exact: true }).click();
@@ -323,14 +434,18 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     await run('Monitoring panel: operational indicators and mirror settings fit the authenticated mobile dashboard without automatic rotation', async () => {
         const s = await setup({ mobile: true }); await expect(s.page.locator('[data-inventory-metric="total"] [data-metric-value]')).toHaveText('40');
         await s.page.getByRole('button', { name: 'Espelho por link', exact: true }).click();
-        await expect(s.page.getByRole('dialog').getByRole('checkbox')).toHaveCount(4);
+        await expect(s.page.getByRole('dialog').getByRole('checkbox')).toHaveCount(7);
         await s.page.keyboard.press('Escape'); await expect(s.page.getByRole('dialog')).toHaveCount(0);
         await s.page.getByRole('heading', { name: 'Visão operacional', exact: true }).scrollIntoViewIfNeeded();
         assert(await s.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
         await s.page.screenshot({ path: path.join(shots, 'dashboard-operational-overview-mobile.png'), animations: 'disabled' });
+        await s.page.locator('[data-attention-client-settings]').scrollIntoViewIfNeeded();
+        await expect(s.page.getByRole('heading', { name: 'Clientes de atenção', exact: true })).toBeVisible();
+        assert(await s.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        await s.page.screenshot({ path: path.join(shots, 'dashboard-clientes-atencao-mobile.png'), animations: 'disabled' });
         await expect(metric(s.page, 'active')).toHaveText('4');
         await s.page.clock.runFor(65000); await expect(s.page.locator('[data-dashboard-summary]')).toHaveCount(5);
-        await expect(s.page.locator('[data-ticket-id]')).toHaveCount(1);
+        await expect(s.page.locator('[data-ticket-id]')).toHaveCount(2);
         assert(await s.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); assert.deepEqual(s.errors, []); await s.context.close();
     });
 };

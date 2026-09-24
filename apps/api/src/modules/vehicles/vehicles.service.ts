@@ -48,7 +48,7 @@ export class VehiclesService {
         const [activeVehicles, current, upcoming] = await this.prisma.retry(() => this.prisma.$transaction([
             this.prisma.vehicle.count({ where: { active: true } }),
             this.prisma.vehicleReservation.findMany({ where: { ...active, use: { is: { returnedAt: null } } }, include, orderBy: [{ endDate: 'asc' }, { id: 'asc' }] }),
-            this.prisma.vehicleReservation.findMany({ where: { ...active, startDate: { gt: now }, use: { is: null } }, include, orderBy: [{ startDate: 'asc' }, { id: 'asc' }], take: 5 }),
+            this.prisma.vehicleReservation.findMany({ where: { ...active, endDate: { gt: now }, use: { is: null } }, include, orderBy: [{ startDate: 'asc' }, { id: 'asc' }], take: 8 }),
         ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }));
         const occupiedVehicles = new Set(current.map(row => row.vehicleId)).size;
         return { generatedAt: now.toISOString(), activeVehicles, occupiedVehicles, availableVehicles: activeVehicles - occupiedVehicles,

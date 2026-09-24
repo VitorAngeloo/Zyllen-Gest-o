@@ -83,6 +83,9 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             await expect(s.page.locator('[data-operation-metric="installations"] [data-metric-value]')).toHaveText('0');
             await expect(s.page.locator('[data-operation-metric="planned-trips"] [data-metric-value]')).toHaveText('1');
             await expect(s.page.locator('[data-operation-metric="planned-trips-in-period"] [data-metric-value]')).toHaveText('0');
+            await expect(s.page.locator('[data-project-metric="active"]')).toHaveCSS('border-radius', '4px');
+            await expect(s.page.getByRole('region', { name: 'Situação atual', exact: true })).toHaveCSS('border-radius', '6px');
+            await expect(s.page.locator('[data-operation-metric="installations"]')).toHaveCSS('border-radius', '4px');
             await expect(s.page.getByRole('region', { name: 'Operação atual', exact: true })).toContainText('inclusive as programadas para datas futuras');
             await expect(s.page.getByRole('link', { name: 'Projetos e Agenda', exact: true })).toHaveCount(1);
             await expect(s.page.getByRole('link', { name: 'Viagens', exact: true })).toHaveCount(0);

@@ -159,7 +159,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     await run('Vehicles pickers: mobile calendar and time selection replace typing and preserve the chosen local instants',async()=>{
         const s=await setup({mobile:true}),d=await fillBooking(s.page),date=inputDate(24).split('T')[0];
         for(const label of ['Data de início','Data de término','Horário de retirada','Horário de devolução'])await expect(d.getByLabel(label,{exact:true})).toHaveJSProperty('readOnly',true);
-        await selectTime(d,'Horário de retirada','08:35');await selectTime(d,'Horário de devolução','09:15');
+        await selectDate(d,'Data de término',brDate(date));await selectTime(d,'Horário de retirada','08:35');await selectTime(d,'Horário de devolução','09:15');
         await d.getByRole('button',{name:'Reservar agora',exact:true}).click();await expect(d.getByLabel('Finalidade da reserva')).toHaveValue('');const body=s.requests.find(r=>r.method==='POST').body;
         assert.equal(body.startDate,new Date(date+'T08:35:00-03:00').toISOString());assert.equal(body.endDate,new Date(date+'T09:15:00-03:00').toISOString());assert.deepEqual(s.errors,[]);await s.context.close();
     });

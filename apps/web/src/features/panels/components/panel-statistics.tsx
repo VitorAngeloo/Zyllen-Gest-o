@@ -10,7 +10,8 @@ import { OperationsDashboardView } from '@web/features/trips/components/operatio
 import { InventoryDashboardView } from '@web/features/inventory/components/inventory-dashboard-view';
 import type { PanelReader } from '../api/panel-api';
 import { MirrorStatistics } from './mirror-statistics';
-export function PanelStatisticsView({ view, reader, mirror = false, slide = 0 }: { view: Exclude<PanelId, 'atendimentos'>; reader: PanelReader; mirror?: boolean; slide?: number }) {
+type StatisticsPanelId = Extract<PanelId, 'projetos' | 'operacoes' | 'estoque'>;
+export function PanelStatisticsView({ view, reader, mirror = false, slide = 0 }: { view: StatisticsPanelId; reader: PanelReader; mirror?: boolean; slide?: number }) {
     const [now, setNow] = useState(Date.now);
     useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
     const period = view === 'estoque' ? null : datePeriod('30_DAYS', localCalendarDate(now), '', '');

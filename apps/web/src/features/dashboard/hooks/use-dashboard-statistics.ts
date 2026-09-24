@@ -6,7 +6,7 @@ import { useAuth, useAuthedFetch } from '@web/features/auth/context/auth-context
 import { panelApi } from '@web/features/panels/api/panel-api';
 import { datePeriod, localCalendarDate } from '@web/lib/date-period';
 
-export function useDashboardStatistics(view: Exclude<PanelId, 'atendimentos'>) {
+export function useDashboardStatistics(view: Extract<PanelId, 'projetos' | 'operacoes' | 'estoque'>) {
     const { user } = useAuth(), options = useAuthedFetch();
     const [now, setNow] = useState(Date.now);
     useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);

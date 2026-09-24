@@ -62,8 +62,8 @@ export const DASHBOARD_SUBTITLE = "Prioridades, atendimento e operação reunido
 
 /** Chamados acompanhados no dashboard, sem sair da operação. */
 export const TICKET_DASHBOARD_COPY = {
-  attentionLabel: "Atenção: aberto há 1 hora ou mais",
-  attentionDescription: "O tempo conta desde a abertura, mesmo depois de um técnico assumir. Confira os chamados destacados em vermelho.",
+  attentionLabel: "Atenção: tempo limite excedido",
+  attentionDescription: "O tempo conta desde a abertura: internos entram em atenção após 5 horas e clientes após 1 hora.",
   attentionList: "Chamados mais antigos que precisam de atenção",
   requesterUnavailable: "Solicitante não informado",
   viewDetails: "Ver detalhes do chamado",
@@ -364,7 +364,7 @@ export const TICKET_INSIGHTS_COPY = {
   inProgress: 'Em atendimento', wait: 'Espera média', attention: 'Precisam de atenção',
   periodContext: 'No período selecionado', currentContext: 'Situação atual',
   pendingContext: 'Abertos sem técnico atribuído', waitContext: 'Dos que aguardam técnico agora',
-  attentionContext: 'Abertos ou em atendimento há ≥ 1h',
+  attentionContext: 'Internos ≥ 5h · clientes ≥ 1h',
   waitingClient: 'Aguardando resposta', resolved: 'Resolvidos, ainda não encerrados',
   sectors: 'Aberturas por setor', sectorsContext: 'Setor do solicitante. Chamados de clientes ficam no grupo Clientes.',
   emptySectors: 'Nenhum chamado aberto no período selecionado.',
@@ -481,7 +481,10 @@ export const INVENTORY_DASHBOARD_COPY = {
     nature: { ENTRY: 'Entrada', SHIPMENT: 'Envio ao cliente', RETURN: 'Devolução do cliente', TRANSFER: 'Transferência', EXIT: 'Saída sem destino identificado', WRITE_OFF: 'Baixa definitiva', REVERSAL: 'Reversão', REVERTED: 'Movimento revertido', UNCLASSIFIED: 'Não classificado' },
 } as const;
 export const DASHBOARD_OPERATIONAL_COPY = {
-    title: 'Visão operacional', description: 'Estoque, projetos, viagens e agenda dos carros.',
+    title: 'Visão operacional', description: 'Planejamento, compromissos e recursos apresentados na ordem em que a equipe acompanha o trabalho.',
+    operationEyebrow: 'Operação',
+    planningTitle: 'Planejamento e execução', planningDescription: 'Projetos, deslocamentos e próximos compromissos reunidos em uma mesma sequência de leitura.',
+    resourcesTitle: 'Recursos', resourcesDescription: 'Disponibilidade de estoque e carros para sustentar as próximas atividades.',
     refresh: 'Atualização automática a cada 30 segundos',
     stock: 'Estoque', projects: 'Projetos', trips: 'Viagens', agenda: 'Próximos projetos e compromissos',
     totalAssets: 'Patrimônios', products: 'Itens cadastrados', available: 'Disponíveis no depósito', maintenance: 'Em manutenção',
@@ -525,7 +528,7 @@ export const VEHICLES_COPY = {
     scheduled: 'Agendada', ongoing: 'Em uso', finished: 'Concluída', cancelledStatus: 'Cancelada', inactive: 'Inativo',
     summary: 'Agenda dos carros', open: 'Abrir carros', available: 'Disponíveis agora', occupied: 'Em uso agora',
     summaryContext: 'Em uso após a retirada registrada; disponível novamente após a devolução registrada. Reservas futuras não ocupam o carro agora.',
-    upcoming: 'Próximas reservas', current: 'Em uso', noUpcoming: 'Nenhuma reserva futura.',
+    upcoming: 'Reservas atuais e futuras', current: 'Em uso', noUpcoming: 'Nenhuma reserva atual ou futura.',
     previous: 'Anterior', next: 'Próxima', total: (count: number) => `${count} reserva${count === 1 ? '' : 's'} no período`,
 } as const;
 
@@ -535,16 +538,16 @@ export const MONITORING_PANEL_COPY = {
     manage: { estoque: 'Abrir estoque', projetos: 'Abrir projetos e agenda', operacoes: 'Abrir projetos e agenda' },
     operationalPeriod: 'Projetos e operações: últimos 30 dias do calendário local. Estoque: 30 dias corridos.',
     loading: 'Carregando painel…', mirror: 'Espelho por link', mirrorDescription: 'Acompanhamento de leitura. Troca automática a cada minuto.',
-    mirrorContext: 'Quem receber o link poderá ler as visões selecionadas, incluindo detalhes de chamados, sem login. Gerar outro link substitui o anterior; revogar interrompe o acesso.',
+    mirrorContext: 'Quem receber o link poderá ler as visões selecionadas, incluindo detalhes de chamados, sem login. Atualizar mantém o endereço atual; gerar outro endereço substitui o anterior.',
     mirrorViews: 'Visões disponíveis no espelho', mirrorUrl: 'Link do espelho', copyMirror: 'Copiar link do espelho', openMirror: 'Abrir espelho',
-    activeLink: 'Existe um link ativo. Para obter outro endereço, gere um novo link.', noLink: 'Nenhum link ativo.', generate: 'Gerar link', regenerate: 'Gerar novo link', revoke: 'Revogar link', revoked: 'Link revogado.',
+    activeLink: 'Existe um link ativo. As marcações abaixo mostram exatamente as visões disponíveis nele.', noLink: 'Nenhum link ativo.', generate: 'Gerar link', update: 'Atualizar link atual', updated: 'Visões atualizadas. O endereço atual foi preservado.', regenerate: 'Gerar novo endereço', revoke: 'Revogar link', revoked: 'Link revogado.',
     close: 'Fechar', saving: 'Aguarde…', mirrorFailure: 'Não foi possível consultar o acesso do espelho.', mirrorUnavailable: 'Este espelho está indisponível. Verifique o link ou solicite um novo.',
-    panels: { atendimentos: 'Atendimentos', projetos: 'Projetos', operacoes: 'Instalações e viagens', estoque: 'Estoque' },
+    panels: { atendimentos: 'Atendimentos internos', 'atendimentos-clientes': 'Atendimentos de clientes', 'clientes-atencao': 'Clientes de atenção', projetos: 'Projetos', operacoes: 'Instalações e viagens', estoque: 'Estoque', carros: 'Carros' },
     pause: 'Pausar rotação', resume: 'Retomar rotação', paused: 'Rotação pausada', rotating: 'Troca automática ativa', held: 'Rotação suspensa enquanto os detalhes estão abertos',
     copied: 'Link copiado',
     copyError: 'Não foi possível copiar o link. Use o endereço do navegador.',
     failure: 'Não foi possível carregar esta visão. As outras continuam disponíveis.', retry: 'Tentar novamente', stale: 'A atualização falhou. Os dados anteriores estão sendo exibidos.',
-    period: 'Projetos e operações: últimos 30 dias do calendário local. Estoque: 30 dias corridos. Chamados permitem ajustar o período e a origem.',
+    period: 'Projetos e operações: últimos 30 dias do calendário local. Estoque: 30 dias corridos. Cada visão de chamados permite ajustar o período.',
 } as const;
 export const STRUCTURES_COPY = {
     title: 'Histórico de instalações', description: 'Consulte instalações e desinstalações das salas ou totens atendidos pelos projetos.',

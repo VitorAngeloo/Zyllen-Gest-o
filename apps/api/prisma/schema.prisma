@@ -53,6 +53,7 @@ model InternalUser {
   assetEvents         AssetEvent[]
   custodyTransfers    InventoryTransfer[]
   panelMirror         PanelMirror?
+  panelAttentionClients PanelAttentionClient[]
   vehicleReservations VehicleReservation[] @relation("VehicleResponsible")
   vehicleBookingsCreated VehicleReservation[] @relation("VehicleBookingCreator")
   vehicleUsesDriven VehicleUse[] @relation("VehicleDriver")
@@ -259,6 +260,7 @@ model Company {
   maintenanceOrders MaintenanceOS[]
   inventoryLocations Location[]
   operationalStructures OperationalStructure[]
+  panelAttentionClients PanelAttentionClient[]
 }
 
 model Project {
@@ -959,6 +961,18 @@ model PanelMirror {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   owner InternalUser @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+}
+
+// Curadoria manual para o monitor público de clientes; guarda somente os vínculos escolhidos.
+model PanelAttentionClient {
+  ownerId String
+  companyId String
+  createdAt DateTime @default(now())
+  owner InternalUser @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@id([ownerId, companyId])
+  @@index([companyId])
 }
 
 // Cancelled removal attempts remain attached; a later attempt is a separate project/service.

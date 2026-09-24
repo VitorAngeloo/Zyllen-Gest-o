@@ -3,15 +3,6 @@ import { apiClient, type RequestOptions } from "@web/lib/api-client";
 import type { TicketDetail, TicketPage, TicketSummary } from "../types/ticket.types";
 
 export const ticketApi = {
-    async listForClientAttention(options: RequestOptions): Promise<TicketSummary[]> {
-        const rows = new Map<string, TicketSummary>();
-        for (let page = 1; ; page++) {
-            const result = await apiClient.get<TicketPage>(`/tickets?limit=100&page=${page}`, options);
-            for (const row of result.data) rows.set(row.id, row);
-            if (page * (result.limit ?? 100) >= (result.total ?? result.data.length)) return [...rows.values()];
-            if (!result.data.length) throw new Error('Não foi possível carregar todos os chamados para o monitor. Tente novamente.');
-        }
-    },
     async listActive(status: TicketStatus, options: RequestOptions, assignedToId?: string, source: TicketSourceFilter = "ALL"): Promise<TicketSummary[]> {
         const tickets = new Map<string, TicketSummary>();
         for (let page = 1; ; page++) {

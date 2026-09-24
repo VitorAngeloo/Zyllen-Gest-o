@@ -49,7 +49,7 @@ async function main() {
     }
     if (projects) {
         let baseline = fs.readFileSync(ddlSchema, 'utf8');
-        for (const name of ['ProjectService', 'ProjectServiceMarker', 'ProjectServiceInternal', 'ProjectServiceContractor', 'Trip', 'TripContractor', 'OperationalStructure', 'StructureCycle', 'PanelMirror']) {
+        for (const name of ['ProjectService', 'ProjectServiceMarker', 'ProjectServiceInternal', 'ProjectServiceContractor', 'Trip', 'TripContractor', 'OperationalStructure', 'StructureCycle', 'PanelMirror', 'PanelAttentionClient']) {
             baseline = baseline.replace(new RegExp(`^model ${name} \\{[\\s\\S]*?^\\}`, 'm'), '');
         }
         baseline = baseline.replace(/^.*(?:projectServiceAssignments|operationalService|projectService ProjectService).*\r?\n/gm, '');
@@ -57,6 +57,7 @@ async function main() {
         baseline = baseline.replace(/^.*(?:tripAssignments|\btrip\s+Trip\?).*\r?\n/gm, '');
         baseline = baseline.replace(/^.*operationalStructures.*\r?\n/gm, '');
         baseline = baseline.replace(/^.*panelMirror\s+PanelMirror.*\r?\n/gm, '');
+        baseline = baseline.replace(/^.*panelAttentionClients.*\r?\n/gm, '');
         ddlSchema = path.join(artifacts, 'baseline-schema.prisma'); fs.writeFileSync(ddlSchema, baseline);
     }
     const ddl = execFileSync(process.execPath, [apiRequire.resolve('prisma/build/index.js'),
@@ -168,6 +169,14 @@ async function main() {
         try { assert.equal((await db.query('SELECT * FROM "PanelMirror"')).rows.length, 0); await assert.rejects(() => db.query('INSERT INTO "PanelMirror" (id,"ownerId","tokenHash","views","updatedAt") VALUES ($1,$1,$1,ARRAY[\'estoque\'],NOW())', ['blocked']), /row-level security/); }
         finally { await db.exec('RESET ROLE'); }
     });
+    if (panels) await run('Panel attention migration: additive private relation preserves existing clients', async () => {
+        const before = (await db.query('SELECT COUNT(*) AS total FROM "Company"')).rows[0].total;
+        const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260923120000_panel_attention_clients/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(migration));
+        await db.exec(migration);
+        assert.equal((await db.query('SELECT COUNT(*) AS total FROM "Company"')).rows[0].total, before);
+        assert.equal((await db.query("SELECT relrowsecurity FROM pg_class WHERE relname='PanelAttentionClient'")).rows[0].relrowsecurity, true);
+    });
     if (projects) await run('Project followup migration: existing projects remain intact and followup links are optional', async () => {
         const before = (await db.query('SELECT COUNT(*) AS total FROM "Project"')).rows[0].total;
         const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260921130000_project_followup_link/migration.sql'), 'utf8');
@@ -256,7 +265,7 @@ async function main() {
     await create({ status: 'CLOSED', closedAt: end, createdAt: oldAt, assignedToInternalUserId: tech.id });
     await create({ status: 'CLOSED', closedAt: null }); // Never fabricate closure from updatedAt.
     await create({ internalUserId: null }); // Missing sector is explicit.
-    await create({ source: 'CLIENT', internalUserId: null, companyId: company.id, externalUserId: external.id });
+    await create({ source: 'CLIENT', internalUserId: null, companyId: company.id, externalUserId: external.id, createdAt: new Date(now - 80 * 60_000) });
     const query = { start: start.toISOString(), end: end.toISOString(), source: 'ALL' };
     async function http(route, actor = admin) {
         const response = await fetch(origin + route, { headers: actor ? { Authorization: `Bearer ${actor.token}` } : {} });
@@ -286,6 +295,7 @@ async function main() {
         const internalStats = ok(await stats({ source: 'INTERNAL' })), clientStats = ok(await stats({ source: 'CLIENT' }));
         assert.equal(internalStats.openedInPeriod, 7); assert.equal(clientStats.openedInPeriod, 1);
         assert.equal(clientStats.current.pending, 1); assert.equal(clientStats.closedInPeriod, 0);
+        assert.equal(internalStats.current.needingAttention, 2); assert.equal(clientStats.current.needingAttention, 1);
         const list = await http('/tickets?source=CLIENT&limit=100');
         assert.equal(list.status, 200); assert.equal(list.body.total, 1); assert.equal(list.body.data[0].source, 'CLIENT');
         assert.equal((await http('/tickets?source=EXTERNAL')).status, 400);

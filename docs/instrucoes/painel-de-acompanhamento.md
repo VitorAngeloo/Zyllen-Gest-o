@@ -10,10 +10,13 @@ No cabeçalho da dashboard, **Espelho por link** abre a configuração de compar
 
 | Visão | Seleção na URL | Permissão da conta proprietária | Regra dos indicadores |
 |---|---|---|---|
-| Atendimentos | `atendimentos` | `tickets.view` | [Chamados](frontend.md#visão-compacta-de-atendimentos) |
+| Atendimentos internos | `atendimentos` | `tickets.view` | Origem fixa `INTERNAL`; [Chamados](frontend.md#visão-compacta-de-atendimentos) |
+| Atendimentos de clientes | `atendimentos-clientes` | `tickets.view` | Origem fixa `CLIENT`; [Chamados](frontend.md#visão-compacta-de-atendimentos) |
+| Clientes de atenção | `clientes-atencao` | `tickets.view` | Curadoria manual feita na dashboard; nome e contato mínimo no espelho |
 | Projetos | `projetos` | `schedule.view` | [Projetos e agenda](projetos-e-agenda.md#dashboard-geral-de-projetos) |
 | Instalações e viagens | `operacoes` | `schedule.view` | [Viagens e operações](viagens-e-operacoes.md) |
 | Estoque | `estoque` | `inventory.view` | [Estoque e reposição](estoque-e-patrimonio.md#painel-de-estoque-e-reposição) |
+| Carros | `carros` | `vehicles.view` ou `schedule.view` | Disponibilidade, uso atual e reservas atuais/futuras |
 
 Administrador tem o bypass existente. Seleção desconhecida ou negada usa a primeira visão permitida, sem consultar os dados da negada. Conta sem visões permitidas não consulta indicadores. O espelho mostra somente a interseção entre as visões compartilhadas e as permissões atuais do proprietário.
 
@@ -25,7 +28,7 @@ No espelho, as visões são selecionadas diretamente no menu superior. A seleç�
 
 O espelho tem uma composição própria para telas de acompanhamento. Cabeçalho, navegação, indicadores, listas e estado da rotação compartilham a altura disponível do navegador. Em telas amplas, as listas deixam de depender de rolagem: mostram uma página de registros e avançam automaticamente a cada dez segundos. O número total e a página/faixa atual aparecem junto à lista. A posição de cada visão continua de onde parou quando a rotação volta a ela; abrir um detalhe suspende temporariamente a passagem das páginas.
 
-Em **Atendimentos**, os seis indicadores ficam em uma faixa compacta, seguidos pelas filas de abertos, em atendimento e aberturas por setor. Origem e período continuam ajustáveis em controles compactos; a configuração inicial segue todas as origens e últimos 30 dias. Em **Projetos**, os indicadores e os destaques ocupam o mesmo quadro. Em **Instalações e viagens**, os cinco grupos permanecem identificados e seus registros avançam. Em **Estoque**, entradas, saídas e naturezas de movimentação ficam visíveis lado a lado. Conteúdo excedente avança dentro de seu grupo, sem alterar a rotação de um minuto entre visões. Em celular ou janela muito baixa, a página volta ao fluxo vertical para conservar controles e leitura.
+Em **Atendimentos internos** e **Atendimentos de clientes**, os seis indicadores ficam em uma faixa compacta, seguidos pelas filas de abertos, em atendimento e aberturas por setor. Cada visão possui origem fixa e expõe somente o controle de período, evitando mistura ou desaparecimento de uma origem. Em **Clientes de atenção**, a grade se adapta à quantidade definida na dashboard e mostra apenas nome, responsável e telefone disponíveis, sem piscar. Em **Projetos**, os indicadores e os destaques ocupam o mesmo quadro. Em **Instalações e viagens**, os cinco grupos permanecem identificados e seus registros avançam. Em **Estoque**, entradas, saídas e naturezas de movimentação ficam visíveis lado a lado. Em **Carros**, os totais de disponibilidade ficam acima de duas listas: uso atual, com motorista, e reservas atuais/futuras, com responsável e horário. Conteúdo excedente avança dentro de seu grupo, sem alterar a rotação de um minuto entre visões. Em celular ou janela muito baixa, a página volta ao fluxo vertical para conservar controles e leitura.
 
 O verde da marca orienta seleção e valores principais; azul identifica andamento, verde suave indica conclusões, amarelo sinaliza pendência e vermelho fica reservado a chamados que exigem atenção. Rótulos e números acompanham as cores para que o significado não dependa delas. A dashboard autenticada mantém sua apresentação e suas ações operacionais.
 
@@ -37,11 +40,11 @@ Projetos, operações e estoque atualizam a cada 30 segundos. Listas de chamados
 
 Consulta bem-sucedida sem registros apresenta zeros pertinentes e mensagens neutras. Falha inicial não inventa dados; dados anteriores do mesmo escopo podem permanecer com aviso. Há recuperação nas mensagens de falha e uma barreira de erro de apresentação, preservando os seletores. Indisponibilidade do link oculta o conteúdo do espelho, inclusive dados em cache.
 
-Projetos/operações usam os últimos 30 dias do calendário local convertidos para UTC, com situação atual independente do período. Estoque usa 30 dias corridos. Chamados preservam filtros de período e origem.
+Projetos/operações usam os últimos 30 dias do calendário local convertidos para UTC, com situação atual independente do período. Estoque usa 30 dias corridos. Chamados preservam o período escolhido dentro da visão de origem fixa.
 
 ## Chamados e estoque existente
 
-Atendimentos mantém assunto, solicitante, responsável, tempo, popup com descrição e alerta vermelho a partir de uma hora. No espelho, lista e detalhe permitem somente chamados abertos ou em atendimento, respeitando o escopo do proprietário: Administrador/Gestor têm visão global; demais contas veem abertos e suas atribuições.
+Atendimentos mantém assunto, solicitante, responsável, tempo, popup com descrição e alerta vermelho. O limite é de cinco horas para chamados internos e uma hora para chamados de clientes, sempre contado desde a abertura. No espelho, `atendimentos` autoriza somente registros `INTERNAL` e `atendimentos-clientes` somente registros `CLIENT`; a API aplica essa separação também na lista e no detalhe. Ambas permitem somente chamados abertos ou em atendimento e respeitam o escopo do proprietário: Administrador/Gestor têm visão global; demais contas veem abertos e suas atribuições.
 
 O acesso pela conta mantém o leitor autenticado e os anexos privados autorizados. O leitor do espelho seleciona explicitamente dados do pedido e nomes; não entrega contatos, credenciais, arquivos privados ou histórico de mensagens. Compartilhamento de anexos continua seguindo sua [regra própria](autenticacao-e-permissoes.md).
 
@@ -52,10 +55,13 @@ Estoque consulta o contexto geral `ALL`, usando `Asset`, `SkuItem`, `Location` e
 O módulo `panels` compõe os serviços existentes de estatísticas; não duplica agregações. Contratos e validações ficam em `packages/shared/src/panels`. O frontend em `features/panels` separa API, rotação, apresentação compartilhada, configuração do link e tela do espelho. `features/dashboard` compõe os indicadores autenticados reutilizando o mesmo leitor e as mesmas visualizações, sem duplicar agregações. As entradas em `app` são reexports.
 
 - `GET /personal-panel/statistics`: indicadores autenticados, com autorização da visão.
-- `GET/POST/DELETE /personal-panel/mirror`: consultar, gerar/substituir e revogar o link da própria conta.
+- `GET/POST/PUT/DELETE /personal-panel/mirror`: consultar, gerar/substituir, atualizar as visões sem trocar a URL e revogar o link da própria conta.
+- `GET/PUT /personal-panel/attention-clients`: pesquisar empresas e manter a seleção de até 12 clientes do proprietário.
 - `GET /panel-mirrors/:token`: visões atualmente autorizadas.
 - `GET /panel-mirrors/:token/statistics`: indicadores da visão.
 - `GET /panel-mirrors/:token/tickets` e `GET /panel-mirrors/:token/tickets/:id`: lista paginada e detalhe de chamados ativos.
+- `GET /panel-mirrors/:token/attention-clients`: nomes e contatos mínimos dos clientes selecionados.
+- `GET /panel-mirrors/:token/vehicles`: disponibilidade, usos e reservas dos carros.
 
 `PanelMirror` guarda somente SHA-256 de um token aleatório de 32 bytes. Há um link atual por conta, válido até revogação; gerar outro invalida o anterior. O endereço bruto é entregue somente na geração e não é recuperável pela consulta de status. Geração/revogação são auditadas atomicamente sem guardar o token na auditoria.
 
@@ -63,7 +69,9 @@ Conta desativada, revogação e mudanças de permissões são verificadas no ser
 
 ## Integração e publicação
 
-Migração própria: `20260918080000_panel_mirrors`, aditiva, com tabela privada/RLS, índices únicos e FK restritiva ao proprietário. Aplicada ao banco compartilhado em 18/09/2026, junto das outras cinco pendências revisadas.
+O espelho original usa a migration `20260918080000_panel_mirrors`, aplicada ao banco compartilhado em 18/09/2026. A curadoria de clientes acrescenta a migration aditiva `20260923120000_panel_attention_clients`, com chave composta, FKs restritivas e RLS. Essa migration foi aplicada em 23/09/2026 após backup restaurado em PostgreSQL isolado; as 20 migrations estão em dia e a API ativa já contém os endpoints correspondentes. Links existentes conservam exatamente as visões previamente autorizadas. A configuração autenticada permite atualizar essa seleção sem trocar o token ou a URL; gerar outro endereço continua sendo uma ação separada e explícita.
+
+Validação de 23/09/2026: tipos de shared/API/web, schema Prisma, arquitetura e build isolado aprovados. O conjunto passou por 28 cenários integrados de API, 61 cenários de navegador do painel e carros, 9 cenários dedicados da dashboard, 8 cenários de estatísticas de chamados e 22 cenários de veículos. Os cenários adicionais confirmam que a atualização do espelho preserva o token, grava auditoria, sincroniza as caixas com a seleção ativa e inclui Atendimentos de clientes sem gerar outro endereço. A cadeia de dez migrations foi aplicada em PostgreSQL descartável, preservou os registros anteriores, permaneceu equivalente ao schema e confirmou RLS nas 16 tabelas novas. Antes da única migration pendente, um dump novo foi restaurado integralmente em PostgreSQL isolado, com 62 tabelas e 19 migrations. Depois da aplicação no banco compartilhado, a tabela `PanelAttentionClient` foi conferida vazia, com RLS, chave composta e duas FKs; o schema ficou com 20 migrations aplicadas. As capturas de Clientes de atenção na dashboard e no espelho, além de Carros, confirmaram encaixe em computador, celular e TV. A aplicação da migration não criou registros de teste. O link operacional moderno foi atualizado em transação para acrescentar `atendimentos-clientes`, preservando o endereço atual e registrando a alteração em auditoria; um link legado com seleção diferente permaneceu intacto.
 
 A inspeção anterior somente de leitura confirmou seis migrações pendentes, das etapas de projetos, viagens, custódia, reservas, ciclos e espelho, e artefatos antigos sem os novos endpoints. Essa dependência causava os erros observados; ausência de cadastros não explicava a falha. Depois da publicação autorizada, as tabelas existem e os endpoints estão na API ativa. O estoque existente foi confirmado por contagens agregadas, sem consultar dados pessoais.
 
