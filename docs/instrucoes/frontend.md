@@ -45,7 +45,7 @@ Tipos, chamadas HTTP, consultas/relógio e cálculo dos tempos ficam em `feature
 
 ### Visão compacta de atendimentos
 
-Acima dos cartões, `ticket-dashboard-insights.tsx` apresenta aberturas e encerramentos no período, pendências sem técnico, atendimentos atuais, espera média dos pendentes e chamados que exigem atenção. Mostra também os aguardando resposta, os resolvidos ainda não encerrados e as aberturas por setor do solicitante. Setor ausente aparece como **Sem setor**; a origem cliente aparece em um grupo distinto, mesmo que exista um setor interno chamado Clientes.
+Acima dos cartões, `ticket-dashboard-insights.tsx` apresenta aberturas e encerramentos no período, pendências sem técnico, atendimentos atuais, espera média dos pendentes e chamados que exigem atenção. Mostra também os aguardando resposta e os resolvidos ainda não encerrados. Na visão interna, a distribuição é **Aberturas por setor** e setor ausente aparece como **Sem setor**. Na visão externa, a distribuição é **Aberturas por cliente** e usa o nome da empresa vinculada ao chamado; vínculo ausente aparece como **Cliente não identificado**.
 
 - **Origem:** a dashboard fixa `INTERNAL` em Atendimentos internos e `CLIENT` em Atendimentos de clientes. Não há seletor capaz de ocultar uma das origens; indicadores, listas e alertas permanecem separados e simultaneamente visíveis. O espelho usa duas visões compartilháveis independentes com a mesma divisão.
 - **Período:** hoje, últimos 7/30 dias ou datas personalizadas, com limite de 366 dias. As datas incluem o dia final escolhido e são enviadas como instantes UTC; início inclusivo e fim exclusivo. O filtro de período afeta aberturas, encerramentos e distribuição por setor; pendências e atendimentos incluem chamados antigos ainda ativos.

@@ -79,7 +79,7 @@ async function setup({ role = 'Administrador', permissions = ['dashboard.view', 
             const opened = visible.filter(t => Date.parse(t.createdAt) >= start && Date.parse(t.createdAt) < end);
             const sectors = new Map();
             for (const t of opened) {
-                const name = t.source === 'INTERNAL' ? t.internalUser?.sector?.trim() || 'Sem setor' : 'Clientes';
+                const name = t.source === 'INTERNAL' ? t.internalUser?.sector?.trim() || 'Sem setor' : t.company?.name || t.externalUser?.company?.name || 'Cliente não identificado';
                 const key = `${t.source}:${name}`;
                 const sector = sectors.get(key) || { source: t.source, name, openedInPeriod: 0 };
                 sector.openedInPeriod++; sectors.set(key, sector);
@@ -198,7 +198,7 @@ async function main() {
             await expect(metric('CLIENT', 'opened')).toHaveText('1'); await expect(metric('CLIENT', 'in-progress')).toHaveText('1');
             await expect(metric('CLIENT', 'attention')).toHaveText('1');
             await expect(sourceView('INTERNAL').getByRole('list', { name: 'Aberturas por setor' })).toContainText('Financeiro');
-            await expect(sourceView('CLIENT').getByRole('list', { name: 'Aberturas por setor' })).toContainText('Clientes');
+            await expect(sourceView('CLIENT').getByRole('list', { name: 'Aberturas por cliente' })).toContainText('Empresa QA');
             await sourceView('INTERNAL').getByLabel('Período dos indicadores', { exact: true }).selectOption('7_DAYS');
             await expect(metric('INTERNAL', 'opened')).toHaveText('4'); await expect(metric('INTERNAL', 'pending')).toHaveText('3');
             await expect(card(page, 'legacy-pending')).toBeVisible();

@@ -366,7 +366,11 @@ export const TICKET_INSIGHTS_COPY = {
   pendingContext: 'Abertos sem técnico atribuído', waitContext: 'Dos que aguardam técnico agora',
   attentionContext: 'Internos ≥ 5h · clientes ≥ 1h',
   waitingClient: 'Aguardando resposta', resolved: 'Resolvidos, ainda não encerrados',
-  sectors: 'Aberturas por setor', sectorsContext: 'Setor do solicitante. Chamados de clientes ficam no grupo Clientes.',
+  breakdowns: {
+    INTERNAL: { title: 'Aberturas por setor', context: 'Setor do solicitante interno.' },
+    CLIENT: { title: 'Aberturas por cliente', context: 'Empresa vinculada ao chamado do cliente.' },
+    ALL: { title: 'Aberturas por setor e cliente', context: 'Setores identificam a equipe; empresas identificam os clientes.' },
+  },
   emptySectors: 'Nenhum chamado aberto no período selecionado.',
   allScope: 'Visão geral dos chamados', ownScope: 'Abertos para todos e atendimentos atribuídos a você',
   updated: (time: string) => `Atualizado às ${time}`,

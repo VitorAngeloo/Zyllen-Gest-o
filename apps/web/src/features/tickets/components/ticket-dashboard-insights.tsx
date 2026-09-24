@@ -28,6 +28,7 @@ export function TicketDashboardInsights({ source, onSourceChange, now, reader, c
     const period = ticketStatisticsPeriod(preset, today, from, to);
     const query = useTicketStatistics(source, period, reader);
     const data = query.data;
+    const breakdown = copy.breakdowns[source];
     const metrics = data ? [
         { key: "opened", label: copy.opened, value: data.openedInPeriod, context: copy.periodContext },
         { key: "closed", label: copy.closed, value: data.closedInPeriod, context: copy.periodContext },
@@ -58,8 +59,8 @@ export function TicketDashboardInsights({ source, onSourceChange, now, reader, c
                     <p className="text-xs text-[var(--zyllen-muted)]">{metric.label}</p><p data-metric-value className={`${compact ? 'mt-1 text-lg' : 'mt-2 text-xl'} break-words font-semibold text-white`}>{metric.value}</p>{!compact && <p className="mt-1 text-[10px] text-[var(--zyllen-muted)]">{metric.context}</p>}
                 </div>)}</div>
                 <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--zyllen-muted)]"><span>{copy.waitingClient}: <strong className="text-white">{data.current.waitingClient}</strong></span><span>{copy.resolved}: <strong className="text-white">{data.current.resolved}</strong></span></div>
-                <div className="border-t border-[var(--zyllen-border)] pt-3"><h3 className="text-sm font-medium text-white">{copy.sectors}</h3>{!compact && <p className="mt-1 text-xs text-[var(--zyllen-muted)]">{copy.sectorsContext}</p>}
-                    {data.sectors.length ? <ul aria-label={copy.sectors} className={`${compact ? 'mt-2 max-h-24' : 'mt-3 max-h-40'} grid grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3`}>{data.sectors.map(sector => <li key={`${sector.source}:${sector.name}`} className="flex min-w-0 items-center justify-between gap-3 rounded-md bg-white/[0.03] px-3 py-2 text-xs"><span className="break-words text-[var(--zyllen-muted)]">{sector.name}{source === "ALL" && sector.source === "INTERNAL" && <span className="ml-1 text-[10px]">· {copy.sources.INTERNAL}</span>}</span><strong className="shrink-0 text-[var(--zyllen-highlight)]">{sector.openedInPeriod}</strong></li>)}</ul> : <p className="mt-3 text-xs text-[var(--zyllen-muted)]">{copy.emptySectors}</p>}
+                <div className="border-t border-[var(--zyllen-border)] pt-3"><h3 className="text-sm font-medium text-white">{breakdown.title}</h3>{!compact && <p className="mt-1 text-xs text-[var(--zyllen-muted)]">{breakdown.context}</p>}
+                    {data.sectors.length ? <ul aria-label={breakdown.title} className={`${compact ? 'mt-2 max-h-24' : 'mt-3 max-h-40'} grid grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3`}>{data.sectors.map(sector => <li key={`${sector.source}:${sector.name}`} className="flex min-w-0 items-center justify-between gap-3 rounded-md bg-white/[0.03] px-3 py-2 text-xs"><span className="break-words text-[var(--zyllen-muted)]">{sector.name}{source === "ALL" && sector.source === "INTERNAL" && <span className="ml-1 text-[10px]">· {copy.sources.INTERNAL}</span>}</span><strong className="shrink-0 text-[var(--zyllen-highlight)]">{sector.openedInPeriod}</strong></li>)}</ul> : <p className="mt-3 text-xs text-[var(--zyllen-muted)]">{copy.emptySectors}</p>}
                 </div>
                 <p className="text-[10px] text-[var(--zyllen-muted)]">{data.scope === "ALL" ? copy.allScope : copy.ownScope} · {copy.updated(new Date(data.generatedAt).toLocaleTimeString("pt-BR"))}</p>
             </>}

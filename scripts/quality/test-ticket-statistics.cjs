@@ -280,20 +280,21 @@ async function main() {
         assert.equal(data.current.waitingClient, 1); assert.equal(data.current.resolved, 1);
         assert.equal(data.current.needingAttention, 3); assert.equal(data.current.oldestPendingAt, oldAt.toISOString());
         assert(data.current.averagePendingSeconds > 8 * 86_400 && data.current.averagePendingSeconds < 9 * 86_400);
-        assert.deepEqual(data.sectors, [{ source: 'INTERNAL', name: 'Financeiro', openedInPeriod: 6 }, { source: 'CLIENT', name: 'Clientes', openedInPeriod: 1 }, { source: 'INTERNAL', name: 'Sem setor', openedInPeriod: 1 }]);
+        assert.deepEqual(data.sectors, [{ source: 'INTERNAL', name: 'Financeiro', openedInPeriod: 6 }, { source: 'CLIENT', name: 'Cliente QA', openedInPeriod: 1 }, { source: 'INTERNAL', name: 'Sem setor', openedInPeriod: 1 }]);
         assert.equal(data.scope, 'ALL');
     });
-    await run('An internal sector named Clientes stays distinct from the client origin group', async () => {
+    await run('An internal sector named Clientes stays distinct from the client company breakdown', async () => {
         await prisma.internalUser.update({ where: { id: admin.id }, data: { sector: 'Clientes' } });
         try {
             const data = ok(await stats());
-            const matching = data.sectors.filter(sector => sector.name === 'Clientes');
-            assert.deepEqual(matching, [{ source: 'INTERNAL', name: 'Clientes', openedInPeriod: 6 }, { source: 'CLIENT', name: 'Clientes', openedInPeriod: 1 }]);
+            assert.deepEqual(data.sectors.filter(sector => sector.name === 'Clientes'), [{ source: 'INTERNAL', name: 'Clientes', openedInPeriod: 6 }]);
+            assert.deepEqual(data.sectors.filter(sector => sector.source === 'CLIENT'), [{ source: 'CLIENT', name: 'Cliente QA', openedInPeriod: 1 }]);
         } finally { await prisma.internalUser.update({ where: { id: admin.id }, data: { sector: ' Financeiro ' } }); }
     });
     await run('Source filters use persisted INTERNAL/CLIENT values in both statistics and paginated lists', async () => {
         const internalStats = ok(await stats({ source: 'INTERNAL' })), clientStats = ok(await stats({ source: 'CLIENT' }));
         assert.equal(internalStats.openedInPeriod, 7); assert.equal(clientStats.openedInPeriod, 1);
+        assert.deepEqual(clientStats.sectors, [{ source: 'CLIENT', name: 'Cliente QA', openedInPeriod: 1 }]);
         assert.equal(clientStats.current.pending, 1); assert.equal(clientStats.closedInPeriod, 0);
         assert.equal(internalStats.current.needingAttention, 2); assert.equal(clientStats.current.needingAttention, 1);
         const list = await http('/tickets?source=CLIENT&limit=100');

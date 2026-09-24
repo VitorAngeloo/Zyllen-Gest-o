@@ -47,6 +47,7 @@ export function MirrorTickets({ reader, source, slide, onDetailsOpenChange }: { 
     const closeDetails = useCallback(() => setSelectedId(null), [setSelectedId]);
     useEffect(() => { onDetailsOpenChange(selectedId !== null); return () => onDetailsOpenChange(false); }, [selectedId, onDetailsOpenChange]);
     const data = stats.data;
+    const breakdown = copy.breakdowns[source];
     const metrics = data ? [
         { key: 'opened', label: copy.opened, value: data.openedInPeriod, tone: 'green' },
         { key: 'closed', label: copy.closed, value: data.closedInPeriod, tone: 'mint' },
@@ -63,7 +64,7 @@ export function MirrorTickets({ reader, source, slide, onDetailsOpenChange }: { 
             <div className={styles.ticketGrid}>
                 <TicketList title="Chamados em aberto" column="open" tickets={open.data} slide={slide} size={size} now={now} loading={open.isLoading} failed={open.isError} onRetry={() => { void open.refetch(); }} onDetails={setSelectedId} />
                 <TicketList title="Em atendimento" column="in-progress" tickets={inProgress.data} slide={slide} size={size} now={now} loading={inProgress.isLoading} failed={inProgress.isError} onRetry={() => { void inProgress.refetch(); }} onDetails={setSelectedId} />
-                <section className={styles.panel} data-mirror-panel aria-label={copy.sectors}><div className={styles.panelHead}><h3 className={styles.panelTitle}>{copy.sectors}</h3><span className={styles.count}>{data?.sectors.length ?? '—'}</span></div><div className={styles.panelContent}>{sectors.items.length ? <ul className={styles.sectorList}>{sectors.items.map(sector => <li key={`${sector.source}:${sector.name}`}><span>{sector.name}{sector.source === 'INTERNAL' ? ' · Internos' : ''}</span><strong>{sector.openedInPeriod}</strong></li>)}</ul> : <p className={styles.empty}>{data ? copy.emptySectors : 'Aguardando indicadores…'}</p>}</div>{sectors.total > 1 && <p className={styles.pageMarker}>Página {sectors.page} de {sectors.total} · troca automática</p>}</section>
+                <section className={styles.panel} data-mirror-panel aria-label={breakdown.title}><div className={styles.panelHead}><h3 className={styles.panelTitle}>{breakdown.title}</h3><span className={styles.count}>{data?.sectors.length ?? '—'}</span></div><div className={styles.panelContent}>{sectors.items.length ? <ul className={styles.sectorList}>{sectors.items.map(sector => <li key={`${sector.source}:${sector.name}`}><span>{sector.name}{sector.source === 'INTERNAL' ? ' · Internos' : ''}</span><strong>{sector.openedInPeriod}</strong></li>)}</ul> : <p className={styles.empty}>{data ? copy.emptySectors : 'Aguardando indicadores…'}</p>}</div>{sectors.total > 1 && <p className={styles.pageMarker}>Página {sectors.page} de {sectors.total} · troca automática</p>}</section>
             </div>
         </div>
         <TicketDetailDialog open={selectedId !== null} ticket={detail.data} loading={detail.isLoading} error={detail.isError} now={now} onClose={closeDetails} onRetry={() => { void detail.refetch(); }} />

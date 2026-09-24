@@ -47,8 +47,13 @@ export class TicketStatisticsService {
             `),
             this.prisma.$queryRaw<{ source: TicketSource; name: string; openedInPeriod: bigint }[]>(Prisma.sql`
                 SELECT t.source, CASE WHEN t.source = 'INTERNAL' THEN COALESCE(NULLIF(BTRIM(u.sector), ''), 'Sem setor')
-                    ELSE 'Clientes' END AS name, COUNT(*) AS "openedInPeriod"
-                FROM "Ticket" t LEFT JOIN "InternalUser" u ON u.id = t."internalUserId"
+                    ELSE COALESCE(NULLIF(BTRIM(c.name), ''), NULLIF(BTRIM(ec.name), ''), 'Cliente não identificado') END AS name,
+                    COUNT(*) AS "openedInPeriod"
+                FROM "Ticket" t
+                LEFT JOIN "InternalUser" u ON u.id = t."internalUserId"
+                LEFT JOIN "Company" c ON c.id = t."companyId"
+                LEFT JOIN "ExternalUser" e ON e.id = t."externalUserId"
+                LEFT JOIN "Company" ec ON ec.id = e."companyId"
                 WHERE ${where} AND t."createdAt" >= ${startUtc} AND t."createdAt" < ${endUtc}
                 GROUP BY 1, 2 ORDER BY COUNT(*) DESC, name ASC, t.source ASC
             `),
