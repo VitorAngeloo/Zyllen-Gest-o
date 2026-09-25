@@ -1,6 +1,6 @@
 "use client";
 import { maintenanceApi } from "@web/features/maintenance/api/maintenance-api";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -36,9 +36,9 @@ interface OsFormWizardProps {
     /** 'internal' for dashboard users, 'contractor' for portal users */
     userContext: "internal" | "contractor";
     /** Callback when OS is submitted (create or save) */
-    onSubmit: (data: OsFormSubmitData) => Promise<void>;
+    onSubmit: (data: OsFormSubmitData) => Promise<{ updatedAt?: string; attachmentsUploaded?: boolean } | void>;
     /** Callback to save draft / progressive fill */
-    onSaveDraft?: (data: OsFormSubmitData) => Promise<void>;
+    onSaveDraft?: (data: OsFormSubmitData) => Promise<{ updatedAt?: string; attachmentsUploaded?: boolean } | void>;
     /** Go back handler */
     onCancel: () => void;
     /** Currently submitting */
@@ -68,6 +68,7 @@ export interface OsFormSubmitData {
     scheduledDate?: string;
     formData: Record<string, unknown>;
     localFiles?: File[];
+    expectedUpdatedAt?: string;
 }
 
 type WizardStep = "select-type" | "fill-form";
@@ -132,6 +133,9 @@ export function OsFormWizard({
 
     // Form-specific data
     const [formData, setFormData] = useState<Record<string, unknown>>(initialData?.formData || {});
+    const [versionToken, setVersionToken] = useState(initialData?.expectedUpdatedAt);
+    const [pendingSignatures, setPendingSignatures] = useState<Record<string, boolean>>({});
+    const [formError, setFormError] = useState("");
 
     // Attachments (photos/videos)
     const [attachments, setAttachments] = useState<MediaAttachment[]>([]);
@@ -139,6 +143,38 @@ export function OsFormWizard({
     const osId = initialData?.id;
     const apiBasePath = userContext === "contractor" ? "/contractor/maintenance" : "/maintenance";
     const authFetch = useAuthedFetch();
+    const currentSnapshot = JSON.stringify({
+        selectedType,
+        selectedCompanyId,
+        selectedProjectId,
+        clientName,
+        clientCity,
+        clientState,
+        location,
+        contactName,
+        contactPhone,
+        startedAt,
+        endedAt,
+        formData,
+    });
+    const savedSnapshot = useRef(currentSnapshot);
+    const hasPendingSignature = Object.values(pendingSignatures).some(Boolean);
+    const isDirty = savedSnapshot.current !== currentSnapshot || localFiles.length > 0;
+
+    useEffect(() => {
+        if (!isDirty || readOnly) return;
+        const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = "";
+        };
+        window.addEventListener("beforeunload", warnBeforeLeaving);
+        return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+    }, [isDirty, readOnly]);
+
+    const handleSignatureCaptureChange = useCallback((field: string, pending: boolean) => {
+        setPendingSignatures((current) => ({ ...current, [field]: pending }));
+        if (!pending) setFormError("");
+    }, []);
 
     const fetchAttachments = useCallback(async () => {
         if (!osId) return;
@@ -298,14 +334,29 @@ export function OsFormWizard({
         endedAt: endedAt || undefined,
         formData,
         localFiles: localFiles.length > 0 ? localFiles.map((item) => item.file) : undefined,
+        expectedUpdatedAt: versionToken,
     });
+
+    const canSaveConfirmedData = () => {
+        if (!hasPendingSignature) return true;
+        setFormError("Confirme ou cancele a assinatura que está aberta antes de salvar a OS.");
+        return false;
+    };
+
+    const handleCancel = () => {
+        if (isDirty && !readOnly && !confirm("Há alterações que ainda não foram salvas. Deseja sair mesmo assim?")) return;
+        onCancel();
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedType || readOnly) return;
+        if (!canSaveConfirmedData()) return;
         try {
-            await onSubmit(buildSubmitData());
-            if (localFiles.length > 0) {
+            const result = await onSubmit(buildSubmitData());
+            if (result?.updatedAt) setVersionToken(result.updatedAt);
+            savedSnapshot.current = currentSnapshot;
+            if (localFiles.length > 0 && result?.attachmentsUploaded !== false) {
                 setLocalFiles([]);
                 if (osId) await fetchAttachments();
             }
@@ -316,9 +367,12 @@ export function OsFormWizard({
 
     const handleSaveDraft = async () => {
         if (!selectedType || !onSaveDraft || readOnly) return;
+        if (!canSaveConfirmedData()) return;
         try {
-            await onSaveDraft(buildSubmitData());
-            if (localFiles.length > 0) {
+            const result = await onSaveDraft(buildSubmitData());
+            if (result?.updatedAt) setVersionToken(result.updatedAt);
+            savedSnapshot.current = currentSnapshot;
+            if (localFiles.length > 0 && result?.attachmentsUploaded !== false) {
                 setLocalFiles([]);
                 if (osId) await fetchAttachments();
             }
@@ -332,7 +386,7 @@ export function OsFormWizard({
         return (
             <div className="space-y-6">
                 <button
-                    onClick={onCancel}
+                    onClick={handleCancel}
                     className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] hover:text-white transition-colors"
                 >
                     <ArrowLeft size={16} /> Voltar
@@ -369,7 +423,7 @@ export function OsFormWizard({
     return (
         <div className="space-y-6">
             <button
-                onClick={skipTypeSelect ? onCancel : goBackToTypeSelect}
+                onClick={skipTypeSelect ? handleCancel : goBackToTypeSelect}
                 className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)] hover:text-white transition-colors"
             >
                 <ArrowLeft size={16} /> Voltar
@@ -621,6 +675,7 @@ export function OsFormWizard({
                                 localFiles={localFiles}
                                 onLocalFilesChange={setLocalFiles}
                                 editMode={editMode}
+                                onSignatureCaptureChange={handleSignatureCaptureChange}
                             />
                         )}
                     </CardContent>
@@ -628,7 +683,13 @@ export function OsFormWizard({
 
                 {/* ── Actions ── */}
                 {!readOnly && (
-                    <div className="flex justify-end gap-3">
+                    <div className="space-y-3">
+                        {formError && (
+                            <p role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                                {formError}
+                            </p>
+                        )}
+                        <div className="flex justify-end gap-3">
                         {onSaveDraft && (
                             <Button
                                 type="button"
@@ -659,6 +720,7 @@ export function OsFormWizard({
                                 </>
                             )}
                         </Button>
+                        </div>
                     </div>
                 )}
             </form>

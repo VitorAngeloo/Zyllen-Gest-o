@@ -32,8 +32,22 @@ export function detectMedia(bytes: Buffer): { ext: string; mime: string } | null
     return null;
 }
 
+interface VerifiedMediaLimits {
+    imageBytes?: number;
+    videoBytes?: number;
+    pdfBytes?: number;
+}
+
 /** Writes to a private temporary name; the final extension/MIME come from bytes, never originalname. */
-export function verifiedMediaStorage(directory: string, allowPdf = false): StorageEngine {
+export function verifiedMediaStorage(
+    directory: string,
+    allowPdf = false,
+    limits: VerifiedMediaLimits = {},
+): StorageEngine {
+    const imageLimit = limits.imageBytes ?? 20 * 1024 * 1024;
+    const videoLimit = limits.videoBytes ?? 20 * 1024 * 1024;
+    const pdfLimit = limits.pdfBytes ?? 20 * 1024 * 1024;
+    const streamLimit = Math.max(imageLimit, videoLimit, allowPdf ? pdfLimit : 0);
     return {
         _handleFile(_req, file, callback) {
             void (async () => {
@@ -46,11 +60,21 @@ export function verifiedMediaStorage(directory: string, allowPdf = false): Stora
                     await pipeline(file.stream, new Transform({ transform(chunk: Buffer, _encoding, done) {
                         size += chunk.length;
                         if (header.length < 4096) header = Buffer.concat([header, chunk.subarray(0, 4096 - header.length)]);
-                        done(size > 20 * 1024 * 1024 ? new BadRequestException('Arquivo excede 20 MB') : null, chunk);
+                        done(size > streamLimit ? new BadRequestException('Arquivo excede o limite permitido') : null, chunk);
                     } }), createWriteStream(temporary, { flags: 'wx' }));
                     if ((file.stream as typeof file.stream & { truncated?: boolean }).truncated) throw new BadRequestException('Arquivo excede o limite');
                     const detected = detectMedia(header);
                     if (!detected || (detected.mime === 'application/pdf' && !allowPdf)) throw new BadRequestException('Conteúdo inválido. Envie um arquivo em formato permitido.');
+                    const detectedLimit = detected.mime.startsWith('video/')
+                        ? videoLimit
+                        : detected.mime === 'application/pdf'
+                            ? pdfLimit
+                            : imageLimit;
+                    if (size > detectedLimit) {
+                        throw new BadRequestException(
+                            `Arquivo excede ${Math.floor(detectedLimit / 1024 / 1024)} MB`,
+                        );
+                    }
                     const filename = `${base}${detected.ext}`;
                     const target = join(directory, filename);
                     await rename(temporary, target);

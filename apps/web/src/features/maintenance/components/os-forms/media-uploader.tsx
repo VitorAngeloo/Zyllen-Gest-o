@@ -4,6 +4,11 @@ import { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Label } from "@web/components/ui/label";
 import { Paperclip, X, Video, Loader2, Camera, AlertCircle, Check, ZoomIn } from "lucide-react";
+import { OS_ATTACHMENT_ACCEPT } from "@zyllen/shared";
+import {
+    uploadMaintenanceAttachments,
+    validateMaintenanceAttachments,
+} from "@web/features/maintenance/utils/maintenance-attachments";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -40,7 +45,27 @@ interface MediaUploaderProps {
     editMode?: boolean;
 }
 
-const ACCEPTED = "image/jpeg,image/png,image/gif,image/webp,image/bmp,video/mp4,video/webm,video/quicktime,video/x-msvideo";
+function LocalMediaPreview({ item }: { item: LocalMediaFile }) {
+    const [url, setUrl] = useState("");
+    useEffect(() => {
+        const nextUrl = URL.createObjectURL(item.file);
+        setUrl(nextUrl);
+        return () => URL.revokeObjectURL(nextUrl);
+    }, [item.file]);
+
+    if (!url) return <div className="h-28 bg-black/40" />;
+    if (item.file.type.startsWith("image/")) {
+        return <img src={url} alt={item.file.name} className="w-full h-28 object-cover" />;
+    }
+    if (item.file.type.startsWith("video/")) {
+        return <video src={url} controls playsInline preload="metadata" className="w-full h-28 object-cover bg-black" />;
+    }
+    return (
+        <div className="flex items-center justify-center h-28">
+            <Paperclip size={32} className="text-[var(--zyllen-muted)]" />
+        </div>
+    );
+}
 
 export function MediaUploader({ 
     osId, 
@@ -54,6 +79,7 @@ export function MediaUploader({
 }: MediaUploaderProps) {
     const fileRef = useRef<HTMLInputElement>(null);
     const cameraRef = useRef<HTMLInputElement>(null);
+    const videoRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -68,16 +94,21 @@ export function MediaUploader({
         return () => window.removeEventListener("keydown", handler);
     }, [lightboxSrc]);
 
-    const canUploadToServer = !!(osId && apiBasePath && onRefresh);
-
     const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
     const addLocalFiles = (files: FileList | File[]) => {
         if (!files || files.length === 0) return;
+        const selectedFiles = Array.from(files);
+        try {
+            validateMaintenanceAttachments(selectedFiles);
+            setError(null);
+        } catch (uploadError) {
+            setError(uploadError instanceof Error ? uploadError.message : "Arquivo inválido");
+            return;
+        }
         const newFiles: LocalMediaFile[] = [];
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
+        for (const file of selectedFiles) {
             const id = `local-${Date.now()}-${Math.random()}`;
             newFiles.push({ id, file });
         }
@@ -108,26 +139,15 @@ export function MediaUploader({
         setError(null);
         setUploading(true);
         try {
-            const formData = new FormData();
-            for (let i = 0; i < files.length; i++) {
-                formData.append("files", files[i]);
-            }
-            const res = await fetch(`${API_BASE}${apiBasePath}/${osId}/attachments`, {
-                method: "POST",
-                headers,
-                body: formData,
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.message || "Erro ao enviar arquivos");
-            }
+            await uploadMaintenanceAttachments(apiBasePath!, osId, Array.from(files), { headers });
             onRefresh?.();
-        } catch (err: any) {
-            setError(err.message || "Erro ao enviar arquivos");
+        } catch (uploadError) {
+            setError(uploadError instanceof Error ? uploadError.message : "Erro ao enviar arquivos");
         } finally {
             setUploading(false);
             if (fileRef.current) fileRef.current.value = "";
             if (cameraRef.current) cameraRef.current.value = "";
+            if (videoRef.current) videoRef.current.value = "";
         }
     };
 
@@ -175,7 +195,7 @@ export function MediaUploader({
                     <input
                         ref={fileRef}
                         type="file"
-                        accept={ACCEPTED}
+                        accept={OS_ATTACHMENT_ACCEPT}
                         multiple
                         onChange={(e) => { if (e.target.files) uploadFiles(e.target.files); e.currentTarget.value = ""; }}
                         className="hidden"
@@ -184,6 +204,14 @@ export function MediaUploader({
                         ref={cameraRef}
                         type="file"
                         accept="image/*"
+                        capture="environment"
+                        onChange={(e) => { if (e.target.files) uploadFiles(e.target.files); e.currentTarget.value = ""; }}
+                        className="hidden"
+                    />
+                    <input
+                        ref={videoRef}
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/*"
                         capture="environment"
                         onChange={(e) => { if (e.target.files) uploadFiles(e.target.files); e.currentTarget.value = ""; }}
                         className="hidden"
@@ -226,7 +254,7 @@ export function MediaUploader({
                                     : "Clique para adicionar fotos ou vídeos"}
                         </span>
                         <span className="text-xs text-[var(--zyllen-muted)]/50">
-                            Máx. 20 MB por arquivo (imagens e vídeos)
+                            Fotos até 20 MB · vídeos até 80 MB
                         </span>
                     </button>
 
@@ -239,6 +267,15 @@ export function MediaUploader({
                     >
                         <Camera size={16} />
                         Tirar foto agora
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => videoRef.current?.click()}
+                        disabled={uploading || readOnly}
+                        className="w-full rounded-lg border py-3 flex items-center justify-center gap-2 text-sm transition-colors border-[var(--zyllen-border)] text-[var(--zyllen-muted)] bg-[var(--zyllen-bg-dark)] hover:border-[var(--zyllen-highlight)] hover:text-[var(--zyllen-highlight)] cursor-pointer"
+                    >
+                        <Video size={16} />
+                        Gravar vídeo agora
                     </button>
                 </>
             )}
@@ -255,32 +292,12 @@ export function MediaUploader({
                         <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--zyllen-highlight)]/20 text-[var(--zyllen-highlight)]">{localFiles.length}</span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                        {localFiles.map((item) => {
-                            const isImage = item.file.type.startsWith("image/");
-                            const isVideo = item.file.type.startsWith("video/");
-                            const previewUrl = isImage || isVideo ? URL.createObjectURL(item.file) : undefined;
-                            
-                            return (
+                        {localFiles.map((item) => (
                                 <div
                                     key={item.id}
                                     className="relative group rounded-lg overflow-hidden border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]"
                                 >
-                                    {isImage ? (
-                                        <img
-                                            src={previewUrl}
-                                            alt={item.file.name}
-                                            className="w-full h-28 object-cover"
-                                            onLoad={(e) => { if (previewUrl) URL.revokeObjectURL(previewUrl); }}
-                                        />
-                                    ) : isVideo ? (
-                                        <div className="flex items-center justify-center h-28 bg-black/40">
-                                            <Video size={32} className="text-[var(--zyllen-highlight)]" />
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-center h-28">
-                                            <Paperclip size={32} className="text-[var(--zyllen-muted)]" />
-                                        </div>
-                                    )}
+                                    <LocalMediaPreview item={item} />
 
                                     <div className="px-2 py-1">
                                         <p className="text-[10px] text-[var(--zyllen-muted)] truncate" title={item.file.name}>
@@ -305,8 +322,7 @@ export function MediaUploader({
                                         </button>
                                     )}
                                 </div>
-                            );
-                        })}
+                        ))}
                     </div>
                 </div>
             )}
@@ -351,9 +367,13 @@ export function MediaUploader({
                                         </div>
                                     </button>
                                 ) : isVideo(att.mimeType, att.fileName) ? (
-                                    <a href={fileUrl(att)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center h-28 bg-black/40 hover:bg-black/60 transition-colors cursor-pointer">
-                                        <Video size={32} className="text-[var(--zyllen-highlight)]" />
-                                    </a>
+                                    <video
+                                        src={fileUrl(att)}
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        className="w-full h-28 object-cover bg-black"
+                                    />
                                 ) : (
                                     <a href={fileUrl(att)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center h-28 hover:bg-[var(--zyllen-bg)] transition-colors cursor-pointer">
                                         <Paperclip size={32} className="text-[var(--zyllen-muted)]" />

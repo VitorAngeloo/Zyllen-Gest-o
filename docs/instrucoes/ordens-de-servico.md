@@ -66,7 +66,15 @@ try {
 
 `MaintenanceOSFollowupBlock` com `type`: `TEXT` | `MEDIA` | `SIGNATURE`. Bloco com `isLocked: true` (assinatura confirmada) é **imutável** — a API rejeita alteração.
 
-Além disso, quando `formData.witnessSignature` existe numa OS `INSTALACAO_SALA`, o formulário inteiro fica travado (`isSignatureLocked` no frontend, validado também no serviço).
+Quando `formData.witnessSignature` ou `formData.technicianSignature` existe, o formulário inteiro fica travado no frontend e no serviço. A captura começa recolhida, só grava no formulário depois de **Confirmar assinatura** e impede salvar enquanto houver um desenho ainda não confirmado.
+
+Ao encerrar uma OS, a API exige a assinatura correspondente quando os campos de identificação de acompanhante ou técnico estiverem preenchidos. A validação fica no serviço para proteger também chamadas feitas fora da interface.
+
+## Proteção do salvamento
+
+A atualização progressiva recebe `expectedUpdatedAt`. Depois de obter a trava da OS, a API compara essa versão com a atual e responde com conflito se outra tela já tiver gravado mudanças. O usuário deve reabrir a OS e revisar a versão recente.
+
+O `formData` recebido é mesclado com o conteúdo existente; chaves omitidas não apagam dados já salvos. Strings vazias continuam sendo alterações explícitas. Atualizações internas geram auditoria com os nomes dos campos alterados, sem copiar valores pessoais nem imagens de assinatura para o log.
 
 ## Armazenamento e entrega de mídia
 
@@ -75,7 +83,7 @@ Além disso, quando `formData.witnessSignature` existe numa OS `INSTALACAO_SALA`
 - **Supabase Storage** quando `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` estão definidos — `filePath` fica prefixado com `supabase:` e o serve redireciona para URL assinada (expiração configurável).
 - **Disco local** (`apps/api/uploads/`) como fallback privado — entregue pelo módulo `media` após autorização. Não há `ServeStaticModule` público em `/uploads`.
 
-Limites de upload: **20 MB** por arquivo, **10 arquivos** por request. MIME permitido: imagens (jpeg, png, gif, webp, bmp) e vídeos (mp4, webm, quicktime, x-msvideo).
+Limites de upload: **20 MB por foto**, **80 MB por vídeo** e **10 arquivos por request**. MIME permitido: imagens (jpeg, png, gif, webp, bmp) e vídeos (mp4, webm, quicktime, x-msvideo). A interface valida os arquivos e divide seleções grandes em requests menores antes do envio.
 
 O upload faz **rollback**: se a persistência no banco falhar, os arquivos já gravados são removidos.
 

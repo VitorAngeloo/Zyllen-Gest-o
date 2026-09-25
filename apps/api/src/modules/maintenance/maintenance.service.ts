@@ -1,4 +1,4 @@
-import { validateFormData } from './utils/maintenance-form';
+import { assertRequiredSignaturesForClosing, validateFormData } from './utils/maintenance-form';
 import { generateOsNumber } from './utils/os-number';
 import {
     Injectable,
@@ -68,9 +68,13 @@ export class MaintenanceService {
             if (!asset) throw new NotFoundException('Patrimônio não encontrado');
         }
 
-        if (data.formData) validateFormData(data.formData);
-
         const formType = data.formType || 'TERCEIRIZADO';
+        if (data.formData) {
+            validateFormData(data.formData);
+            if (['witnessSignature', 'technicianSignature'].some((key) => Boolean(data.formData?.[key]))) {
+                assertRequiredSignaturesForClosing(formType, data.formData);
+            }
+        }
 
         // Generate unique OS number
         let osNumber = generateOsNumber();
@@ -241,6 +245,10 @@ export class MaintenanceService {
             updateData.notes = prevTag ? `${prevTag[0]} ${notes}` : notes;
         }
         if (status === MaintenanceStatus.CLOSED) {
+            assertRequiredSignaturesForClosing(
+                os.formType,
+                (os.formData as Record<string, unknown> | null) ?? {},
+            );
             updateData.closedById = userId;
             updateData.completedAt = new Date();
             // Restore previous asset status from the notes field (only if asset exists)
@@ -293,11 +301,16 @@ export class MaintenanceService {
         contactRole?: string;
         startedAt?: string;
         endedAt?: string;
+        expectedUpdatedAt?: string;
     }, isContractor = false): Promise<Prisma.MaintenanceOSGetPayload<{}>> {
         if (!this.transactionScope) return this.withOsLock(id, (s) => s.updateFormData(id, userId, data, isContractor));
-        validateFormData(data.formData);
 
         const os = await this.findById(id);
+        if (data.expectedUpdatedAt && os.updatedAt.toISOString() !== data.expectedUpdatedAt) {
+            throw new ConflictException(
+                'Esta OS foi alterada em outra tela. Reabra a OS, confira os dados mais recentes e salve novamente.',
+            );
+        }
         if (os.status === MaintenanceStatus.CLOSED) throw new BadRequestException('OS já encerrada');
 
         // Ownership check — contractors can only edit their own OS
@@ -306,16 +319,50 @@ export class MaintenanceService {
         }
 
         // Signature lock — once witness signature is stored, service details are immutable
-        const existingFormData = os.formData as Record<string, unknown> | null;
-        if (existingFormData?.witnessSignature && data.formData.witnessSignature !== existingFormData.witnessSignature) {
+        const existingFormData = (os.formData as Record<string, unknown> | null) ?? {};
+        const mergedFormData = { ...existingFormData, ...data.formData };
+        const storedSignatureKey = ['witnessSignature', 'technicianSignature']
+            .find((key) => Boolean(existingFormData[key]));
+        if (
+            storedSignatureKey
+            && data.formData[storedSignatureKey] !== undefined
+            && data.formData[storedSignatureKey] !== existingFormData[storedSignatureKey]
+        ) {
             throw new ForbiddenException('Assinatura registrada é imutável');
         }
-        if (existingFormData?.witnessSignature) {
+        if (storedSignatureKey) {
+            const unchangedTextFields = [
+                'notes', 'clientName', 'clientCity', 'clientState', 'location',
+                'contactName', 'contactPhone', 'contactRole',
+            ].every((key) => (
+                data[key as keyof typeof data] === undefined
+                || data[key as keyof typeof data] === os[key as keyof typeof os]
+            ));
+            const unchangedDates = (['startedAt', 'endedAt'] as const).every((key) => {
+                if (data[key] === undefined) return true;
+                const incomingTime = data[key] ? new Date(data[key]).getTime() : null;
+                const storedTime = os[key]?.getTime() ?? null;
+                return incomingTime === storedTime;
+            });
+            if (
+                unchangedTextFields
+                && unchangedDates
+                && JSON.stringify(mergedFormData) === JSON.stringify(existingFormData)
+            ) {
+                return os;
+            }
             throw new ForbiddenException('Formulário bloqueado: detalhes do serviço não podem ser alterados após a assinatura do cliente');
         }
 
+        validateFormData(mergedFormData);
+        if (['witnessSignature', 'technicianSignature'].some((key) => Boolean(data.formData[key]))) {
+            assertRequiredSignaturesForClosing(os.formType, mergedFormData);
+        }
+        const changedFormDataKeys = Object.keys(data.formData)
+            .filter((key) => JSON.stringify(existingFormData[key]) !== JSON.stringify(mergedFormData[key]));
+
         const updateData: any = {
-            formData: data.formData,
+            formData: mergedFormData as Prisma.InputJsonValue,
         };
         if (data.notes !== undefined) updateData.notes = data.notes;
         if (data.clientName !== undefined) updateData.clientName = data.clientName;
@@ -337,6 +384,34 @@ export class MaintenanceService {
                 openedByContractor: { select: { name: true } },
             },
         });
+
+        if (!isContractor) {
+            const changedTextFields = [
+                'notes', 'clientName', 'clientCity', 'clientState', 'location',
+                'contactName', 'contactPhone', 'contactRole',
+            ].filter((key) => (
+                data[key as keyof typeof data] !== undefined
+                && data[key as keyof typeof data] !== os[key as keyof typeof os]
+            ));
+            const changedDateFields = (['startedAt', 'endedAt'] as const).filter((key) => {
+                if (data[key] === undefined) return false;
+                const incomingTime = data[key] ? new Date(data[key]).getTime() : null;
+                return incomingTime !== (os[key]?.getTime() ?? null);
+            });
+            await this.prisma.auditLog.create({
+                data: {
+                    action: 'MAINTENANCE_FORM_UPDATED',
+                    entityType: 'MaintenanceOS',
+                    entityId: id,
+                    userId,
+                    details: {
+                        changedFields: [...changedTextFields, ...changedDateFields],
+                        formDataKeys: changedFormDataKeys,
+                        signatureAdded: changedFormDataKeys.filter((key) => key.endsWith('Signature')),
+                    },
+                },
+            });
+        }
 
         return updated;
     }

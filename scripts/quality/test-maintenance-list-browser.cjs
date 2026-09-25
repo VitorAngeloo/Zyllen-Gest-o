@@ -20,6 +20,7 @@ module.exports = async ({ run, browser, base, fixedNow }) => {
         startedAt: index === 40 ? new Date(fixedNow - 2 * 86400000).toISOString() : null,
         endedAt: index === 40 ? new Date(fixedNow - 60000).toISOString() : null,
         createdAt: new Date(fixedNow - index * 60_000).toISOString(),
+        updatedAt: new Date(fixedNow - index * 60_000).toISOString(),
         openedById: index === 0 ? 'user-qa' : 'another-user-qa', openedByContractorId: null,
         openedBy: { name: 'Colaborador QA' }, openedByContractor: null, asset: null, project: null,
         formData: index === 40 ? {
@@ -44,10 +45,12 @@ module.exports = async ({ run, browser, base, fixedNow }) => {
             const request = interception.request(), url = new URL(request.url());
             if (!['127.0.0.1', 'localhost'].includes(url.hostname) && !['data:', 'blob:'].includes(url.protocol)) return interception.abort();
             if (url.port !== '3999') return interception.continue();
-            requests.push({ path: url.pathname, query: Object.fromEntries(url.searchParams) });
+            let body;
+            try { body = request.postData() ? JSON.parse(request.postData()) : undefined; } catch { body = request.postData(); }
+            requests.push({ path: url.pathname, query: Object.fromEntries(url.searchParams), method: request.method(), body });
             const respond = payload => interception.fulfill({ status: 200, contentType: 'application/json', headers: {
                 'Access-Control-Allow-Origin': base, 'Access-Control-Allow-Credentials': 'true',
-                'Access-Control-Allow-Headers': 'Authorization,Content-Type', 'Access-Control-Allow-Methods': 'GET,OPTIONS',
+                'Access-Control-Allow-Headers': 'Authorization,Content-Type', 'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,OPTIONS',
             }, body: JSON.stringify(payload) });
             if (request.method() === 'OPTIONS') return respond({});
             if (url.pathname === '/auth/me') return respond({ data: { id: 'user-qa', name: 'Usuário QA', email: 'qa@example.test', type: 'internal', role: { id: 'role-qa', name: role } } });
@@ -66,6 +69,11 @@ module.exports = async ({ run, browser, base, fixedNow }) => {
             if (url.pathname === '/maintenance/os-40/attachments') return respond({ data: previewAttachments });
             if (/^\/maintenance\/os-\d+\/attachments$/.test(url.pathname)) return respond({ data: [] });
             if (/^\/maintenance\/os-\d+\/followup-blocks$/.test(url.pathname)) return respond({ data: [] });
+            if (request.method() === 'PUT' && /^\/maintenance\/os-\d+\/form-data$/.test(url.pathname)) {
+                const id = url.pathname.split('/')[2];
+                const original = orders.find(order => order.id === id);
+                return respond({ data: { ...original, ...body, updatedAt: new Date(fixedNow + 1000).toISOString() } });
+            }
             return respond({ data: [] });
         });
         const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
@@ -125,6 +133,7 @@ module.exports = async ({ run, browser, base, fixedNow }) => {
         try {
             await s.page.getByRole('button', { name: 'Abrir detalhes da OS OS-QA-0040' }).click();
             await expect(s.page.getByRole('button', { name: 'Gerar PDF' })).toBeVisible();
+            await expect(s.page.locator('video[controls]')).toHaveCount(6);
             const popupPromise = s.page.waitForEvent('popup');
             await s.page.getByRole('button', { name: 'Gerar PDF' }).click();
             const pdfPage = await popupPromise;
@@ -149,6 +158,44 @@ module.exports = async ({ run, browser, base, fixedNow }) => {
 
             assert.deepEqual(s.errors, []);
             await pdfPage.close();
+        } finally { await s.context.close(); }
+    });
+
+    await run('OS signature stays collapsed until requested and only confirmed ink is saved', async () => {
+        const s = await setup('Gestor', '/dashboard/minhas-os');
+        try {
+            await s.page.getByRole('button', { name: 'Abrir detalhes da OS OS-QA-0040' }).click();
+            await s.page.getByRole('button', { name: 'Editar' }).click();
+            const signatureButton = s.page.getByRole('button', { name: /Clique para assinar/ });
+            await expect(signatureButton).toBeVisible();
+            await expect(s.page.locator('canvas')).toHaveCount(0);
+            await signatureButton.click();
+
+            const canvas = s.page.locator('canvas').last();
+            await expect(canvas).toBeVisible();
+            await canvas.scrollIntoViewIfNeeded();
+            const box = await canvas.boundingBox();
+            assert(box);
+            await s.page.mouse.move(box.x + 35, box.y + box.height * 0.65);
+            await s.page.mouse.down();
+            await s.page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3, { steps: 8 });
+            await s.page.mouse.move(box.x + box.width * 0.65, box.y + box.height * 0.7, { steps: 8 });
+            await s.page.mouse.up();
+
+            await s.page.getByRole('button', { name: 'Salvar Rascunho' }).click();
+            await expect(s.page.getByText('Confirme ou cancele a assinatura que está aberta antes de salvar a OS.')).toBeVisible();
+            assert(!s.requests.some(request => request.method === 'PUT' && request.path === '/maintenance/os-40/form-data'));
+
+            await s.page.getByRole('button', { name: 'Confirmar assinatura' }).click();
+            await expect(s.page.getByText('Assinatura confirmada')).toBeVisible();
+            await s.page.getByRole('button', { name: 'Salvar Rascunho' }).click();
+            await expect(s.page.getByText('Rascunho salvo')).toBeVisible();
+
+            const update = s.requests.find(request => request.method === 'PUT' && request.path === '/maintenance/os-40/form-data');
+            assert(update);
+            assert.equal(update.body.expectedUpdatedAt, orders[40].updatedAt);
+            assert.match(update.body.formData.witnessSignature, /^data:image\/png;base64,/);
+            assert.deepEqual(s.errors, []);
         } finally { await s.context.close(); }
     });
 };

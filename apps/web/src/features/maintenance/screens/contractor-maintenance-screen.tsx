@@ -35,6 +35,7 @@ interface MaintenanceOS {
     contactPhone: string | null;
     formData: Record<string, unknown> | null;
     createdAt: string;
+    updatedAt: string;
     closedAt: string | null;
     asset: {
         assetCode: string;
@@ -166,14 +167,20 @@ function ContractorMaintenanceInner() {
         setSubmitting(true);
         try {
             const { localFiles, ...payload } = data;
-            await maintenanceApi.updateContractorFormData(selectedOS.id, payload, authFetch);
-
-            await uploadMaintenanceAttachments("/contractor/maintenance", selectedOS.id, localFiles, authFetch);
+            const response = await maintenanceApi.updateContractorFormData<{ data: MaintenanceOS }>(selectedOS.id, payload, authFetch);
+            try {
+                await uploadMaintenanceAttachments("/contractor/maintenance", selectedOS.id, localFiles, authFetch);
+            } catch (uploadError) {
+                toast.warning("Os dados da OS foram salvos, mas os anexos não foram enviados. Eles continuam pendentes para você tentar novamente.");
+                return { ...response.data, attachmentsUploaded: false };
+            }
+            setSelectedOS((current) => current ? { ...current, ...response.data } : current);
 
             toast.success("OS atualizada");
             fetchOrders();
             setView("list");
             setSelectedOS(null);
+            return response.data;
         } catch (err: any) {
             toast.error(err.message || "Erro ao atualizar OS");
             throw err;
@@ -200,7 +207,7 @@ function ContractorMaintenanceInner() {
             <OsFormWizard
                 userContext="contractor"
                 editMode
-                readOnly={selectedOS.status === "CLOSED" || !!(selectedOS.formData as any)?.witnessSignature}
+                readOnly={selectedOS.status === "CLOSED" || !!(selectedOS.formData as any)?.witnessSignature || !!(selectedOS.formData as any)?.technicianSignature}
                 initialData={{
                     id: selectedOS.id,
                     formType: selectedOS.formType as OsFormType,
@@ -211,6 +218,7 @@ function ContractorMaintenanceInner() {
                     contactName: selectedOS.contactName || "",
                     contactPhone: selectedOS.contactPhone || "",
                     formData: selectedOS.formData || {},
+                    expectedUpdatedAt: selectedOS.updatedAt,
                 }}
                 onSubmit={handleEditSubmit}
                 onCancel={() => { setView("list"); setSelectedOS(null); }}
@@ -255,7 +263,7 @@ function ContractorMaintenanceInner() {
                                 >
                                     {statusCfg.label}
                                 </span>
-                                {selectedOS.status !== "CLOSED" && !(selectedOS.formData as any)?.witnessSignature && (
+                                {selectedOS.status !== "CLOSED" && !(selectedOS.formData as any)?.witnessSignature && !(selectedOS.formData as any)?.technicianSignature && (
                                     <Button
                                         variant="outline"
                                         size="sm"

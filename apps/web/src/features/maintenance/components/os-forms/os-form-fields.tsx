@@ -22,6 +22,8 @@ export interface OsFormFieldsProps {
     onLocalFilesChange?: (files: LocalMediaFile[]) => void;
     /** When true, new files are queued locally instead of uploaded directly */
     editMode?: boolean;
+    /** Reports a signature that was drawn but has not been explicitly confirmed. */
+    onSignatureCaptureChange?: (field: string, pending: boolean) => void;
 }
 
 // CSS classes used across all forms
@@ -63,7 +65,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ═══════════════════════════════════════════════════
 // 1. INSTALAÇÃO DE SALA
 // ═══════════════════════════════════════════════════
-export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
+export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode, onSignatureCaptureChange }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -196,7 +198,7 @@ export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, a
                     </div>
                 </div>
 
-                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} readOnly={readOnly} />
+                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} onCaptureStateChange={(pending) => onSignatureCaptureChange?.("witnessSignature", pending)} readOnly={readOnly} />
             </div>
         </div>
     );
@@ -205,7 +207,7 @@ export function InstalacaoSalaFormFields({ formData, onChange, readOnly, osId, a
 // ═══════════════════════════════════════════════════
 // 2. INSTALAÇÃO DE TELA
 // ═══════════════════════════════════════════════════
-export function InstalacaoTelaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
+export function InstalacaoTelaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode, onSignatureCaptureChange }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -290,7 +292,7 @@ export function InstalacaoTelaFormFields({ formData, onChange, readOnly, osId, a
                     </div>
                 </div>
 
-                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} readOnly={readOnly} />
+                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} onCaptureStateChange={(pending) => onSignatureCaptureChange?.("witnessSignature", pending)} readOnly={readOnly} />
             </div>
         </div>
     );
@@ -299,7 +301,7 @@ export function InstalacaoTelaFormFields({ formData, onChange, readOnly, osId, a
 // ═══════════════════════════════════════════════════
 // 3. DESINSTALAÇÃO
 // ═══════════════════════════════════════════════════
-export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
+export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode, onSignatureCaptureChange }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -351,7 +353,7 @@ export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, at
                     </div>
                 </div>
 
-                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} readOnly={readOnly} />
+                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} onCaptureStateChange={(pending) => onSignatureCaptureChange?.("witnessSignature", pending)} readOnly={readOnly} />
             </div>
         </div>
     );
@@ -360,7 +362,7 @@ export function DesinstalacaoFormFields({ formData, onChange, readOnly, osId, at
 // ═══════════════════════════════════════════════════
 // 4. MANUTENÇÃO (Tela/Sala)
 // ═══════════════════════════════════════════════════
-export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
+export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode, onSignatureCaptureChange }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -416,7 +418,7 @@ export function ManutencaoTelaSalaFormFields({ formData, onChange, readOnly, osI
                     </div>
                 </div>
 
-                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} readOnly={readOnly} />
+                <SignaturePad value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} onCaptureStateChange={(pending) => onSignatureCaptureChange?.("witnessSignature", pending)} readOnly={readOnly} />
             </div>
         </div>
     );
@@ -486,7 +488,7 @@ export function SuporteRemotoFormFields({ formData, onChange, readOnly, osId, at
 // ═══════════════════════════════════════════════════
 // 6. TERCEIRIZADO
 // ═══════════════════════════════════════════════════
-export function TerceirizadoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode }: OsFormFieldsProps) {
+export function TerceirizadoFormFields({ formData, onChange, readOnly, osId, attachments, onRefreshAttachments, apiBasePath, localFiles, onLocalFilesChange, editMode, onSignatureCaptureChange }: OsFormFieldsProps) {
     const u = (key: string, value: any) => onChange({ ...formData, [key]: value });
 
     return (
@@ -546,10 +548,10 @@ export function TerceirizadoFormFields({ formData, onChange, readOnly, osId, att
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <SignaturePad label="Assinatura de quem acompanhou" value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} readOnly={readOnly} />
+                        <SignaturePad label="Assinatura de quem acompanhou" value={formData.witnessSignature || ""} onChange={(v) => u("witnessSignature", v)} onCaptureStateChange={(pending) => onSignatureCaptureChange?.("witnessSignature", pending)} readOnly={readOnly} />
                     </div>
                     <div>
-                        <SignaturePad label="Assinatura do técnico" value={formData.technicianSignature || ""} onChange={(v) => u("technicianSignature", v)} readOnly={readOnly} />
+                        <SignaturePad label="Assinatura do técnico" value={formData.technicianSignature || ""} onChange={(v) => u("technicianSignature", v)} onCaptureStateChange={(pending) => onSignatureCaptureChange?.("technicianSignature", pending)} readOnly={readOnly} />
                     </div>
                 </div>
             </div>

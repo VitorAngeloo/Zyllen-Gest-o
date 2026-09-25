@@ -52,6 +52,7 @@ export const createMaintenanceSchema = z.object({
 
 export const updateOsFormDataSchema = z.object({
     formData: z.record(z.unknown()),
+    expectedUpdatedAt: z.string().datetime().optional(),
     notes: z.string().optional(),
     clientName: z.string().optional(),
     clientCity: z.string().optional(),

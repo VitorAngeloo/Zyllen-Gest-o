@@ -111,14 +111,21 @@ export default function ManutencaoPage() {
         setSubmitting(true);
         try {
             const { localFiles, ...payload } = data;
-            await maintenanceApi.updateFormData(selectedOS.id, payload, fetchOpts);
-
-            await uploadMaintenanceAttachments("/maintenance", selectedOS.id, localFiles, fetchOpts);
+            const response = await maintenanceApi.updateFormData<{ data: any }>(selectedOS.id, payload, fetchOpts);
+            try {
+                await uploadMaintenanceAttachments("/maintenance", selectedOS.id, localFiles, fetchOpts);
+            } catch (uploadError) {
+                toast.warning("Os dados da OS foram salvos, mas os anexos não foram enviados. Eles continuam pendentes para você tentar novamente.");
+                qc.invalidateQueries({ queryKey: ["maintenance"] });
+                return { ...response.data, attachmentsUploaded: false };
+            }
+            setSelectedOS((current: any) => current ? { ...current, ...response.data } : current);
 
             toast.success("OS atualizada");
             qc.invalidateQueries({ queryKey: ["maintenance"] });
             setTab("list");
             setSelectedOS(null);
+            return response.data;
         } catch (e: any) {
             toast.error(e.message || "Erro ao atualizar");
             throw e;
@@ -132,12 +139,19 @@ export default function ManutencaoPage() {
         setSubmitting(true);
         try {
             const { localFiles, ...payload } = data;
-            await maintenanceApi.updateFormData(selectedOS.id, payload, fetchOpts);
-
-            await uploadMaintenanceAttachments("/maintenance", selectedOS.id, localFiles, fetchOpts);
+            const response = await maintenanceApi.updateFormData<{ data: any }>(selectedOS.id, payload, fetchOpts);
+            try {
+                await uploadMaintenanceAttachments("/maintenance", selectedOS.id, localFiles, fetchOpts);
+            } catch (uploadError) {
+                toast.warning("O rascunho foi salvo, mas os anexos não foram enviados. Eles continuam pendentes para você tentar novamente.");
+                qc.invalidateQueries({ queryKey: ["maintenance"] });
+                return { ...response.data, attachmentsUploaded: false };
+            }
+            setSelectedOS((current: any) => current ? { ...current, ...response.data } : current);
 
             toast.success("Rascunho salvo");
             qc.invalidateQueries({ queryKey: ["maintenance"] });
+            return response.data;
         } catch (e: any) {
             toast.error(e.message || "Erro ao salvar");
             throw e;
@@ -219,7 +233,7 @@ export default function ManutencaoPage() {
                 <OsFormWizard
                     userContext="internal"
                     editMode
-                    readOnly={selectedOS.status === "CLOSED"}
+                    readOnly={selectedOS.status === "CLOSED" || !!(selectedOS.formData as any)?.witnessSignature || !!(selectedOS.formData as any)?.technicianSignature}
                     initialData={{
                         id: selectedOS.id,
                         formType: selectedOS.formType as OsFormType,
@@ -235,6 +249,7 @@ export default function ManutencaoPage() {
                         startedAt: selectedOS.startedAt ? new Date(selectedOS.startedAt).toISOString().slice(0, 16) : "",
                         endedAt: selectedOS.endedAt ? new Date(selectedOS.endedAt).toISOString().slice(0, 16) : "",
                         formData: selectedOS.formData || {},
+                        expectedUpdatedAt: selectedOS.updatedAt,
                     }}
                     onSubmit={handleEditSubmit}
                     onSaveDraft={handleSaveDraft}
@@ -251,7 +266,7 @@ export default function ManutencaoPage() {
         const stCfg = STATUS_CONFIG[selectedOS.status] || STATUS_CONFIG.OPEN;
         const formRows = getOsFieldRows(selectedOS.formType, selectedOS.formData);
         const isInstalacaoSala = selectedOS.formType === "INSTALACAO_SALA";
-        const isSignatureLocked = !!(selectedOS.formData as any)?.witnessSignature;
+        const isSignatureLocked = !!(selectedOS.formData as any)?.witnessSignature || !!(selectedOS.formData as any)?.technicianSignature;
         return (
             <div className="space-y-6">
                 <button

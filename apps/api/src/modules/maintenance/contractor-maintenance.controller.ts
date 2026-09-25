@@ -10,15 +10,24 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MaintenanceService } from './maintenance.service';
 import { MaintenanceMediaStorageService } from '../../infrastructure/storage/maintenance-media-storage.service';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { createMaintenanceSchema, updateOsFormDataSchema, updateMaintenanceStatusSchema } from '@zyllen/shared';
+import {
+    createMaintenanceSchema,
+    OS_ATTACHMENT_IMAGE_MAX_BYTES,
+    OS_ATTACHMENT_REQUEST_MAX_FILES,
+    OS_ATTACHMENT_VIDEO_MAX_BYTES,
+    updateOsFormDataSchema,
+    updateMaintenanceStatusSchema,
+} from '@zyllen/shared';
 
 // Reuse same upload dir as internal controller
 const UPLOAD_DIR = mediaUploadDirectory("maintenance");
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const maintenanceStorage = verifiedMediaStorage(UPLOAD_DIR);
+const maintenanceStorage = verifiedMediaStorage(UPLOAD_DIR, false, {
+    imageBytes: OS_ATTACHMENT_IMAGE_MAX_BYTES,
+    videoBytes: OS_ATTACHMENT_VIDEO_MAX_BYTES,
+});
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktime|x-msvideo))$/;
 
 /**
@@ -146,7 +155,10 @@ export class ContractorMaintenanceController {
     // ── Attachments (photos/videos) ──
 
     @Post(':id/attachments')
-    @UseInterceptors(FilesInterceptor('files', 10, { storage: maintenanceStorage, limits: { fileSize: MAX_FILE_SIZE } }))
+    @UseInterceptors(FilesInterceptor('files', OS_ATTACHMENT_REQUEST_MAX_FILES, {
+        storage: maintenanceStorage,
+        limits: { fileSize: OS_ATTACHMENT_VIDEO_MAX_BYTES },
+    }))
     async uploadAttachments(
         @Param('id') id: string,
         @Request() req: any,
@@ -288,7 +300,10 @@ export class ContractorMaintenanceController {
     }
 
     @Post(':id/followup-blocks/:blockId/attachments')
-    @UseInterceptors(FilesInterceptor('files', 10, { storage: maintenanceStorage, limits: { fileSize: MAX_FILE_SIZE } }))
+    @UseInterceptors(FilesInterceptor('files', OS_ATTACHMENT_REQUEST_MAX_FILES, {
+        storage: maintenanceStorage,
+        limits: { fileSize: OS_ATTACHMENT_VIDEO_MAX_BYTES },
+    }))
     async uploadFollowupAttachments(
         @Request() req: any,
         @Param('id') id: string,
