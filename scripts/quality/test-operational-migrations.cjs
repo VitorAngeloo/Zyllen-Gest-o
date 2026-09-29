@@ -10,14 +10,14 @@ const artifacts = path.join(scratch, 'operational-migrations-qa'); fs.mkdirSync(
 const apiRequire = Module.createRequire(path.join(root, 'apps/api/package.json'));
 const deps = Module.createRequire(path.join(root, 'tmp/security-test-deps/package.json'));
 const { PGlite } = deps('@electric-sql/pglite');
-const names = ['20260918030000_project_operational_service','20260918040000_trips','20260918050000_asset_custody','20260918060000_stock_minimums','20260918070000_structure_cycles','20260918080000_panel_mirrors','20260918100000_vehicle_reservations','20260921110000_vehicle_checkout_return','20260921130000_project_followup_link','20260923120000_panel_attention_clients'];
+const names = ['20260918030000_project_operational_service','20260918040000_trips','20260918050000_asset_custody','20260918060000_stock_minimums','20260918070000_structure_cycles','20260918080000_panel_mirrors','20260918100000_vehicle_reservations','20260921110000_vehicle_checkout_return','20260921130000_project_followup_link','20260923120000_panel_attention_clients','20260929120000_panel_multiple_mirrors'];
 const tables = names.flatMap(name => [...fs.readFileSync(path.join(root, 'apps/api/prisma/migrations', name, 'migration.sql'), 'utf8').matchAll(/CREATE TABLE "([^"]+)"/g)].map(m => m[1]));
 function ddl(schema) { return execFileSync(process.execPath, [apiRequire.resolve('prisma/build/index.js'), 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', schema, '--script'], { cwd: scratch, encoding: 'utf8', windowsHide: true, env: { ...process.env, DATABASE_URL: 'postgresql://test@127.0.0.1:1/test', DIRECT_URL: 'postgresql://test@127.0.0.1:1/test' } }); }
 let actual, expected;
 (async () => {
     let baseline = fs.readFileSync(path.join(root, 'apps/api/prisma/schema.prisma'), 'utf8');
     for (const table of tables) baseline = baseline.replace(new RegExp('^model ' + table + ' \\{[\\s\\S]*?^\\}', 'm'), '');
-    baseline = baseline.replace(/^.*(?:projectServiceAssignments|operationalService|projectService ProjectService|startedAt\s+DateTime\?|completedAt\s+DateTime\?|cancelledAt\s+DateTime\?|tripAssignments|\btrip\s+Trip\?|operationalStructures|panelMirror\s+PanelMirror|panelAttentionClients|inventoryLocations|custodyTransfers|custodyTransfer\s+InventoryTransfer|transferItems|custodyItem|stockMinimums|vehicleReservations|vehicleBookingsCreated|vehicleUsesDriven|vehicleCheckouts|vehicleReturns|\buses\s+VehicleUse|\buse\s+VehicleUse).*\r?\n/gm, '');
+    baseline = baseline.replace(/^.*(?:projectServiceAssignments|operationalService|projectService ProjectService|startedAt\s+DateTime\?|completedAt\s+DateTime\?|cancelledAt\s+DateTime\?|tripAssignments|\btrip\s+Trip\?|operationalStructures|panelMirrors?\s+PanelMirror|panelAttentionClients|inventoryLocations|custodyTransfers|custodyTransfer\s+InventoryTransfer|transferItems|custodyItem|stockMinimums|vehicleReservations|vehicleBookingsCreated|vehicleUsesDriven|vehicleCheckouts|vehicleReturns|\buses\s+VehicleUse|\buse\s+VehicleUse).*\r?\n/gm, '');
     baseline = baseline.replace(/^\s+followupId\s+String\?\s+@unique\s*\r?\n/gm, '');
     baseline = baseline.replace(/^model Location \{[\s\S]*?^\}/m, body => body.split('\n').filter(line => !/\b(kind|companyId|projectId|isMainWarehouse|company|project|transfersFrom|transfersTo)\b/.test(line)).join('\n'));
     const baselinePath = path.join(artifacts, 'baseline-schema.prisma'); fs.writeFileSync(baselinePath, baseline);
@@ -30,8 +30,18 @@ let actual, expected;
         INSERT INTO "Project" (id,name,"companyId","updatedAt") VALUES ('migration-qa','Projeto legado QA','migration-qa',NOW());`);
     const legacy = async () => (await actual.query('SELECT a.id,a."assetCode",a."currentLocationId",p.name AS project,l.name AS location FROM "Asset" a JOIN "Location" l ON l.id=a."currentLocationId" CROSS JOIN "Project" p')).rows;
     const before = await legacy();
-    for (const name of names) { const sql = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations', name, 'migration.sql'), 'utf8'); assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(sql)); await actual.exec(sql); }
+    for (const name of names) {
+        const sql = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations', name, 'migration.sql'), 'utf8');
+        assert(!/\b(?:TRUNCATE|DROP\s+(?:TABLE|SCHEMA|COLUMN|TYPE|CONSTRAINT))\b|^\s*(DELETE|UPDATE)\b/im.test(sql));
+        await actual.exec(sql);
+        if (name === '20260918080000_panel_mirrors') await actual.exec(`
+            INSERT INTO "Role" (id,name,"updatedAt") VALUES ('mirror-role-qa','Espelho migration QA',NOW());
+            INSERT INTO "InternalUser" (id,name,email,"passwordHash","roleId","updatedAt") VALUES ('mirror-owner-qa','Proprietario espelho QA','mirror-migration@qa.invalid','hash','mirror-role-qa',NOW());
+            INSERT INTO "PanelMirror" (id,"ownerId","tokenHash",views,"updatedAt") VALUES ('mirror-old-qa','mirror-owner-qa','old-token-hash',ARRAY['estoque'],NOW());`);
+        if (name === '20260929120000_panel_multiple_mirrors') await actual.exec(`INSERT INTO "PanelMirror" (id,"ownerId","tokenHash",views,"updatedAt") VALUES ('mirror-new-qa','mirror-owner-qa','new-token-hash',ARRAY['estoque'],NOW());`);
+    }
     assert.deepEqual(await legacy(), before);
+    assert.deepEqual((await actual.query(`SELECT id FROM "PanelMirror" WHERE "ownerId"='mirror-owner-qa' ORDER BY id`)).rows, [{ id: 'mirror-new-qa' }, { id: 'mirror-old-qa' }]);
     assert.deepEqual((await actual.query('SELECT kind,"companyId","projectId","isMainWarehouse" FROM "Location"')).rows, [{ kind: null, companyId: null, projectId: null, isMainWarehouse: null }]);
     console.log(`PASS all ${names.length} migrations preserve legacy assets, locations, clients and projects without assigning ownership`);
     const queries = {

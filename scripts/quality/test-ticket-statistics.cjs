@@ -56,7 +56,7 @@ async function main() {
         baseline = baseline.replace(/^model Schedule \{[\s\S]*?^\}/m, body => body.split('\n').filter(line => !/\b(startedAt|completedAt|cancelledAt)\s+DateTime\?/.test(line)).join('\n'));
         baseline = baseline.replace(/^.*(?:tripAssignments|\btrip\s+Trip\?).*\r?\n/gm, '');
         baseline = baseline.replace(/^.*operationalStructures.*\r?\n/gm, '');
-        baseline = baseline.replace(/^.*panelMirror\s+PanelMirror.*\r?\n/gm, '');
+        baseline = baseline.replace(/^.*panelMirrors?\s+PanelMirror.*\r?\n/gm, '');
         baseline = baseline.replace(/^.*panelAttentionClients.*\r?\n/gm, '');
         ddlSchema = path.join(artifacts, 'baseline-schema.prisma'); fs.writeFileSync(ddlSchema, baseline);
     }
@@ -161,9 +161,11 @@ async function main() {
         try { assert.equal((await db.query('SELECT * FROM "StructureCycle"')).rows.length, 0); await assert.rejects(() => db.query('INSERT INTO "OperationalStructure" (id,"companyId",name,"nameKey",kind,"updatedAt") VALUES ($1,$1,$1,$1,\'ROOM\',NOW())', ['blocked']), /row-level security/); }
         finally { await db.exec('RESET ROLE'); }
     });
-    if (projects) await run('Panel migration: additive private RLS table with one mirror per owner', async () => {
+    if (projects) await run('Panel migrations: private RLS table supports multiple mirrors per owner', async () => {
         const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260918080000_panel_mirrors/migration.sql'), 'utf8');
         assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(migration)); await db.exec(migration);
+        const multiple = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260929120000_panel_multiple_mirrors/migration.sql'), 'utf8');
+        assert(!/\b(?:TRUNCATE|DROP\s+(?:TABLE|SCHEMA|COLUMN|TYPE|CONSTRAINT))\b|^\s*(DELETE|UPDATE)\b/im.test(multiple)); await db.exec(multiple);
         assert.equal((await db.query("SELECT relrowsecurity FROM pg_class WHERE relname = 'PanelMirror'")).rows[0].relrowsecurity, true);
         await db.exec('GRANT SELECT,INSERT ON "PanelMirror" TO projects_untrusted; SET ROLE projects_untrusted');
         try { assert.equal((await db.query('SELECT * FROM "PanelMirror"')).rows.length, 0); await assert.rejects(() => db.query('INSERT INTO "PanelMirror" (id,"ownerId","tokenHash","views","updatedAt") VALUES ($1,$1,$1,ARRAY[\'estoque\'],NOW())', ['blocked']), /row-level security/); }

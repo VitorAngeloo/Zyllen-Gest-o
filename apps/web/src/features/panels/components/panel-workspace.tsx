@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Pause, Play } from 'lucide-react';
-import type { PanelId } from '@zyllen/shared';
+import { PANEL_ROTATION_OPTIONS, type PanelId } from '@zyllen/shared';
 import { MONITORING_PANEL_COPY as copy } from '@web/lib/brand-voice';
 import { usePanelRotation } from '../hooks/use-panel-rotation';
 import { PanelErrorBoundary } from './panel-error-boundary';
@@ -24,16 +24,17 @@ export function PanelWorkspace({ views, reader }: { views: PanelId[]; reader: Pa
         return () => window.clearInterval(timer);
     }, [rotation.ready, rotation.selected, detailsOpen]);
     if (!rotation.ready || !views.includes(rotation.selected)) return <p role="status">{copy.loading}</p>;
-    const { selected, paused } = rotation;
+    const { selected, paused, intervalSeconds } = rotation;
+    const intervalLabel = intervalSeconds === 60 ? '1 minuto' : `${intervalSeconds} segundos`;
     const refresh = () => { void client.invalidateQueries({ queryKey: ['panel-statistics', reader.key] }); void client.invalidateQueries({ queryKey: ['panel-attention-clients', reader.key] }); void client.invalidateQueries({ queryKey: ['panel-vehicles', reader.key] }); if (selected === 'atendimentos' || selected === 'atendimentos-clientes') void client.invalidateQueries({ queryKey: ['tickets'] }); };
     const listStatus = selected === 'clientes-atencao' ? 'Atualização dos contatos a cada 30 segundos' : selected === 'carros' ? 'Atualização da frota a cada 30 segundos' : 'Leitura automática de listas a cada 10 segundos';
     return <div className={styles.shell} data-mirror-shell><header className={styles.header}><div className={styles.heading}><h1 className={styles.eyebrow}>{copy.title}</h1><p className={styles.viewTitle}>{copy.panels[selected]}</p></div>
         <nav aria-label={copy.navigation} className={styles.nav}>{views.map(id => <button type="button" key={id} className={styles.navButton} disabled={detailsOpen} aria-pressed={selected === id} onClick={() => rotation.select(id)}>{copy.panels[id]}</button>)}</nav>
-        <div className={styles.headerState}><span className={styles.stateDot} data-paused={paused} aria-hidden="true" /><span>{paused ? copy.paused : 'Troca de visão a cada minuto'}</span></div></header>
+        <div className={styles.headerState}><span className={styles.stateDot} data-paused={paused} aria-hidden="true" /><span>{paused ? copy.paused : `Troca de visão a cada ${intervalLabel}`}</span></div></header>
         <section aria-label={copy.panels[selected]} data-monitoring-panel={selected} data-panel-view={selected} className={styles.body}>
             <PanelErrorBoundary key={selected} onRetry={refresh}>{selected === 'atendimentos' && reader.tickets ? <MirrorTickets reader={reader.tickets} source="INTERNAL" slide={slides[selected]} onDetailsOpenChange={setDetailsOpen} /> : selected === 'atendimentos-clientes' && reader.tickets ? <MirrorTickets reader={reader.tickets} source="CLIENT" slide={slides[selected]} onDetailsOpenChange={setDetailsOpen} /> : selected === 'clientes-atencao' && reader.attentionClients ? <MirrorAttentionClients reader={reader} /> : selected === 'carros' && reader.vehicles ? <MirrorVehicles reader={reader} slide={slides[selected]} /> : (selected === 'projetos' || selected === 'operacoes' || selected === 'estoque') ? <PanelStatisticsView view={selected} reader={reader} mirror slide={slides[selected]} /> : <p role="alert">{copy.failure}</p>}</PanelErrorBoundary>
         </section>
-        <footer className={styles.footer}><div className={styles.footerText}><strong>{copy.panels[selected]}</strong><span>{listStatus}</span><span>·</span><span>{paused ? copy.paused : copy.rotating}</span></div><button type="button" className={styles.player} aria-label={paused ? copy.resume : copy.pause} title={paused ? copy.resume : copy.pause} aria-pressed={!paused} onClick={() => rotation.setPaused(!paused)}>{paused ? <Play size={19} /> : <Pause size={19} />}</button></footer>
+        <footer className={styles.footer}><div className={styles.footerText}><strong>{copy.panels[selected]}</strong><span>{listStatus}</span><span>·</span><span>{paused ? copy.paused : copy.rotating}</span></div><div className={styles.footerControls}><label className={styles.speedField}><span>Tempo entre telas</span><select aria-label="Tempo entre telas" value={intervalSeconds} onChange={event => rotation.setRotationSeconds(Number(event.target.value))}>{PANEL_ROTATION_OPTIONS.map(seconds => <option key={seconds} value={seconds}>{seconds === 60 ? '1 min' : `${seconds} s`}</option>)}</select></label><button type="button" className={styles.player} aria-label={paused ? copy.resume : copy.pause} title={paused ? copy.resume : copy.pause} aria-pressed={!paused} onClick={() => rotation.setPaused(!paused)}>{paused ? <Play size={19} /> : <Pause size={19} />}</button></div></footer>
         <p role="status" data-panel-rotation className="sr-only">{detailsOpen ? copy.held : paused ? copy.paused : copy.rotating}</p>
     </div>;
 }

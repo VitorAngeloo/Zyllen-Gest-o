@@ -34,6 +34,11 @@
 .footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; border-top: 1px solid #344239; padding-top: 8px; color: #a8b9ad; font-size: 12px; }
 .footerText { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
 .footerText strong { color: #ecf4ed; }
+.footerControls { display: flex; flex: none; align-items: center; gap: 10px; }
+.speedField { display: flex; align-items: center; gap: 8px; color: #b8c8bb; font-size: 11px; }
+.speedField select { height: 34px; border: 1px solid #46594a; border-radius: 5px; background: #111b14; padding: 2px 8px; color: #f3f8f3; font: inherit; color-scheme: dark; }
+.speedField select:hover { border-color: #6d806f; }
+.speedField select:focus-visible { border-color: #abff10; outline: 2px solid #abff10; outline-offset: 2px; }
 .player { display: inline-flex; width: 44px; height: 44px; flex: none; align-items: center; justify-content: center; border: 1px solid #abff10; border-radius: 50%; background: #24301f; color: #abff10; cursor: pointer; }
 .player:hover, .player:focus-visible { background: #abff10; color: #14200c; outline: none; }
 .viewState { display: flex; height: 100%; min-height: 0; flex-direction: column; gap: 8px; }
@@ -71,7 +76,9 @@
 .count { display: inline-flex; min-width: 32px; height: 26px; flex: none; align-items: center; justify-content: center; border-radius: 6px; background: #2e4529; color: #abff10; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .panelContent { flex: 1; min-height: 0; overflow: hidden; padding: clamp(8px, 0.7vw, 12px); }
 .pageMarker { flex: none; margin: 0; padding: 5px 12px 8px; color: #bfcebf; font-size: 11px; font-variant-numeric: tabular-nums; }
-.ticketList, .sectorList, .compactList { display: grid; height: 100%; min-height: 0; grid-auto-rows: minmax(0, 1fr); gap: 7px; margin: 0; padding: 0; list-style: none; }
+.ticketList, .sectorList { display: grid; height: 100%; min-height: 0; grid-auto-rows: minmax(0, 1fr); gap: 7px; margin: 0; padding: 0; list-style: none; }
+.compactList { display: flex; height: 100%; min-height: 0; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
+.compactList > li { flex: 1 1 0; }
 .ticketItem { min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #34443a; border-radius: 8px; background: #202c23; }
 .ticketButton { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; justify-content: center; gap: 4px; padding: 8px 12px; color: #f7faf7; text-align: left; cursor: pointer; }
 .ticketButton:hover, .ticketButton:focus-visible { background: #314134; outline: 2px solid #abff10; outline-offset: -2px; }
@@ -89,7 +96,8 @@
 .cardMeta { overflow: hidden; color: #cbd8cd; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .cardBottom { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: auto; color: #d9e4da; font-size: 12px; }
 .cardDate { margin: 0; color: #b6c7b8; font-size: 12px; }
-.compactItem { display: flex; min-width: 0; min-height: 0; flex-direction: column; justify-content: center; gap: 3px; overflow: hidden; border-bottom: 1px solid #37463c; padding: 4px 6px; }
+.compactItem { display: flex; min-width: 0; min-height: 0; flex-direction: column; justify-content: center; gap: 4px; overflow: hidden; border-bottom: 1px solid #37463c; padding: 7px 6px; }
+.compactItem:last-child, .rankingRow:last-child { border-bottom: 0; }
 .rankingRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; min-height: 0; border-bottom: 1px solid #37463c; padding: 5px 6px; }
 .rankingRow small { margin-top: 3px; }
 .quantity { flex: none; color: #abff10; font-size: clamp(18px, 1.3vw, 25px); font-variant-numeric: tabular-nums; }
@@ -154,6 +162,7 @@
     .attentionGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(100px, auto); }
     .projectGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .footer { padding-right: 55px; }
+    .footerControls { align-items: flex-end; }
     .player { position: fixed; right: 16px; bottom: 16px; z-index: 40; box-shadow: 0 6px 24px #0008; }
 }
 
@@ -165,4 +174,5 @@
     .vehicleItem { grid-template-columns: 1fr; }
     .vehiclePerson { text-align: left; }
     .metricValue { font-size: 26px; }
+    .speedField { align-items: flex-start; flex-direction: column; gap: 3px; }
 }

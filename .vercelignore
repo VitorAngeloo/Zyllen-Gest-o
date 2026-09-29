@@ -3,6 +3,7 @@
 .env*
 **/.env*
 tmp
+output
 docs
 **/*.log
 apps/api/uploads

@@ -10,7 +10,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         const context = await browser.newContext({ viewport: viewport ?? (mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 }), timezoneId: 'America/Sao_Paulo', reducedMotion: 'reduce', permissions: ['clipboard-read', 'clipboard-write'] });
         const requests = [], errors = [], attentionCompanies = [{ id: '20000000-0000-4000-8000-000000000001', name: 'Cliente atenção QA', contactName: 'Responsável QA', contactPhone: '(11) 99999-0000' }];
         const companyDirectory = [...attentionCompanies, { id: '20000000-0000-4000-8000-000000000002', name: 'Cliente disponível QA', cnpj: '12.345.678/0001-90', contactName: null, contactPhone: null }];
-        const state = { fail, empty, malformed, dense, bonus: 0, active, generatedViews: savedViews, views, attentionCompanies };
+        const state = { fail, empty, malformed, dense, bonus: 0, active, activeLinks: active ? 2 : 0, generatedViews: savedViews, views, attentionCompanies };
         await context.addCookies([{ name: 'mirrorMustOmit', value: 'synthetic-cookie', domain: '127.0.0.1', path: '/', httpOnly: true }]);
         await context.addInitScript(({ loggedOut }) => { if (!loggedOut) { localStorage.setItem('accessToken', 'synthetic-personal-panel-qa'); localStorage.setItem('userType', 'internal'); } }, { loggedOut });
         const ticket = { id: '10000000-0000-4000-8000-000000000001', title: 'Chamado completo no painel QA', description: 'Descrição integral do chamado QA', source: 'INTERNAL', status: 'OPEN', priority: 'HIGH', createdAt: new Date(fixedNow - 320 * 60000).toISOString(), firstResponseAt: null, internalUser: { name: 'Solicitante painel QA', sector: 'Financeiro' }, externalUser: null, company: null, assignedTo: null, attachments: [], messages: [], closedAt: null, rating: null, resolutionNotes: null, assignedToInternalUserId: null };
@@ -41,10 +41,10 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             if (url.pathname === publicRoot) return respond({ data: { views: state.views } });
             if (url.pathname === '/personal-panel/mirror') {
                 if (state.fail.management) return respond({ error: { message: 'Falha ao salvar link QA' } }, 503);
-                if (method === 'POST') { state.active = true; state.generatedViews = request.postDataJSON().views; return respond({ data: { path: '/painel/espelho/' + token, views: state.generatedViews } }, 201); }
-                if (method === 'PUT') { state.generatedViews = request.postDataJSON().views; state.views = state.generatedViews; return respond({ data: { active: true, views: state.generatedViews, updatedAt: new Date(fixedNow).toISOString() } }); }
-                if (method === 'DELETE') { state.active = false; return respond({ data: null }); }
-                return respond({ data: { active: state.active, views: state.generatedViews, updatedAt: null } });
+                if (method === 'POST') { state.active = true; state.activeLinks += 1; state.generatedViews = request.postDataJSON().views; state.views = state.generatedViews; return respond({ data: { path: '/painel/espelho/' + token, views: state.generatedViews } }, 201); }
+                if (method === 'PUT') { state.generatedViews = request.postDataJSON().views; state.views = state.generatedViews; return respond({ data: { active: true, activeLinks: state.activeLinks, views: state.generatedViews, updatedAt: new Date(fixedNow).toISOString() } }); }
+                if (method === 'DELETE') { state.active = false; state.activeLinks = 0; return respond({ data: null }); }
+                return respond({ data: { active: state.active, activeLinks: state.activeLinks, views: state.generatedViews, updatedAt: null } });
             }
             if (url.pathname === '/personal-panel/attention-clients') {
                 if (state.fail.attention) return respond({ error: { message: 'Seleção indisponível QA' } }, state.fail.attention);
@@ -227,10 +227,18 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             await s.context.close();
         }
     });
-    await run('Monitoring panel: rotation stays fixed at sixty seconds regardless of legacy interval; refresh never resets the timer', async () => {
+    await run('Monitoring panel: rotation speed can be selected in the mirror and persists in its address and storage', async () => {
         const s = await setup({ mirror: true, loggedOut: true, query: 'visao=projetos&intervalo=30&pausado=0' }); await expect(metric(s.page, 'active')).toHaveText('4');
-        s.state.bonus = 1; await s.page.clock.runFor(35000); await expect(metric(s.page, 'active')).toHaveText('5'); await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'projetos');
-        await s.page.clock.runFor(26000); await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'operacoes'); await s.context.close();
+        const speed = s.page.getByRole('combobox', { name: 'Tempo entre telas', exact: true });
+        await expect(speed).toHaveValue('30');
+        await s.page.clock.runFor(29000); await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'projetos');
+        await s.page.clock.runFor(2000); await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'operacoes');
+        await speed.selectOption('15');
+        await expect(s.page).toHaveURL(/intervalo=15/);
+        const saved = JSON.parse(await s.page.evaluate(key => localStorage.getItem(key), 'zyllen:personal-panel:panel-mirror:' + token));
+        assert.equal(saved.intervalSeconds, 15);
+        await s.page.clock.runFor(16000); await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'estoque');
+        await s.context.close();
     });
     await run('Monitoring panel: manual selection pauses rotation, persists on reload and the player resumes one-minute changes', async () => {
         const s = await setup({ mirror: true, loggedOut: true, query: 'visao=projetos&pausado=0' }); await expect(metric(s.page, 'active')).toHaveText('4');
@@ -337,20 +345,20 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(d.getByLabel('Link do espelho', { exact: true })).toHaveValue(base + '/painel/espelho/' + token);
         const mutation = s.requests.find(r => r.method === 'POST'); assert.deepEqual(mutation.body.views, ['atendimentos', 'atendimentos-clientes', 'clientes-atencao', 'operacoes', 'estoque', 'carros']);
         await d.getByRole('button', { name: 'Copiar link do espelho', exact: true }).click(); const copied = await s.page.evaluate(() => navigator.clipboard.readText()); assert.equal(copied, base + '/painel/espelho/' + token); assert(!copied.includes('synthetic'));
-        await d.getByRole('button', { name: 'Revogar link', exact: true }).click(); await expect(d.getByLabel('Link do espelho', { exact: true })).toHaveCount(0); await expect(d.getByRole('button', { name: 'Gerar link', exact: true })).toBeEnabled();
+        await d.getByRole('button', { name: 'Revogar todos os links', exact: true }).click(); await expect(d.getByLabel('Link do espelho', { exact: true })).toHaveCount(0); await expect(d.getByRole('button', { name: 'Gerar link', exact: true })).toBeEnabled();
         await s.page.keyboard.press('Escape'); await expect(d).toHaveCount(0); await s.context.close();
     });
-    await run('Monitoring panel: an active link exposes its actual views and can add client tickets without changing its address', async () => {
+    await run('Monitoring panel: active links expose their shared views and update together', async () => {
         const s = await setup({ active: true, savedViews: ['atendimentos', 'estoque'] });
         await s.page.getByRole('button', { name: 'Espelho por link', exact: true }).click();
         const d = s.page.getByRole('dialog');
-        await expect(d.getByText('As marcações abaixo mostram exatamente as visões disponíveis nele.', { exact: false })).toBeVisible();
+        await expect(d.getByText('2 links ativos.', { exact: false })).toBeVisible();
         await expect(d.getByRole('checkbox', { name: 'Atendimentos internos', exact: true })).toBeChecked();
         await expect(d.getByRole('checkbox', { name: 'Atendimentos de clientes', exact: true })).not.toBeChecked();
         await expect(d.getByRole('checkbox', { name: 'Estoque', exact: true })).toBeChecked();
         await d.getByRole('checkbox', { name: 'Atendimentos de clientes', exact: true }).check();
-        await d.getByRole('button', { name: 'Atualizar link atual', exact: true }).click();
-        await expect(d.getByText('Visões atualizadas. O endereço atual foi preservado.', { exact: true })).toBeVisible();
+        await d.getByRole('button', { name: 'Atualizar todos os links', exact: true }).click();
+        await expect(d.getByText('Visões atualizadas em todos os links ativos.', { exact: true })).toBeVisible();
         const mutation = s.requests.find(request => request.path === '/personal-panel/mirror' && request.method === 'PUT');
         assert.deepEqual(mutation.body.views, ['atendimentos', 'estoque', 'atendimentos-clientes']);
         assert(!s.requests.some(request => request.path === '/personal-panel/mirror' && request.method === 'POST'));
@@ -406,7 +414,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             await s.page.screenshot({ path: path.join(shots, `mirror-tv-${name === 'Projetos' ? 'projetos' : name === 'Estoque' ? 'estoque' : 'operacoes'}.png`), animations: 'disabled' });
             await s.page.clock.runFor(11000);
             if (name === 'Projetos') await expect(s.page.locator('[data-project-highlight="project-6"]')).toBeVisible();
-            if (name === 'Instalações e viagens') await expect(s.page.locator('[data-operation-service="service-2"]').first()).toBeVisible();
+            if (name === 'Instalações e viagens') await expect(s.page.locator('[data-operation-service="service-1"]').first()).toBeVisible();
             if (name === 'Estoque') await expect(s.page.locator('[data-inventory-ranking="entries"]')).toContainText('Item de demonstração 5');
             await assertFrame();
         }
@@ -422,6 +430,13 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         }
         assert.deepEqual(compact.errors, []);
         await compact.context.close();
+        const tall = await setup({ mirror: true, loggedOut: true, dense: true, viewport: { width: 1708, height: 1080 }, query: 'visao=operacoes&pausado=1' });
+        const nextInstallations = tall.page.locator('[data-mirror-panel][aria-label="Próximas instalações"]');
+        await expect(nextInstallations.locator('[data-operation-service]')).toHaveCount(2);
+        await assertFrame(tall.page);
+        await tall.page.screenshot({ path: path.join(shots, 'mirror-tv-operacoes-duas-linhas.png'), animations: 'disabled' });
+        assert.deepEqual(tall.errors, []);
+        await tall.context.close();
     });
     await run('Monitoring panel: mobile mirror fits width and player remains at the lower corner; desktop account retains normal navigation', async () => {
         const mobile = await setup({ mirror: true, loggedOut: true, mobile: true, query: 'visao=estoque&pausado=1' }); await expect(mobile.page.locator('[data-inventory-metric="scoped"] [data-metric-value]')).toHaveText('38');

@@ -30,16 +30,16 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
     });
     await run('Panel: anonymous token is random, stored as a hash, excluded from status/audit and cached nowhere', async () => {
         link = await generate(); const token = link.path.split('/').pop(); assert.match(token, /^[A-Za-z0-9_-]{43}$/);
-        const row = await prisma.panelMirror.findUnique({ where: { ownerId: admin.id } }); assert.equal(row.tokenHash, crypto.createHash('sha256').update(token).digest('hex')); assert.notEqual(row.tokenHash, token);
+        const row = await prisma.panelMirror.findFirst({ where: { ownerId: admin.id, revokedAt: null } }); assert.equal(row.tokenHash, crypto.createHash('sha256').update(token).digest('hex')); assert.notEqual(row.tokenHash, token);
         const audit = await prisma.auditLog.findMany({ where: { entityId: row.id } }); assert.equal(audit.length, 1); assert(!JSON.stringify(audit).includes(token));
-        const status = ok(await request('/personal-panel/mirror', admin)); assert.equal(status.active, true); assert.deepEqual(status.views, all); assert(!JSON.stringify(status).includes(token));
+        const status = ok(await request('/personal-panel/mirror', admin)); assert.equal(status.active, true); assert.equal(status.activeLinks, 1); assert.deepEqual(status.views, all); assert(!JSON.stringify(status).includes(token));
         const response = await request(root(link)); assert.deepEqual(ok(response), { views: all }); assert.match(response.headers.get('cache-control'), /no-store/); assert.equal(response.headers.get('referrer-policy'), 'no-referrer'); assert.match(response.headers.get('x-robots-tag'), /noindex/);
     });
     await run('Panel: updating an active mirror changes its views without replacing the anonymous token', async () => {
-        const before = await prisma.panelMirror.findUnique({ where: { ownerId: admin.id } });
+        const before = await prisma.panelMirror.findFirst({ where: { ownerId: admin.id, revokedAt: null } });
         const selected = ['atendimentos', 'atendimentos-clientes'];
         const updated = ok(await request('/personal-panel/mirror', admin, 'PUT', { views: selected }));
-        const after = await prisma.panelMirror.findUnique({ where: { ownerId: admin.id } });
+        const after = await prisma.panelMirror.findFirst({ where: { ownerId: admin.id, revokedAt: null } });
         assert.deepEqual(updated.views, selected);
         assert.equal(after.tokenHash, before.tokenHash);
         assert.deepEqual(ok(await request(root(link))).views, selected);
@@ -152,10 +152,19 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         for (const query of ['view=invalid', 'view=estoque&start=' + period.start, 'view=projetos&start=invalid', 'view=projetos&ownerId=' + admin.id]) assert.equal((await request(root(link) + '/statistics?' + query)).status, 400);
         assert.equal((await stats('estoque', technicianLink)).status, 403);
     });
-    await run('Panel: regeneration replaces the old token; revocation is idempotent and audited once', async () => {
-        const old = link; link = await generate(); assert.equal((await request(root(old))).status, 404); assert.equal(await prisma.panelMirror.count({ where: { ownerId: admin.id } }), 1);
+    await run('Panel: multiple links stay active and synchronized; revocation closes all links idempotently', async () => {
+        const old = link; link = await generate(admin, ['estoque']);
+        assert.deepEqual(ok(await request(root(old))).views, ['estoque']);
+        assert.deepEqual(ok(await request(root(link))).views, ['estoque']);
+        assert.equal(await prisma.panelMirror.count({ where: { ownerId: admin.id, revokedAt: null } }), 2);
+        const status = ok(await request('/personal-panel/mirror', admin)); assert.equal(status.activeLinks, 2);
+        const synchronized = ['atendimentos', 'estoque'];
+        ok(await request('/personal-panel/mirror', admin, 'PUT', { views: synchronized }));
+        assert.deepEqual(ok(await request(root(old))).views, synchronized);
+        assert.deepEqual(ok(await request(root(link))).views, synchronized);
         for (let i = 0; i < 2; i++) ok(await request('/personal-panel/mirror', admin, 'DELETE'));
-        assert.equal((await request(root(link))).status, 404); assert.equal((await stats('estoque', link)).status, 404); assert.equal(ok(await request('/personal-panel/mirror', admin)).active, false);
+        assert.equal((await request(root(old))).status, 404); assert.equal((await request(root(link))).status, 404); assert.equal((await stats('estoque', link)).status, 404);
+        const revoked = ok(await request('/personal-panel/mirror', admin)); assert.equal(revoked.active, false); assert.equal(revoked.activeLinks, 0);
         assert.equal(await prisma.auditLog.count({ where: { userId: admin.id, action: 'PANEL_MIRROR_REVOKED' } }), 1);
         link = await generate(); assert.equal((await request(root(link))).status, 200);
     });
@@ -167,7 +176,7 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         await prisma.internalUser.update({ where: { id: reader.id }, data: { isActive: false } }); assert.equal((await request(root(readerLink))).status, 404);
         assert.equal((await request('/panel-mirrors/' + 'z'.repeat(43))).status, 404); assert.equal((await request('/panel-mirrors/bad')).status, 404);
     });
-    await run('Panel: data reads change no business records; failed audit rolls back token replacement atomically', async () => {
+    await run('Panel: data reads change no business records; failed audit rolls back link creation atomically', async () => {
         const before = { tickets: await prisma.ticket.count(), assets: await prisma.asset.count(), services: await prisma.projectService.count(), movements: await prisma.stockMovement.count() };
         for (const view of statisticViews) ok(await stats(view, link));
         assert.deepEqual({ tickets: await prisma.ticket.count(), assets: await prisma.asset.count(), services: await prisma.projectService.count(), movements: await prisma.stockMovement.count() }, before);

@@ -359,7 +359,7 @@ Requisitos apresentados pelo usuário:
 - Manter a seleção direta de visões no menu superior.
 - Remover os botões de visão anterior/próxima, atualizar dados e copiar link da visão.
 - Substituir o botão textual de pausa/retomada por um pequeno controle de player em um canto inferior. Manter nome acessível e indicação de ativo/pausado.
-- Fixar o intervalo de troca em **60 segundos**, sem seletor de intervalo. Atualização dos dados continua independente da rotação.
+- Oferecer intervalos de **15 segundos, 30 segundos e 1 minuto** no próprio espelho. A atualização dos dados continua independente da rotação.
 - Corrigir os indicadores de atendimentos e validar o componente compartilhado com a dashboard principal.
 - Corrigir as consultas de projetos/operações; sem registros cadastrados, apresentar mensagens neutras de vazio.
 - Conectar os indicadores ao estoque que já está em uso. Depois de disponibilizar a API, conferir fonte dos saldos/movimentos, classificação de locais e identificação do depósito principal. Não criar um estoque paralelo nem inferir associações pelo nome.

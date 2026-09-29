@@ -17,7 +17,10 @@ export const PANEL_PERMISSION_OPTIONS: Record<PanelId, readonly string[]> = {
     carros: ['vehicles.view', 'schedule.view'],
 };
 export const PANEL_PERMISSIONS: Record<PanelId, string> = Object.fromEntries(PANEL_IDS.map(id => [id, PANEL_PERMISSION_OPTIONS[id][0]])) as Record<PanelId, string>;
-export const PANEL_ROTATION_MS = 60_000;
+export const PANEL_ROTATION_OPTIONS = [15, 30, 60] as const;
+export type PanelRotationSeconds = typeof PANEL_ROTATION_OPTIONS[number];
+export const PANEL_DEFAULT_ROTATION_SECONDS: PanelRotationSeconds = 60;
+export const PANEL_ROTATION_MS = PANEL_DEFAULT_ROTATION_SECONDS * 1_000;
 export const panelMirrorInputSchema = z.object({ views: z.array(z.enum(PANEL_IDS)).min(1).max(PANEL_IDS.length).refine(views => new Set(views).size === views.length, 'Selecione cada visão uma vez') }).strict();
 export type PanelMirrorInput = z.infer<typeof panelMirrorInputSchema>;
 export const panelAttentionClientsInputSchema = z.object({ companyIds: z.array(z.string().uuid()).max(12, 'Selecione no máximo 12 clientes de atenção').refine(ids => new Set(ids).size === ids.length, 'Selecione cada cliente uma vez') }).strict();
@@ -40,7 +43,7 @@ export const panelTicketsQuerySchema = z.object({ status: z.enum(['OPEN', 'IN_PR
 export type PanelTicketsQuery = z.infer<typeof panelTicketsQuerySchema>;
 export type PanelStatistics = { view: 'atendimentos' | 'atendimentos-clientes'; data: TicketStatistics } | { view: 'projetos'; data: ProjectStatistics } | { view: 'operacoes'; data: OperationsStatistics } | { view: 'estoque'; data: InventoryStatistics };
 export interface PanelMirrorMetadata { views: PanelId[] }
-export interface PanelMirrorStatus { active: boolean; views: PanelId[]; updatedAt: string | null }
+export interface PanelMirrorStatus { active: boolean; activeLinks: number; views: PanelId[]; updatedAt: string | null }
 export interface PanelAttentionClient { id: string; name: string; contactName: string | null; contactPhone: string | null }
 export interface PanelAttentionClientsData { selected: PanelAttentionClient[]; options: PanelAttentionClient[] }
 export interface PanelVehiclesData extends VehicleStatistics {}

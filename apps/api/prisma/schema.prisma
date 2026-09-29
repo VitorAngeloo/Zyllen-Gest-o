@@ -52,7 +52,7 @@ model InternalUser {
   projectServiceAssignments ProjectServiceInternal[]
   assetEvents         AssetEvent[]
   custodyTransfers    InventoryTransfer[]
-  panelMirror         PanelMirror?
+  panelMirrors        PanelMirror[]
   panelAttentionClients PanelAttentionClient[]
   vehicleReservations VehicleReservation[] @relation("VehicleResponsible")
   vehicleBookingsCreated VehicleReservation[] @relation("VehicleBookingCreator")
@@ -954,13 +954,15 @@ model OperationalStructure {
 // A revocable bearer link restricted to selected read-only dashboards, never an account token.
 model PanelMirror {
   id String @id @default(uuid())
-  ownerId String @unique
+  ownerId String
   tokenHash String @unique
   views String[]
   revokedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   owner InternalUser @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@index([ownerId, revokedAt])
 }
 
 // Curadoria manual para o monitor público de clientes; guarda somente os vínculos escolhidos.

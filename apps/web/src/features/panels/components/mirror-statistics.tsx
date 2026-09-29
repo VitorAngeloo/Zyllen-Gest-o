@@ -49,22 +49,23 @@ function ProjectView({ data, slide, size }: { data: ProjectStatistics; slide: nu
     </div>;
 }
 
-function ServicePanel({ title, items, slide }: { title: string; items: OperationServiceHighlight[]; slide: number }) {
-    const page = mirrorPage(items, slide, 2);
+function ServicePanel({ title, items, slide, pageSize }: { title: string; items: OperationServiceHighlight[]; slide: number; pageSize: number }) {
+    const page = mirrorPage(items, slide, pageSize);
     return <Panel title={title} count={items.length} page={page.page} total={page.total}>{page.items.length ? <ul className={styles.compactList}>{page.items.map(item => <li key={item.id} className={styles.compactItem} data-operation-service={item.id}>
         <strong className={styles.rowTitle}>{item.name}</strong><span className={styles.rowMeta}>{item.companyName} · {serviceCopy.statuses[item.status]}</span><span className={styles.rowMinor}>{item.completedAt ? `${operationsCopy.completed}: ${new Date(item.completedAt).toLocaleString('pt-BR')}` : item.startDate ? new Date(item.startDate).toLocaleString('pt-BR') : operationsCopy.noDate}</span>
     </li>)}</ul> : <p className={styles.empty}>Nenhum registro neste grupo.</p>}</Panel>;
 }
 
-function TripPanel({ items, slide }: { items: OperationTripHighlight[]; slide: number }) {
-    const page = mirrorPage(items, slide, 2);
+function TripPanel({ items, slide, pageSize }: { items: OperationTripHighlight[]; slide: number; pageSize: number }) {
+    const page = mirrorPage(items, slide, pageSize);
     return <Panel title={operationsCopy.nextTrips} count={items.length} page={page.page} total={page.total}>{page.items.length ? <ul className={styles.compactList}>{page.items.map(item => <li key={item.id} className={styles.compactItem} data-operation-trip={item.id}>
         <strong className={styles.rowTitle}>{item.title}</strong><span className={styles.rowMeta}>{item.originCity}/{item.originState} → {item.destinationCity}/{item.destinationState}</span><span className={styles.rowMinor}>{tripCopy.departure}: {new Date(item.startDate).toLocaleString('pt-BR')}</span>
     </li>)}</ul> : <p className={styles.empty}>Nenhuma viagem interestadual futura.</p>}</Panel>;
 }
 
-function OperationsView({ data, slide }: { data: OperationsStatistics; slide: number }) {
+function OperationsView({ data, slide, size }: { data: OperationsStatistics; slide: number; size: number }) {
     const issues = Object.values(data.dataQuality).reduce((sum, count) => sum + count, 0);
+    const pageSize = size >= 4 ? 2 : 1;
     return <div className={styles.view}>
         <div className={styles.metricsFour}>
             <Metric metricType="operation" metricKey="installations" label={operationsCopy.installations} value={data.installationsCompleted} context={operationsCopy.actualContext} tone="green" />
@@ -74,11 +75,11 @@ function OperationsView({ data, slide }: { data: OperationsStatistics; slide: nu
         </div>
         <div className={styles.contextBar}><span>Viagens previstas agora: <strong>{data.current.plannedTrips}</strong> · em andamento: <strong>{data.current.tripsInProgress}</strong></span>{issues > 0 && <span className={styles.warning}>{issues} informação(ões) a conferir na gestão</span>}<span className={styles.updated}>{operationsCopy.updated(new Date(data.generatedAt).toLocaleString('pt-BR'))}</span></div>
         <div className={styles.operationsGrid}>
-            <ServicePanel title={operationsCopy.nextInstallations} items={data.nextInstallations} slide={slide} />
-            <ServicePanel title={operationsCopy.relevantInstallations} items={data.relevantInstallations} slide={slide} />
-            <ServicePanel title={operationsCopy.latestInstallations} items={data.latestInstallations} slide={slide} />
-            <ServicePanel title={operationsCopy.latestRemovals} items={data.latestRemovals} slide={slide} />
-            <TripPanel items={data.nextInterstateTrips} slide={slide} />
+            <ServicePanel title={operationsCopy.nextInstallations} items={data.nextInstallations} slide={slide} pageSize={pageSize} />
+            <ServicePanel title={operationsCopy.relevantInstallations} items={data.relevantInstallations} slide={slide} pageSize={pageSize} />
+            <ServicePanel title={operationsCopy.latestInstallations} items={data.latestInstallations} slide={slide} pageSize={pageSize} />
+            <ServicePanel title={operationsCopy.latestRemovals} items={data.latestRemovals} slide={slide} pageSize={pageSize} />
+            <TripPanel items={data.nextInterstateTrips} slide={slide} pageSize={pageSize} />
             <div className={styles.notePanel}><p className={styles.kicker}>LEITURA DO PAINEL</p><strong>Operação em movimento</strong><p>Instalações, retiradas e viagens aparecem em grupos separados. Mais registros avançam automaticamente.</p></div>
         </div>
     </div>;
@@ -114,7 +115,7 @@ export function MirrorStatistics({ result, loading, failed, fetching, onRetry, s
         {failed && <div role="alert" className={styles.error}><span>{result ? panelCopy.stale : panelCopy.failure}</span><Button type="button" size="sm" variant="outline" disabled={fetching} onClick={onRetry}>{panelCopy.retry}</Button></div>}
         {loading && !result && <div role="status" className={styles.loading}>{panelCopy.loading}</div>}
         {result?.view === 'projetos' && <ProjectView data={result.data} slide={slide} size={size} />}
-        {result?.view === 'operacoes' && <OperationsView data={result.data} slide={slide} />}
+        {result?.view === 'operacoes' && <OperationsView data={result.data} slide={slide} size={size} />}
         {result?.view === 'estoque' && <InventoryView data={result.data} slide={slide} size={size} />}
     </div>;
 }
