@@ -240,6 +240,18 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await s.page.clock.runFor(16000); await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'estoque');
         await s.context.close();
     });
+    await run('Monitoring panel: paused mirror refreshes live data without reloading the page', async () => {
+        const s = await setup({ mirror: true, loggedOut: true, query: 'visao=projetos&pausado=1' });
+        await expect(metric(s.page, 'active')).toHaveText('4');
+        const requestsBefore = s.requests.filter(request => request.path.endsWith('/statistics') && request.params.view === 'projetos').length;
+        s.state.bonus = 3;
+        await s.page.clock.runFor(16_000);
+        await expect(metric(s.page, 'active')).toHaveText('7');
+        const requestsAfter = s.requests.filter(request => request.path.endsWith('/statistics') && request.params.view === 'projetos').length;
+        assert(requestsAfter > requestsBefore, 'O espelho pausado deve consultar dados novos sem F5');
+        await expect(s.page.getByText('Dados sincronizados automaticamente a cada 15 segundos', { exact: true })).toBeVisible();
+        await s.context.close();
+    });
     await run('Monitoring panel: manual selection pauses rotation, persists on reload and the player resumes one-minute changes', async () => {
         const s = await setup({ mirror: true, loggedOut: true, query: 'visao=projetos&pausado=0' }); await expect(metric(s.page, 'active')).toHaveText('4');
         await viewNav(s.page).getByRole('button', { name: 'Instalações e viagens', exact: true }).click(); await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'operacoes');

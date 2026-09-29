@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@web/components/ui/button';
 import type { VehicleReservationRecord } from '@zyllen/shared';
 import type { PanelReader } from '../api/panel-api';
+import { PANEL_MIRROR_REFRESH_MS } from '../panel.constants';
 import { mirrorPage, useMirrorPageSize } from './mirror-paging';
 import styles from './panel-mirror.module.css';
 
@@ -14,7 +15,7 @@ function VehicleList({ title, items, slide, current = false, size }: { title: st
 
 export function MirrorVehicles({ reader, slide }: { reader: PanelReader; slide: number }) {
     const size = useMirrorPageSize();
-    const query = useQuery({ queryKey: ['panel-vehicles', reader.key], queryFn: ({ signal }) => reader.vehicles!(signal), enabled: !!reader.vehicles, refetchInterval: 30_000 });
+    const query = useQuery({ queryKey: ['panel-vehicles', reader.key], queryFn: ({ signal }) => reader.vehicles!(signal), enabled: !!reader.vehicles, refetchInterval: PANEL_MIRROR_REFRESH_MS, refetchIntervalInBackground: true, refetchOnReconnect: 'always', refetchOnWindowFocus: 'always' });
     return <div className={styles.viewState}>
         {query.isError && <div role="alert" className={styles.error}><span>Não foi possível atualizar os carros.</span><Button type="button" size="sm" variant="outline" onClick={() => { void query.refetch(); }}>Tentar novamente</Button></div>}
         {query.isLoading && !query.data && <div role="status" className={styles.loading}>Carregando situação dos carros…</div>}

@@ -21,6 +21,7 @@ export const PANEL_ROTATION_OPTIONS = [15, 30, 60] as const;
 export type PanelRotationSeconds = typeof PANEL_ROTATION_OPTIONS[number];
 export const PANEL_DEFAULT_ROTATION_SECONDS: PanelRotationSeconds = 60;
 export const PANEL_ROTATION_MS = PANEL_DEFAULT_ROTATION_SECONDS * 1_000;
+export const PANEL_MIRROR_REFRESH_MS = 15_000;
 export const panelMirrorInputSchema = z.object({ views: z.array(z.enum(PANEL_IDS)).min(1).max(PANEL_IDS.length).refine(views => new Set(views).size === views.length, 'Selecione cada visão uma vez') }).strict();
 export type PanelMirrorInput = z.infer<typeof panelMirrorInputSchema>;
 export const panelAttentionClientsInputSchema = z.object({ companyIds: z.array(z.string().uuid()).max(12, 'Selecione no máximo 12 clientes de atenção').refine(ids => new Set(ids).size === ids.length, 'Selecione cada cliente uma vez') }).strict();

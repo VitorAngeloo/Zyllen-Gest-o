@@ -4,10 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Phone, UserRound } from 'lucide-react';
 import { Button } from '@web/components/ui/button';
 import type { PanelReader } from '../api/panel-api';
+import { PANEL_MIRROR_REFRESH_MS } from '../panel.constants';
 import styles from './panel-mirror.module.css';
 
 export function MirrorAttentionClients({ reader }: { reader: PanelReader }) {
-    const query = useQuery({ queryKey: ['panel-attention-clients', reader.key], queryFn: ({ signal }) => reader.attentionClients!(signal), enabled: !!reader.attentionClients, refetchInterval: 30_000 });
+    const query = useQuery({ queryKey: ['panel-attention-clients', reader.key], queryFn: ({ signal }) => reader.attentionClients!(signal), enabled: !!reader.attentionClients, refetchInterval: PANEL_MIRROR_REFRESH_MS, refetchIntervalInBackground: true, refetchOnReconnect: 'always', refetchOnWindowFocus: 'always' });
     return <div className={styles.viewState}>
         {query.isError && <div role="alert" className={styles.error}><span>Não foi possível atualizar os clientes de atenção.</span><Button type="button" size="sm" variant="outline" onClick={() => { void query.refetch(); }}>Tentar novamente</Button></div>}
         {query.isLoading && !query.data && <div role="status" className={styles.loading}>Carregando clientes de atenção…</div>}

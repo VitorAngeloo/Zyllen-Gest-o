@@ -27,7 +27,7 @@ export function PanelWorkspace({ views, reader }: { views: PanelId[]; reader: Pa
     const { selected, paused, intervalSeconds } = rotation;
     const intervalLabel = intervalSeconds === 60 ? '1 minuto' : `${intervalSeconds} segundos`;
     const refresh = () => { void client.invalidateQueries({ queryKey: ['panel-statistics', reader.key] }); void client.invalidateQueries({ queryKey: ['panel-attention-clients', reader.key] }); void client.invalidateQueries({ queryKey: ['panel-vehicles', reader.key] }); if (selected === 'atendimentos' || selected === 'atendimentos-clientes') void client.invalidateQueries({ queryKey: ['tickets'] }); };
-    const listStatus = selected === 'clientes-atencao' ? 'Atualização dos contatos a cada 30 segundos' : selected === 'carros' ? 'Atualização da frota a cada 30 segundos' : 'Leitura automática de listas a cada 10 segundos';
+    const listStatus = 'Dados sincronizados automaticamente a cada 15 segundos';
     return <div className={styles.shell} data-mirror-shell><header className={styles.header}><div className={styles.heading}><h1 className={styles.eyebrow}>{copy.title}</h1><p className={styles.viewTitle}>{copy.panels[selected]}</p></div>
         <nav aria-label={copy.navigation} className={styles.nav}>{views.map(id => <button type="button" key={id} className={styles.navButton} disabled={detailsOpen} aria-pressed={selected === id} onClick={() => rotation.select(id)}>{copy.panels[id]}</button>)}</nav>
         <div className={styles.headerState}><span className={styles.stateDot} data-paused={paused} aria-hidden="true" /><span>{paused ? copy.paused : `Troca de visão a cada ${intervalLabel}`}</span></div></header>

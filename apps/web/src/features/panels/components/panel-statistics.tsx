@@ -9,13 +9,21 @@ import { ProjectDashboardView } from '@web/features/project-services/components/
 import { OperationsDashboardView } from '@web/features/trips/components/operations-dashboard-view';
 import { InventoryDashboardView } from '@web/features/inventory/components/inventory-dashboard-view';
 import type { PanelReader } from '../api/panel-api';
+import { PANEL_MIRROR_REFRESH_MS } from '../panel.constants';
 import { MirrorStatistics } from './mirror-statistics';
 type StatisticsPanelId = Extract<PanelId, 'projetos' | 'operacoes' | 'estoque'>;
 export function PanelStatisticsView({ view, reader, mirror = false, slide = 0 }: { view: StatisticsPanelId; reader: PanelReader; mirror?: boolean; slide?: number }) {
     const [now, setNow] = useState(Date.now);
     useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(timer); }, []);
     const period = view === 'estoque' ? null : datePeriod('30_DAYS', localCalendarDate(now), '', '');
-    const query = useQuery({ queryKey: ['panel-statistics', reader.key, view, period?.start, period?.end], queryFn: ({ signal }) => reader.statistics({ view, source: 'ALL', ...(period ?? {}) }, signal), refetchInterval: 30_000 });
+    const query = useQuery({
+        queryKey: ['panel-statistics', reader.key, view, period?.start, period?.end],
+        queryFn: ({ signal }) => reader.statistics({ view, source: 'ALL', ...(period ?? {}) }, signal),
+        refetchInterval: mirror ? PANEL_MIRROR_REFRESH_MS : 30_000,
+        refetchIntervalInBackground: mirror,
+        refetchOnReconnect: true,
+        refetchOnWindowFocus: true,
+    });
     const retry = () => { void query.refetch(); }, props = { loading: query.isLoading, failed: query.isError, fetching: query.isFetching, onRetry: retry };
     if (mirror) return <MirrorStatistics {...props} result={query.data?.view === view ? query.data : undefined} slide={slide} />;
     if (view === 'projetos') return <ProjectDashboardView {...props} data={query.data?.view === view ? query.data.data : undefined} />;
