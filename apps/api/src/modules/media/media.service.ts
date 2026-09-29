@@ -12,7 +12,7 @@ import { isManager } from '../auth/manager.guard';
 import { MaintenanceMediaStorageService } from '../../infrastructure/storage/maintenance-media-storage.service';
 import { detectMedia } from '../../infrastructure/storage/verified-media-storage';
 
-export const MEDIA_KINDS = ['maintenance', 'os-followup', 'ticket', 'followup', 'item', 'vehicle-out', 'vehicle-in'] as const;
+export const MEDIA_KINDS = ['maintenance', 'os-followup', 'ticket', 'followup', 'item', 'vehicle-out', 'vehicle-condition', 'vehicle-in'] as const;
 export type MediaKind = typeof MEDIA_KINDS[number];
 export type MediaActor = { id: string; type: string; companyId?: string | null; role?: { name: string } };
 const SESSION_COOKIE = 'zyllen_media';
@@ -104,10 +104,13 @@ export class MediaService {
         } else if (kind === 'item') {
             const att = await this.prisma.itemMediaAttachment.findUnique({ where: { id } });
             if (att) return { ...att, kind, permission: att.filePath.startsWith('/uploads/media/catalog/') ? 'catalog' : 'inventory' };
-        } else if (kind === 'vehicle-out' || kind === 'vehicle-in') {
+        } else if (kind === 'vehicle-out' || kind === 'vehicle-condition' || kind === 'vehicle-in') {
             const use = await this.prisma.vehicleUse.findUnique({ where: { id } });
-            if (use && (kind === 'vehicle-out' || use.returnedAt)) return { id: use.id, kind, fileName: kind === 'vehicle-out' ? use.checkoutPhotoName : use.returnPhotoName!,
-                filePath: kind === 'vehicle-out' ? use.checkoutPhotoPath : use.returnPhotoPath!, permission: 'vehicles' };
+            if (use && (kind === 'vehicle-out' || (kind === 'vehicle-condition' && use.vehiclePhotoName && use.vehiclePhotoPath) || (kind === 'vehicle-in' && use.returnedAt))) {
+                const fileName = kind === 'vehicle-out' ? use.checkoutPhotoName : kind === 'vehicle-condition' ? use.vehiclePhotoName! : use.returnPhotoName!;
+                const filePath = kind === 'vehicle-out' ? use.checkoutPhotoPath : kind === 'vehicle-condition' ? use.vehiclePhotoPath! : use.returnPhotoPath!;
+                return { id: use.id, kind, fileName, filePath, permission: 'vehicles' };
+            }
         }
         throw new NotFoundException('Anexo não encontrado');
     }

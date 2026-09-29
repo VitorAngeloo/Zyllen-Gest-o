@@ -56,6 +56,7 @@ model InternalUser {
   panelAttentionClients PanelAttentionClient[]
   vehicleReservations VehicleReservation[] @relation("VehicleResponsible")
   vehicleBookingsCreated VehicleReservation[] @relation("VehicleBookingCreator")
+  vehicleReservationsReviewed VehicleReservation[] @relation("VehicleReservationReviewer")
   vehicleUsesDriven VehicleUse[] @relation("VehicleDriver")
   vehicleCheckouts VehicleUse[] @relation("VehicleCheckoutActor")
   vehicleReturns VehicleUse[] @relation("VehicleReturnActor")
@@ -67,6 +68,9 @@ model Vehicle {
   name String
   plate String? @unique
   active Boolean @default(true)
+  lastServiceOdometer Int?
+  lastServiceAt DateTime?
+  serviceDueSince DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   reservations VehicleReservation[]
@@ -83,14 +87,20 @@ model VehicleReservation {
   endDate DateTime
   notes String?
   cancelledAt DateTime?
+  approvalStatus String?
+  reviewedById String?
+  reviewedAt DateTime?
+  rejectionReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   responsible InternalUser @relation("VehicleResponsible", fields: [responsibleId], references: [id], onDelete: Restrict)
   createdBy InternalUser @relation("VehicleBookingCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  reviewedBy InternalUser? @relation("VehicleReservationReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
   use VehicleUse?
   @@index([vehicleId, startDate, endDate])
   @@index([responsibleId])
+  @@index([approvalStatus, startDate])
 }
 
 // A reserva planeja o período; somente a retirada inicia o uso real.
@@ -109,6 +119,8 @@ model VehicleUse {
   hadDamageOut Boolean
   checkoutPhotoName String
   checkoutPhotoPath String
+  vehiclePhotoName String?
+  vehiclePhotoPath String?
   returnedById String?
   returnedAt DateTime?
   odometerIn Int?

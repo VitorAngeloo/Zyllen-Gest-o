@@ -1,8 +1,8 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Request, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Request, UseGuards, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { vehicleCreateSchema, vehicleInputSchema, vehicleReservationCreateSchema, vehicleReservationQuerySchema, vehicleReservationSchema,
-    vehicleCheckoutSchema, vehicleReturnSchema, vehicleDashboardQuerySchema,
-    type VehicleCreateInput, type VehicleInput, type VehicleReservationCreateInput, type VehicleReservationInput, type VehicleReservationQuery, type VehicleDashboardQuery } from '@zyllen/shared';
+    vehicleCheckoutSchema, vehicleReturnSchema, vehicleDashboardQuerySchema, vehicleReservationRejectionSchema, vehicleServiceSchema,
+    type VehicleCreateInput, type VehicleInput, type VehicleReservationCreateInput, type VehicleReservationInput, type VehicleReservationQuery, type VehicleDashboardQuery, type VehicleReservationRejectionInput, type VehicleServiceInput } from '@zyllen/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
@@ -12,6 +12,10 @@ import { ManagerGuard } from '../auth/manager.guard';
 import { mediaUploadDirectory, verifiedMediaStorage } from '../../infrastructure/storage/verified-media-storage';
 import { unlink } from 'fs/promises';
 const photoStorage = verifiedMediaStorage(mediaUploadDirectory('vehicles'));
+type CheckoutFiles = { odometerPhoto?: Express.Multer.File[]; vehiclePhoto?: Express.Multer.File[] };
+async function removeFiles(files: Array<Express.Multer.File | undefined>) {
+    await Promise.all(files.filter((file): file is Express.Multer.File => !!file?.path).map(file => unlink(file.path).catch(() => undefined)));
+}
 @Controller('vehicles') @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class VehiclesController {
     constructor(private readonly vehicles: VehiclesService) {}
@@ -21,18 +25,25 @@ export class VehiclesController {
     async dashboard(@Query(new ZodValidationPipe(vehicleDashboardQuerySchema)) query: VehicleDashboardQuery) { return { data: await this.vehicles.managerDashboard(query) }; }
     @Get('operations') @RequirePermission(['vehicles.view', 'schedule.view'])
     async operations(@Request() req: any) { return { data: await this.vehicles.operations(req.user.id) }; }
+    @Get('approval-requests') @UseGuards(ManagerGuard) @RequirePermission(['vehicles.view', 'schedule.view'])
+    async approvalRequests() { return { data: await this.vehicles.approvalRequests() }; }
     @Get('options') @RequirePermission(['vehicles.view', 'schedule.view'])
     async options() { return { data: await this.vehicles.options() }; }
     @Get('reservations') @RequirePermission(['vehicles.view', 'schedule.view'])
     async reservations(@Query(new ZodValidationPipe(vehicleReservationQuerySchema)) query: VehicleReservationQuery) { return this.vehicles.reservations(query); }
     @Post('reservations') @RequirePermission(['vehicles.reserve', 'schedule.create'])
     async reserve(@Body(new ZodValidationPipe(vehicleReservationCreateSchema)) input: VehicleReservationCreateInput, @Request() req: any) { return { data: await this.vehicles.reserve(input, req.user.id) }; }
-    @Post('reservations/:id/checkout') @RequirePermission(['vehicles.reserve', 'schedule.create']) @UseInterceptors(FileInterceptor('odometerPhoto', { storage: photoStorage, limits: { fileSize: 20 * 1024 * 1024, files: 1 } }))
-    async checkout(@Param('id') id: string, @Body() body: Record<string, unknown>, @UploadedFile() file: Express.Multer.File, @Request() req: any) {
-        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) { if (file?.path) await unlink(file.path).catch(() => undefined); throw new BadRequestException('Reserva invalida'); }
+    @Post('reservations/:id/approve') @UseGuards(ManagerGuard) @RequirePermission(['vehicles.view', 'schedule.view'])
+    async approveReservation(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) { return { data: await this.vehicles.approveReservation(id, req.user.id) }; }
+    @Post('reservations/:id/reject') @UseGuards(ManagerGuard) @RequirePermission(['vehicles.view', 'schedule.view'])
+    async rejectReservation(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(vehicleReservationRejectionSchema)) input: VehicleReservationRejectionInput, @Request() req: any) { return { data: await this.vehicles.rejectReservation(id, input, req.user.id) }; }
+    @Post('reservations/:id/checkout') @RequirePermission(['vehicles.reserve', 'schedule.create']) @UseInterceptors(FileFieldsInterceptor([{ name: 'odometerPhoto', maxCount: 1 }, { name: 'vehiclePhoto', maxCount: 1 }], { storage: photoStorage, limits: { fileSize: 20 * 1024 * 1024, files: 2 } }))
+    async checkout(@Param('id') id: string, @Body() body: Record<string, unknown>, @UploadedFiles() files: CheckoutFiles, @Request() req: any) {
+        const odometerPhoto = files?.odometerPhoto?.[0], vehiclePhoto = files?.vehiclePhoto?.[0];
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) { await removeFiles([odometerPhoto, vehiclePhoto]); throw new BadRequestException('Reserva invalida'); }
         const parsed = vehicleCheckoutSchema.safeParse(body);
-        if (!parsed.success) { if (file?.path) await unlink(file.path).catch(() => undefined); throw new BadRequestException(parsed.error.issues[0]?.message || 'Dados de retirada invalidos'); }
-        return { data: await this.vehicles.checkout(id, parsed.data, file, req.user.id) };
+        if (!parsed.success) { await removeFiles([odometerPhoto, vehiclePhoto]); throw new BadRequestException(parsed.error.issues[0]?.message || 'Dados de retirada invalidos'); }
+        return { data: await this.vehicles.checkout(id, parsed.data, odometerPhoto, vehiclePhoto, req.user.id) };
     }
     @Post('reservations/:id/return') @RequirePermission(['vehicles.reserve', 'schedule.create']) @UseInterceptors(FileInterceptor('odometerPhoto', { storage: photoStorage, limits: { fileSize: 20 * 1024 * 1024, files: 1 } }))
     async returnVehicle(@Param('id') id: string, @Body() body: Record<string, unknown>, @UploadedFile() file: Express.Multer.File, @Request() req: any) {
@@ -49,6 +60,8 @@ export class VehiclesController {
     async list() { return { data: await this.vehicles.list() }; }
     @Post() @RequirePermission('schedule.create')
     async create(@Body(new ZodValidationPipe(vehicleCreateSchema)) input: VehicleCreateInput, @Request() req: any) { return { data: await this.vehicles.create(input, req.user.id) }; }
+    @Post(':id/service') @UseGuards(ManagerGuard) @RequirePermission(['vehicles.view', 'schedule.view'])
+    async registerService(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(vehicleServiceSchema)) input: VehicleServiceInput, @Request() req: any) { return { data: await this.vehicles.registerService(id, input, req.user.id) }; }
     @Put(':id') @RequirePermission('schedule.update')
     async update(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(vehicleInputSchema)) input: VehicleInput, @Request() req: any) { return { data: await this.vehicles.update(id, input, req.user.id) }; }
 }

@@ -1,4 +1,4 @@
-import type { VehicleCreateInput, VehicleInput, VehicleRecord, VehicleReservationCreateInput, VehicleReservationInput, VehicleReservationRecord, VehicleReservationQuery, VehicleStatistics, VehicleDashboard, VehicleDashboardQuery } from '@zyllen/shared';
+import type { VehicleCreateInput, VehicleInput, VehicleRecord, VehicleReservationCreateInput, VehicleReservationInput, VehicleReservationRecord, VehicleReservationQuery, VehicleStatistics, VehicleDashboard, VehicleDashboardQuery, VehicleApprovalQueue, VehicleOperations, VehicleReservationRejectionInput, VehicleServiceInput } from '@zyllen/shared';
 import { apiClient, ApiError, type RequestOptions } from '@web/lib/api-client';
 
 export function isVehicleServiceUnavailable(error: unknown): boolean {
@@ -14,7 +14,10 @@ export const vehicleApi = {
     reservations(query: VehicleReservationQuery, options: RequestOptions) { return apiClient.get<{ data: VehicleReservationRecord[]; total: number; page: number; limit: number }>(`/vehicles/reservations?${new URLSearchParams(Object.entries(query).map(([key, value]) => [key, String(value)]))}`, options); },
     async statistics(options: RequestOptions) { return (await apiClient.get<{ data: VehicleStatistics }>('/vehicles/statistics', options)).data; },
     async dashboard(query: VehicleDashboardQuery, options: RequestOptions) { return (await apiClient.get<{ data: VehicleDashboard }>(`/vehicles/dashboard?${new URLSearchParams(Object.entries(query).map(([key, value]) => [key, String(value)]))}`, options)).data; },
-    async operations(options: RequestOptions) { return (await apiClient.get<{ data: { inUse: VehicleReservationRecord[]; ready: VehicleReservationRecord[]; recent: VehicleReservationRecord[] } }>('/vehicles/operations', options)).data; },
+    async operations(options: RequestOptions) { return (await apiClient.get<{ data: VehicleOperations }>('/vehicles/operations', options)).data; },
+    async approvalRequests(options: RequestOptions) { return (await apiClient.get<{ data: VehicleApprovalQueue }>('/vehicles/approval-requests', options)).data; },
+    async approveReservation(id: string, options: RequestOptions) { return (await apiClient.post<{ data: VehicleReservationRecord }>(`/vehicles/reservations/${id}/approve`, {}, options)).data; },
+    async rejectReservation(id: string, input: VehicleReservationRejectionInput, options: RequestOptions) { return (await apiClient.post<{ data: VehicleReservationRecord }>(`/vehicles/reservations/${id}/reject`, input, options)).data; },
     async checkout(id: string, form: FormData, options: RequestOptions) { return (await apiClient.upload<{ data: VehicleReservationRecord }>(`/vehicles/reservations/${id}/checkout`, form, options)).data; },
     async returnVehicle(id: string, form: FormData, options: RequestOptions) { return (await apiClient.upload<{ data: VehicleReservationRecord }>(`/vehicles/reservations/${id}/return`, form, options)).data; },
     async create(input: VehicleCreateInput, options: RequestOptions) { return (await apiClient.post<{ data: VehicleRecord }>('/vehicles', input, options)).data; },
@@ -22,4 +25,5 @@ export const vehicleApi = {
     async reserve(input: VehicleReservationCreateInput, options: RequestOptions) { return (await apiClient.post<{ data: VehicleReservationRecord }>('/vehicles/reservations', input, options)).data; },
     async updateReservation(id: string, input: VehicleReservationInput, options: RequestOptions) { return (await apiClient.put<{ data: VehicleReservationRecord }>(`/vehicles/reservations/${id}`, input, options)).data; },
     async cancelReservation(id: string, options: RequestOptions) { return (await apiClient.put<{ data: VehicleReservationRecord }>(`/vehicles/reservations/${id}/cancel`, {}, options)).data; },
+    async registerService(id: string, input: VehicleServiceInput, options: RequestOptions) { return (await apiClient.post<{ data: { id: string; name: string; odometer: number; servicedAt: string } }>(`/vehicles/${id}/service`, input, options)).data; },
 };

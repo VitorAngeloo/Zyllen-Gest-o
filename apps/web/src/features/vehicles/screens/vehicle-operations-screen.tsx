@@ -43,11 +43,10 @@ function BookingSummary({ booking, className }: { booking: VehicleReservationRec
     );
 }
 
-function OperationalMetric({ index, label, value, description, attention }: { index: string; label: string; value: number; description: string; attention?: boolean }) {
+function OperationalMetric({ label, value, description, attention }: { label: string; value: number; description: string; attention?: boolean }) {
     return (
         <div className={cn('relative min-h-28 px-4 py-4 sm:px-5', attention && value > 0 && 'bg-amber-400/[0.035]')}>
-            <span className={cn('font-mono text-[10px] font-semibold tracking-[0.16em]', attention && value > 0 ? 'text-amber-300' : 'text-[var(--zyllen-highlight)]')}>{index}</span>
-            <div className="mt-3 flex items-end justify-between gap-3">
+            <div className="flex h-full items-end justify-between gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.1em] text-white/60">{label}</p>
                     <p className="mt-1 text-xs leading-relaxed text-[var(--zyllen-muted)]">{description}</p>
@@ -58,15 +57,12 @@ function OperationalMetric({ index, label, value, description, attention }: { in
     );
 }
 
-function FormGroup({ index, title, description, children }: { index: string; title: string; description: string; children: ReactNode }) {
+function FormGroup({ title, description, children }: { title: string; description: string; children: ReactNode }) {
     return (
         <section className="space-y-4">
-            <div className="flex items-start gap-3 border-b border-white/10 pb-3">
-                <span className="font-mono text-[10px] font-semibold tracking-[0.16em] text-[var(--zyllen-highlight)]">{index}</span>
-                <div>
-                    <h3 className="text-sm font-semibold text-white">{title}</h3>
-                    <p className="mt-1 text-xs leading-relaxed text-[var(--zyllen-muted)]">{description}</p>
-                </div>
+            <div className="border-b border-white/10 pb-3">
+                <h3 className="text-sm font-semibold text-white">{title}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--zyllen-muted)]">{description}</p>
             </div>
             {children}
         </section>
@@ -98,31 +94,33 @@ function CheckoutForm({ booking, users, onDone, onCancel }: { booking: VehicleRe
     const [clientName, setClientName] = useState('');
     const [destination, setDestination] = useState('');
     const [purpose, setPurpose] = useState('');
-    const [odometer, setOdometer] = useState('');
+    const [odometer, setOdometer] = useState(booking.vehicle.currentOdometer === null || booking.vehicle.currentOdometer === undefined ? '' : String(booking.vehicle.currentOdometer));
     const [fuel, setFuel] = useState('');
     const [damage, setDamage] = useState('');
-    const [photo, setPhoto] = useState<File | null>(null);
-    const [photoBusy, setPhotoBusy] = useState(false);
+    const [odometerPhoto, setOdometerPhoto] = useState<File | null>(null);
+    const [vehiclePhoto, setVehiclePhoto] = useState<File | null>(null);
+    const [odometerPhotoBusy, setOdometerPhotoBusy] = useState(false);
+    const [vehiclePhotoBusy, setVehiclePhotoBusy] = useState(false);
     const [error, setError] = useState('');
     const [pending, setPending] = useState(false);
     const submit = async (event: React.FormEvent) => {
         event.preventDefault(); setError('');
-        if (pending || photoBusy) return;
-        if (!driverId || !purpose || !fuel || !damage || !photo) { setError('Preencha todos os campos e anexe a foto do hodômetro.'); return; }
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(photo.type) || photo.size > 20 * 1024 * 1024) { setError('Use uma foto JPG, PNG ou WebP de até 20 MB.'); return; }
+        if (pending || odometerPhotoBusy || vehiclePhotoBusy) return;
+        if (!driverId || !purpose || !fuel || !damage || !odometerPhoto || !vehiclePhoto) { setError('Preencha os campos e anexe as fotos do hodômetro e do estado do carro.'); return; }
+        if ([odometerPhoto, vehiclePhoto].some(photo => !['image/jpeg', 'image/png', 'image/webp'].includes(photo.type) || photo.size > 20 * 1024 * 1024)) { setError('Use fotos JPG, PNG ou WebP de até 20 MB.'); return; }
         const form = new FormData();
         Object.entries({ driverId, clientName: clientName.trim(), destination: destination.trim(), purpose, odometerOut: odometer, fuelOut: fuel, hadDamageOut: damage }).forEach(([key, value]) => form.append(key, value));
-        form.append('odometerPhoto', photo);
+        form.append('odometerPhoto', odometerPhoto); form.append('vehiclePhoto', vehiclePhoto);
         setPending(true);
         try { await vehicleApi.checkout(booking.id, form, options); toast.success('Retirada registrada. O carro agora está em uso.'); await onDone(); }
         catch (failure) { setError(failure instanceof Error ? failure.message : 'Não foi possível registrar a retirada. Confira os dados e tente novamente.'); }
         finally { setPending(false); }
     };
     return (
-        <form onSubmit={submit} className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.018]" aria-label={`Retirada de ${booking.vehicle.name}`} aria-busy={pending || photoBusy}>
+        <form onSubmit={submit} className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.018]" aria-label={`Retirada de ${booking.vehicle.name}`} aria-busy={pending || odometerPhotoBusy || vehiclePhotoBusy}>
             <ActiveTaskHeader step="Etapa 1 de 2" title="Registrar retirada" description="Identifique o condutor e confira o estado do carro antes de sair." booking={booking} onCancel={onCancel} />
             <div className="grid gap-7 p-4 sm:p-5 lg:grid-cols-2 lg:gap-8">
-                <FormGroup index="01" title="Uso e destino" description="Defina quem assume o carro e para qual atividade.">
+                <FormGroup title="Uso e destino" description="Defina quem assume o carro e para qual atividade.">
                     <div className="grid gap-4">
                         <div className={labelClass}><label htmlFor="checkout-driver">Colaborador / condutor *</label><SearchableSelect id="checkout-driver" ariaLabel="Colaborador / condutor" placeholder="Selecione o condutor" searchPlaceholder="Digite para buscar" emptyText="Nenhum colaborador encontrado" value={driverId} options={users.map(person => ({ value: person.id, label: person.name }))} onValueChange={setDriverId} disabled={pending} /></div>
                         <label className={labelClass}>Cliente ou uso interno *<Input value={clientName} onChange={event => setClientName(event.target.value)} required minLength={2} maxLength={160} placeholder="Ex.: Skyline ou nome do cliente" disabled={pending} /></label>
@@ -130,14 +128,17 @@ function CheckoutForm({ booking, users, onDone, onCancel }: { booking: VehicleRe
                         <label className={labelClass}>Finalidade da utilização *<select className={selectClass} value={purpose} onChange={event => setPurpose(event.target.value)} required disabled={pending}><option value="">Selecione</option>{purposes.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
                     </div>
                 </FormGroup>
-                <FormGroup index="02" title="Conferência de saída" description="Registre a leitura e uma evidência legível do painel.">
+                <FormGroup title="Conferência rápida do carro" description="Confirme a leitura, o combustível e registre como o carro está saindo.">
                     <div className="grid gap-4">
                         <div className="grid gap-4 sm:grid-cols-2">
                             <label className={labelClass}>Quilometragem na retirada (km) *<Input type="number" min="0" max="9999999" step="1" inputMode="numeric" value={odometer} onChange={event => setOdometer(event.target.value)} required disabled={pending} /></label>
                             <label className={labelClass}>Combustível na retirada *<select className={selectClass} value={fuel} onChange={event => setFuel(event.target.value)} required disabled={pending}><option value="">Selecione</option>{fuels.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
                         </div>
                         <fieldset className="space-y-3 border-l border-white/15 py-1 pl-4 text-sm text-white"><legend className="pr-2">O veículo apresenta avarias na saída? *</legend><div className="flex min-h-10 items-center gap-6"><label className="flex cursor-pointer items-center gap-2"><input type="radio" name="damage" value="true" checked={damage === 'true'} onChange={event => setDamage(event.target.value)} required disabled={pending} /> Sim</label><label className="flex cursor-pointer items-center gap-2"><input type="radio" name="damage" value="false" checked={damage === 'false'} onChange={event => setDamage(event.target.value)} required disabled={pending} /> Não</label></div></fieldset>
-                        <VehiclePhotoInput label="Foto do hodômetro na retirada" value={photo} onChange={setPhoto} onBusyChange={setPhotoBusy} disabled={pending} />
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <VehiclePhotoInput label="Foto do hodômetro na retirada" value={odometerPhoto} onChange={setOdometerPhoto} onBusyChange={setOdometerPhotoBusy} disabled={pending} />
+                            <VehiclePhotoInput label="Foto do estado do carro" value={vehiclePhoto} onChange={setVehiclePhoto} onBusyChange={setVehiclePhotoBusy} disabled={pending} help="Fotografe o carro de forma ampla. Esta foto é obrigatória com ou sem avaria." />
+                        </div>
                     </div>
                 </FormGroup>
             </div>
@@ -146,7 +147,7 @@ function CheckoutForm({ booking, users, onDone, onCancel }: { booking: VehicleRe
                 <p className="text-xs text-[var(--zyllen-muted)]">Os campos com * são obrigatórios.</p>
                 <div className="flex flex-col-reverse gap-2 sm:flex-row">
                     <Button type="button" variant="ghost" className="min-h-11" onClick={onCancel} disabled={pending}>Cancelar</Button>
-                    <Button type="submit" variant="highlight" className="min-h-11" disabled={pending || photoBusy}>{pending ? 'Registrando retirada…' : 'Confirmar retirada'}</Button>
+                    <Button type="submit" variant="highlight" className="min-h-11" disabled={pending || odometerPhotoBusy || vehiclePhotoBusy}>{pending ? 'Registrando retirada…' : 'Confirmar retirada'}</Button>
                 </div>
             </footer>
         </form>
@@ -179,14 +180,14 @@ function ReturnForm({ booking, onDone, onCancel }: { booking: VehicleReservation
             <ActiveTaskHeader step="Etapa 2 de 2" title="Registrar devolução" description="Confira a chegada para liberar o carro novamente." booking={booking} onCancel={onCancel} />
             <div className="space-y-7 p-4 sm:p-5">
                 {overdue && <div role="status" className="flex items-start gap-3 border-l-2 border-amber-400 bg-amber-400/5 px-4 py-3 text-sm text-amber-100"><AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><span><strong className="font-semibold">Prazo encerrado.</strong> O atraso será calculado e registrado ao confirmar a devolução.</span></div>}
-                <FormGroup index="01" title="Saída registrada" description="Use estes dados como referência antes de conferir o retorno.">
+                <FormGroup title="Saída registrada" description="Use estes dados como referência antes de conferir o retorno.">
                     <dl className="grid divide-y divide-white/10 border-y border-white/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                         <div className="px-3 py-3"><dt className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-white/40"><UserRound className="size-3.5" /> Condutor</dt><dd className="mt-2 text-sm font-medium text-white">{booking.use?.driver.name}</dd></div>
                         <div className="px-3 py-3"><dt className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-white/40"><KeyRound className="size-3.5" /> Retirada</dt><dd className="mt-2 text-sm tabular-nums text-white">{booking.use && formatDateTime(booking.use.checkedOutAt)}</dd></div>
                         <div className="px-3 py-3"><dt className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-white/40"><CarFront className="size-3.5" /> Quilometragem</dt><dd className="mt-2 text-sm font-medium tabular-nums text-white">{booking.use?.odometerOut} km</dd></div>
                     </dl>
                 </FormGroup>
-                <FormGroup index="02" title="Conferência de chegada" description="Registre a leitura final e confirme se o trajeto correspondeu ao planejado.">
+                <FormGroup title="Conferência de chegada" description="Registre a leitura final e confirme se o trajeto correspondeu ao planejado.">
                     <div className="grid gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
                         <div className="space-y-5">
                             <label className={labelClass}>Quilometragem na devolução (km) *<Input type="number" min={booking.use?.odometerOut ?? 0} max="9999999" step="1" inputMode="numeric" value={odometer} onChange={event => setOdometer(event.target.value)} required disabled={pending} /></label>
@@ -239,74 +240,54 @@ export default function VehicleOperationsScreen() {
         ? (selected.action === 'checkout' ? data?.ready : data?.inUse)?.find(row => row.id === selected.id)
         : undefined;
     const overdueCount = data?.inUse.filter(booking => Date.parse(booking.endDate) < Date.now()).length ?? 0;
+    const waitingApproval = data?.waitingApproval ?? [];
+    const actions = data ? [
+        ...data.inUse.map(booking => ({ booking, action: 'return' as const, overdue: Date.parse(booking.endDate) < Date.now() })),
+        ...data.ready.map(booking => ({ booking, action: 'checkout' as const, overdue: false })),
+    ].sort((a, b) => Number(b.overdue) - Number(a.overdue) || (a.action === b.action ? Date.parse(a.booking.endDate) - Date.parse(b.booking.endDate) : a.action === 'return' ? -1 : 1)) : [];
+
+    if (selectedBooking && selected?.action === 'checkout' && canOperate && people.isSuccess) return <div className="space-y-8">
+        <PageHeader eyebrow="Operação · Carros" title="Retiradas e devoluções" description="Conclua somente esta tarefa. Seus dados ficam preservados se o envio falhar." />
+        <VehicleWorkspaceNav />
+        <section id="vehicle-active-task" aria-label="Tarefa em andamento"><CheckoutForm key={selectedBooking.id} booking={selectedBooking} users={people.data?.responsibleUsers ?? []} onDone={afterSave} onCancel={() => setSelected(null)} /></section>
+    </div>;
+    if (selectedBooking && selected?.action === 'return' && canOperate) return <div className="space-y-8">
+        <PageHeader eyebrow="Operação · Carros" title="Retiradas e devoluções" description="Conclua somente esta tarefa para liberar o carro novamente." />
+        <VehicleWorkspaceNav />
+        <section id="vehicle-active-task" aria-label="Tarefa em andamento"><ReturnForm key={selectedBooking.id} booking={selectedBooking} onDone={afterSave} onCancel={() => setSelected(null)} /></section>
+    </div>;
 
     return (
         <div className="space-y-8">
-            <PageHeader eyebrow="Operação · Carros" title="Retiradas e devoluções" description="A reserva planeja o uso. Registre a retirada quando pegar a chave e a devolução quando entregar o carro." />
+            <PageHeader eyebrow="Operação · Carros" title="Retiradas e devoluções" description="Escolha a ação que precisa fazer agora. O formulário abre sozinho, sem misturar com o restante da fila." />
             <VehicleWorkspaceNav />
             {operations.isError && <div role="alert" className="border-l-2 border-red-400 bg-red-500/5 px-4 py-3 text-sm text-red-200">Não foi possível carregar as movimentações. <Button variant="ghost" size="sm" onClick={() => void operations.refetch()}>Tentar novamente</Button></div>}
             {people.isError && <div role="alert" className="border-l-2 border-amber-400 bg-amber-400/5 px-4 py-3 text-sm text-amber-200">Não foi possível carregar os colaboradores para a retirada. <Button variant="ghost" size="sm" onClick={() => void people.refetch()}>Tentar novamente</Button></div>}
-            {operations.isLoading && <div role="status" className="grid animate-pulse divide-y divide-white/10 border-y border-white/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0"><div className="h-28 bg-white/[0.02]" /><div className="h-28 bg-white/[0.02]" /><div className="h-28 bg-white/[0.02]" /><span className="sr-only">Carregando movimentações…</span></div>}
+            {operations.isLoading && <div role="status" className="grid animate-pulse divide-y divide-white/10 border-y border-white/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0"><div className="h-24 bg-white/[0.02]" /><div className="h-24 bg-white/[0.02]" /><div className="h-24 bg-white/[0.02]" /><span className="sr-only">Carregando movimentações…</span></div>}
             {data && (
                 <>
-                    <section aria-label="Resumo das movimentações" className="grid divide-y divide-white/10 border-y border-white/10 bg-white/[0.012] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                        <OperationalMetric index="01" label="Aguardando retirada" value={data.ready.length} description="Reservas prontas para iniciar" />
-                        <OperationalMetric index="02" label="Em uso" value={data.inUse.length} description="Carros fora da base" />
-                        <OperationalMetric index="03" label="Atenção" value={overdueCount} description="Devoluções fora do prazo" attention />
+                    <section aria-label="Resumo das movimentações" className="grid divide-y divide-white/10 border-y border-white/10 bg-white/[0.012] sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+                        <OperationalMetric label="Para retirar" value={data.ready.length} description="Já autorizadas" />
+                        <OperationalMetric label="Para devolver" value={data.inUse.length} description="Carros em uso" />
+                        <OperationalMetric label="Aguardando" value={waitingApproval.length} description="Autorização do gestor" />
+                        <OperationalMetric label="Atrasadas" value={overdueCount} description="Devoluções fora do prazo" attention />
+                    </section>
+                    <section className="space-y-4">
+                        <ListSectionHeader title="Ações de agora" description="Devoluções aparecem primeiro; atrasos ficam destacados. Toque em uma única ação para entrar no modo de foco." />
+                        {actions.length ? <ul className="grid gap-3 lg:grid-cols-2">{actions.map(({ booking, action, overdue }) => <li key={`${action}-${booking.id}`} className={cn('rounded-xl border p-4 sm:p-5', overdue ? 'border-amber-300/25 bg-amber-400/[0.04]' : 'border-white/10 bg-white/[0.02]')}>
+                            <div className="space-y-3"><OperationStatus type={action === 'checkout' ? 'ready' : 'in-use'} overdue={overdue} /><BookingSummary booking={booking} />{action === 'return' && <p className="flex items-center gap-2 text-xs text-[var(--zyllen-muted)]"><UserRound className="size-3.5" /> {booking.use?.driver.name} · retirada em {booking.use && formatDateTime(booking.use.checkedOutAt)}</p>}</div>
+                            {canOperate && <Button className="mt-4 min-h-12 w-full" variant={action === 'checkout' ? 'highlight' : overdue ? 'highlight-outline' : 'outline'} disabled={action === 'checkout' && !people.isSuccess} onClick={() => setSelected({ id: booking.id, action })}>{action === 'checkout' ? 'Iniciar retirada' : 'Registrar devolução'}</Button>}
+                        </li>)}</ul> : <EmptyState icon={<CheckCircle2 className="size-5" />} title="Nada para fazer agora" description="Reservas autorizadas aparecem no horário de retirada; carros em uso ficam aqui até a devolução." />}
                     </section>
 
-                    {selectedBooking && selected?.action === 'checkout' && canOperate && people.isSuccess && (
-                        <section id="vehicle-active-task" aria-label="Tarefa em andamento" className="scroll-mt-20"><CheckoutForm key={selectedBooking.id} booking={selectedBooking} users={people.data?.responsibleUsers ?? []} onDone={afterSave} onCancel={() => setSelected(null)} /></section>
-                    )}
-                    {selectedBooking && selected?.action === 'return' && canOperate && (
-                        <section id="vehicle-active-task" aria-label="Tarefa em andamento" className="scroll-mt-20"><ReturnForm key={selectedBooking.id} booking={selectedBooking} onDone={afterSave} onCancel={() => setSelected(null)} /></section>
-                    )}
+                    {waitingApproval.length > 0 && <section className="space-y-3"><ListSectionHeader title="Aguardando autorização" description="A retirada permanece bloqueada até um Administrador ou Gestor autorizar." />
+                        <ul className="divide-y divide-white/10 border-y border-white/10">{waitingApproval.map(booking => <li key={booking.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><BookingSummary booking={booking} /><Badge variant="warning" className="w-fit">Retirada bloqueada</Badge></li>)}</ul>
+                    </section>}
 
-                    <div className="grid items-start gap-8 xl:grid-cols-2">
-                        <section className="space-y-3">
-                            <ListSectionHeader title="Aguardando retirada" count={data.ready.length} description="Reservas cujo período já começou e ainda não tiveram retirada." />
-                            {data.ready.length ? (
-                                <ul className="divide-y divide-white/10 border-y border-white/10">
-                                    {data.ready.map(booking => (
-                                        <li key={booking.id} className={cn('relative px-4 py-4 transition-colors', selected?.id === booking.id && selected.action === 'checkout' && 'bg-[var(--zyllen-highlight)]/[0.035] before:absolute before:inset-y-3 before:left-0 before:w-0.5 before:bg-[var(--zyllen-highlight)]')}>
-                                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                                                <div className="space-y-3"><OperationStatus type="ready" /><BookingSummary booking={booking} /></div>
-                                                {canOperate && <Button className="min-h-11 w-full sm:w-auto" size="sm" variant="outline" disabled={!people.isSuccess} onClick={() => setSelected({ id: booking.id, action: 'checkout' })}>Registrar retirada</Button>}
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : <EmptyState icon={<CheckCircle2 className="size-5" />} title="Nenhuma retirada pendente" description="Quando começar o período de uma reserva, ela aparecerá aqui." />}
-                        </section>
-
-                        <section className="space-y-3">
-                            <ListSectionHeader title="Em uso" count={data.inUse.length} description="O carro volta a ficar disponível após a devolução registrada." />
-                            {data.inUse.length ? (
-                                <ul className="divide-y divide-white/10 border-y border-white/10">
-                                    {data.inUse.map(booking => {
-                                        const overdue = Date.parse(booking.endDate) < Date.now();
-                                        return (
-                                            <li key={booking.id} className={cn('relative px-4 py-4 transition-colors', selected?.id === booking.id && selected.action === 'return' && 'bg-[var(--zyllen-highlight)]/[0.035] before:absolute before:inset-y-3 before:left-0 before:w-0.5 before:bg-[var(--zyllen-highlight)]')}>
-                                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                                                    <div className="space-y-3">
-                                                        <OperationStatus type="in-use" overdue={overdue} />
-                                                        <BookingSummary booking={booking} />
-                                                        <p className="flex items-center gap-2 text-xs text-[var(--zyllen-muted)]"><UserRound className="size-3.5" aria-hidden="true" /> {booking.use?.driver.name} · retirada em {booking.use && formatDateTime(booking.use.checkedOutAt)}</p>
-                                                    </div>
-                                                    {canOperate && <Button className="min-h-11 w-full sm:w-auto" size="sm" variant={overdue ? 'highlight-outline' : 'outline'} onClick={() => setSelected({ id: booking.id, action: 'return' })}>Registrar devolução</Button>}
-                                                </div>
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
-                            ) : <EmptyState icon={<CarFront className="size-5" />} title="Nenhum carro em uso" description="Os carros retirados aparecerão aqui até a devolução." />}
-                        </section>
-                    </div>
-
-                    <section className="space-y-3">
-                        <ListSectionHeader title="Minhas devoluções recentes" count={data.recent.length} description="Comprovantes e leituras dos últimos usos encerrados por você." />
+                    <details className="border-y border-white/10 py-4">
+                        <summary className="cursor-pointer text-sm font-medium text-white">Devoluções recentes</summary>
                         {data.recent.length ? (
-                            <ul className="divide-y divide-white/10 border-y border-white/10">
+                            <ul className="mt-4 divide-y divide-white/10">
                                 {data.recent.map(booking => (
                                     <li key={booking.id} className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                                         <div>
@@ -314,12 +295,12 @@ export default function VehicleOperationsScreen() {
                                             <BookingSummary booking={booking} />
                                             <p className="mt-3 text-xs tabular-nums text-[var(--zyllen-muted)]">Devolvido em {booking.use?.returnedAt && formatDateTime(booking.use.returnedAt)} · {booking.use?.odometerOut} → {booking.use?.odometerIn} km</p>
                                         </div>
-                                        <div className="flex flex-wrap gap-2"><VehiclePhotoViewer label="Foto da retirada" path={booking.use?.checkoutPhotoUrl} /><VehiclePhotoViewer label="Foto da devolução" path={booking.use?.returnPhotoUrl} /></div>
+                                        <div className="flex flex-wrap gap-2"><VehiclePhotoViewer label="Foto do hodômetro na retirada" path={booking.use?.checkoutPhotoUrl} /><VehiclePhotoViewer label="Estado do carro na retirada" path={booking.use?.vehiclePhotoUrl} /><VehiclePhotoViewer label="Foto da devolução" path={booking.use?.returnPhotoUrl} /></div>
                                     </li>
                                 ))}
                             </ul>
-                        ) : <EmptyState icon={<Camera className="size-5" />} title="Nenhuma devolução recente" description="Os registros encerrados por você aparecerão neste histórico." />}
-                    </section>
+                        ) : <div className="mt-4"><EmptyState icon={<Camera className="size-5" />} title="Nenhuma devolução recente" description="Os registros encerrados por você aparecerão neste histórico." /></div>}
+                    </details>
                 </>
             )}
         </div>

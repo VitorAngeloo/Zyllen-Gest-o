@@ -19,7 +19,7 @@ function JourneyDetail({ booking }: { booking: VehicleReservationRecord }) {
             <p>Finalidade: {purposeLabel[use.purpose] || use.purpose}</p>
             <p>Hodômetro: {use.odometerOut.toLocaleString('pt-BR')} km · Combustível: {fuelLabel[use.fuelOut] || use.fuelOut}</p>
             <p>Avarias na retirada: {use.hadDamageOut ? 'Sim' : 'Não'}</p>
-            <VehiclePhotoViewer label="Ver foto da retirada" path={use.checkoutPhotoUrl} />
+            <div className="flex flex-wrap gap-2"><VehiclePhotoViewer label="Ver hodômetro da retirada" path={use.checkoutPhotoUrl} /><VehiclePhotoViewer label="Ver estado do carro" path={use.vehiclePhotoUrl} /></div>
         </div>
         <div className="space-y-2"><h3 className="font-medium text-white">Devolução</h3>
             {use.returnedAt ? <><p>Registrada por: {use.returnedBy?.name || 'Não informado'} · {date(use.returnedAt)}</p>
@@ -36,7 +36,7 @@ function JourneyDetail({ booking }: { booking: VehicleReservationRecord }) {
 export function VehicleJourneyTable({ data, onPageChange }: { data: VehicleDashboard; onPageChange: (page: number) => void }) {
     const [openId, setOpenId] = useState<string | null>(null);
     const totalPages = Math.max(1, Math.ceil(data.total / data.limit));
-    return <section className="space-y-4"><ListSectionHeader title="Registro de retiradas e devoluções" count={data.total} description="Abra uma linha para conferir dados de saída, chegada, responsáveis e fotos. Os registros seguem o mês da retirada." />
+    return <section className="space-y-4"><ListSectionHeader title="Registro de retiradas e devoluções" description="Abra uma linha para conferir dados de saída, chegada, responsáveis e fotos. Os registros seguem o mês da retirada." />
         {data.total ? <><div className="overflow-x-auto rounded-xl border border-white/10">
             <table className="w-full min-w-[850px] border-collapse text-left text-sm"><thead className="bg-white/[0.05] text-xs text-[var(--zyllen-muted)]"><tr>{['Carro / finalidade', 'Condutor / setor', 'Retirada', 'Devolução', 'Percurso', 'Situação', 'Detalhes'].map(label => <th key={label} scope="col" className="px-4 py-3 font-medium">{label}</th>)}</tr></thead>
                 <tbody className="divide-y divide-white/10">{data.journeys.map(booking => { const use = booking.use!; const open = openId === booking.id; return <Fragment key={booking.id}><tr className="align-top hover:bg-white/[0.025]">

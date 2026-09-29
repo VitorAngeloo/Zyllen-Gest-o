@@ -14,6 +14,7 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         const form = new FormData();
         for (const [key, value] of Object.entries(fields)) form.append(key, String(value));
         form.append('odometerPhoto', new Blob([Buffer.from([255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 0, 0, 0])], { type: 'image/jpeg' }), 'painel.jpg');
+        if (route.endsWith('/checkout')) form.append('vehiclePhoto', new Blob([Buffer.from([255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 0, 0, 0])], { type: 'image/jpeg' }), 'carro.jpg');
         const response = await fetch(origin + route, { method: 'POST', headers: { Authorization: 'Bearer ' + actor.token }, body: form });
         return { status: response.status, body: await response.json() };
     }
@@ -23,6 +24,7 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
     const reserveInput = (values = {}) => ({ requestId: crypto.randomUUID(), vehicleId: car.id, title: 'Visita operacional QA', responsibleId: crew.id, startDate: time(24), endDate: time(26), notes: 'Observação QA', ...values });
     const values = booking => ({ vehicleId: booking.vehicle.id, title: booking.title, responsibleId: booking.responsible.id, startDate: booking.startDate, endDate: booking.endDate, notes: booking.notes });
     const range = () => '/vehicles/reservations?' + new URLSearchParams({ start: time(-24), end: time(200) });
+    const approve = id => http('/vehicles/reservations/' + id + '/approve', 'POST', {}, admin);
     await run('Vehicles: empty fleet/statistics are successful, private, and do not create records', async () => {
         assert.deepEqual(ok(await http('/vehicles')), []);
         const stats = ok(await http('/vehicles/statistics')); assert.equal(stats.activeVehicles, 0); assert.equal(stats.availableVehicles, 0); assert.deepEqual(stats.upcoming, []);
@@ -41,6 +43,7 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
     });
     await run('Vehicles: create independent reservation, preserve request on replay and reject changed replay', async () => {
         const before = await prisma.schedule.count(), input = reserveInput(); booking = ok(await http('/vehicles/reservations', 'POST', input, crew), 201);
+        assert.equal(booking.approvalStatus, 'PENDING');
         assert.equal(ok(await http('/vehicles/reservations', 'POST', input, crew), 201).id, booking.id);
         assert.equal((await http('/vehicles/reservations', 'POST', { ...input, title: 'Mudou' }, crew)).status, 409);
         assert.equal(await prisma.vehicleReservation.count(), 1); assert.equal(await prisma.schedule.count(), before);
@@ -59,7 +62,9 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         assert.equal(await prisma.vehicleReservation.count({ where: { vehicleId: car.id, startDate: new Date(time(48)) } }), 1);
     });
     await run('Vehicles: editing excludes self, revalidates changed vehicle, and cancelled history frees the resource', async () => {
+        booking = ok(await approve(booking.id), 201); assert.equal(booking.approvalStatus, 'APPROVED');
         booking = ok(await http('/vehicles/reservations/' + booking.id, 'PUT', { ...values(booking), title: 'Reserva editada QA' }, crew));
+        assert.equal(booking.approvalStatus, 'PENDING');
         assert.equal((await http('/vehicles/reservations/' + booking.id, 'PUT', { ...values(booking), vehicleId: other.id }, crew)).status, 409);
         const cancelled = ok(await http('/vehicles/reservations/' + booking.id + '/cancel', 'PUT', {}, crew)); assert(cancelled.cancelledAt);
         ok(await http('/vehicles/reservations/' + booking.id + '/cancel', 'PUT', {}, crew));
@@ -75,19 +80,34 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         const person = await internal('Carros inativo QA', []); await prisma.internalUser.update({ where: { id: person.id }, data: { isActive: false } });
         assert.equal((await http('/vehicles/reservations', 'POST', reserveInput({ responsibleId: person.id, startDate: time(90), endDate: time(91) }), crew)).status, 400);
     });
+    await run('Vehicles: managers approve or reject requests and rejection frees the requested period', async () => {
+        const requested = ok(await http('/vehicles/reservations', 'POST', reserveInput({ vehicleId: other.id, startDate: time(60), endDate: time(62) }), crew), 201);
+        const rejected = ok(await http('/vehicles/reservations/' + requested.id + '/reject', 'POST', { reason: 'Carro reservado para uma prioridade operacional' }, admin), 201);
+        assert.equal(rejected.approvalStatus, 'REJECTED'); assert.equal(rejected.rejectionReason, 'Carro reservado para uma prioridade operacional'); assert.equal(rejected.reviewedBy.id, admin.id);
+        const replacement = ok(await http('/vehicles/reservations', 'POST', reserveInput({ vehicleId: other.id, startDate: time(60), endDate: time(62) }), crew), 201);
+        assert.equal(replacement.approvalStatus, 'PENDING');
+        assert.equal((await http('/vehicles/reservations/' + replacement.id + '/reject', 'POST', { reason: '' }, admin)).status, 400);
+        assert.equal(await prisma.auditLog.count({ where: { action: 'VEHICLE_RESERVATION_REJECTED', entityId: requested.id } }), 1);
+    });
     await run('Vehicles: reservation is not physical occupancy; checkout, late return and history use actual events', async () => {
         const current = ok(await http('/vehicles/reservations', 'POST', reserveInput({ vehicleId: other.id, startDate: time(-1), endDate: time(1) }), crew), 201);
         let stats = ok(await http('/vehicles/statistics')); assert.equal(stats.activeVehicles, 2); assert.equal(stats.occupiedVehicles, 0); assert.equal(stats.availableVehicles, 2); assert(stats.upcoming.some(item => item.id === current.id));
         assert.equal((await http('/vehicles/dashboard', 'GET', undefined, crew)).status, 403);
         assert.equal((await http('/vehicles/dashboard', 'GET', undefined, admin)).status, 200);
+        assert(ok(await http('/vehicles/approval-requests', 'GET', undefined, admin)).pending.some(item => item.id === current.id));
+        assert.equal((await http('/vehicles/approval-requests', 'GET', undefined, crew)).status, 403);
+        assert(ok(await http('/vehicles/operations', 'GET', undefined, crew)).waitingApproval.some(item => item.id === current.id));
+        assert.equal((await photoRequest('/vehicles/reservations/' + current.id + '/checkout', { driverId: crew.id, clientName: 'Cliente QA', destination: 'Obra QA', purpose: 'INSTALACAO', odometerOut: 15000, fuelOut: 'METADE', hadDamageOut: 'false' }, crew)).status, 409);
+        ok(await approve(current.id), 201);
         assert.equal((await photoRequest('/vehicles/reservations/' + current.id + '/checkout', { driverId: crew.id, clientName: 'Cliente QA', destination: 'Obra QA', purpose: 'INSTALACAO', odometerOut: 15000, fuelOut: 'METADE', hadDamageOut: 'false' }, reader)).status, 403);
         const checkout = ok(await photoRequest('/vehicles/reservations/' + current.id + '/checkout', { driverId: crew.id, clientName: 'Cliente QA', destination: 'Obra QA', purpose: 'INSTALACAO', odometerOut: 15000, fuelOut: 'METADE', hadDamageOut: 'false' }, crew), 201);
-        assert(checkout.use?.checkoutPhotoUrl); assert.equal(checkout.use.odometerOut, 15000);
+        assert(checkout.use?.checkoutPhotoUrl); assert(checkout.use?.vehiclePhotoUrl); assert.equal(checkout.use.odometerOut, 15000);
         assert.equal((await fetch(origin + checkout.use.checkoutPhotoUrl)).status, 401);
         const sessionResponse = await fetch(origin + '/vehicles', { headers: { Authorization: 'Bearer ' + crew.token } });
         const cookie = sessionResponse.headers.get('set-cookie')?.split(';')[0]; assert(cookie?.startsWith('zyllen_media='));
         const photo = await fetch(origin + checkout.use.checkoutPhotoUrl, { headers: { Cookie: cookie } });
         assert.equal(photo.status, 200); assert.equal(photo.headers.get('content-type'), 'image/jpeg');
+        const conditionPhoto = await fetch(origin + checkout.use.vehiclePhotoUrl, { headers: { Cookie: cookie } }); assert.equal(conditionPhoto.status, 200);
         assert.equal((await photoRequest('/vehicles/reservations/' + current.id + '/checkout', { driverId: crew.id, clientName: 'Cliente QA', destination: 'Obra QA', purpose: 'INSTALACAO', odometerOut: 15000, fuelOut: 'METADE', hadDamageOut: 'false' })).status, 409);
         assert.equal((await http('/vehicles/reservations/' + current.id + '/cancel', 'PUT', {}, crew)).status, 409);
         stats = ok(await http('/vehicles/statistics')); assert.equal(stats.occupiedVehicles, 1); assert.equal(stats.availableVehicles, 1); assert.equal(stats.current[0].id, current.id);
@@ -100,6 +120,9 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         const report = ok(await http('/vehicles/dashboard?month=' + month, 'GET', undefined, admin));
         assert(report.journeys.some(item => item.id === current.id));
         assert(report.totalKm >= 31); assert(report.byVehicle.some(item => item.id === other.id && item.km >= 31));
+        const trackedWithoutService = report.byVehicle.find(item => item.id === other.id);
+        assert.equal(trackedWithoutService.currentOdometer, 15031); assert(trackedWithoutService.kmSinceService >= 31);
+        assert.equal(trackedWithoutService.serviceDistanceSource, 'TRACKED_USAGE'); assert(trackedWithoutService.serviceProgress > 0);
         assert(report.bySector.some(item => item.trips >= 1));
         assert.equal((await http('/vehicles/dashboard?month=2026-13', 'GET', undefined, admin)).status, 400);
         assert(ok(await http('/vehicles/operations', 'GET', undefined, crew)).recent.some(item => item.id === current.id));
@@ -113,6 +136,21 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         const history = await prisma.vehicleReservation.create({ data: { title: 'Passado QA', vehicleId: other.id, responsibleId: crew.id, createdById: crew.id, startDate: new Date(time(-5)), endDate: new Date(time(-4)) } });
         assert.equal((await http('/vehicles/reservations/' + history.id + '/cancel', 'PUT', {}, crew)).status, 400);
         assert.equal((await http('/vehicles/reservations/' + history.id, 'PUT', values(current), crew)).status, 400);
+    });
+    await run('Vehicles: dashboard tracks real odometer and a fixed 5000 km service cycle with a 24 hour alert', async () => {
+        ok(await http('/vehicles/' + car.id + '/service', 'POST', { odometer: 1000 }, admin), 201);
+        const serviceTrip = ok(await http('/vehicles/reservations', 'POST', reserveInput({ vehicleId: car.id, startDate: time(-0.2), endDate: time(0.8) }), crew), 201);
+        ok(await approve(serviceTrip.id), 201);
+        ok(await photoRequest('/vehicles/reservations/' + serviceTrip.id + '/checkout', { driverId: crew.id, clientName: 'Uso interno', destination: 'Revisao QA', purpose: 'MANUTENCAO', odometerOut: 6000, fuelOut: 'CHEIO', hadDamageOut: 'false' }, crew), 201);
+        ok(await photoRequest('/vehicles/reservations/' + serviceTrip.id + '/return', { odometerIn: 6020, sameDestination: 'true' }, crew), 201);
+        let report = ok(await http('/vehicles/dashboard', 'GET', undefined, admin));
+        let tracked = report.byVehicle.find(item => item.id === car.id);
+        assert.equal(tracked.currentOdometer, 6020); assert.equal(tracked.kmSinceService, 5020); assert.equal(tracked.serviceDistanceSource, 'SERVICE'); assert.equal(tracked.serviceProgress, 100); assert.equal(tracked.serviceDue, true); assert(tracked.serviceAlertUntil);
+        ok(await http('/vehicles/' + car.id + '/service', 'POST', { odometer: 6020 }, admin), 201);
+        report = ok(await http('/vehicles/dashboard', 'GET', undefined, admin)); tracked = report.byVehicle.find(item => item.id === car.id);
+        assert.equal(tracked.kmSinceService, 0); assert.equal(tracked.serviceDue, false); assert.equal(tracked.serviceAlertUntil, null);
+        assert.equal(await prisma.auditLog.count({ where: { action: 'VEHICLE_SERVICE_DUE', entityId: car.id } }), 1);
+        assert.equal(await prisma.auditLog.count({ where: { action: 'VEHICLE_SERVICE_RECORDED', entityId: car.id } }), 2);
     });
     await run('Vehicles: invalid periods, UUIDs, injected fields and oversized queries are rejected without effects', async () => {
         const before = await prisma.vehicleReservation.count();
@@ -146,8 +184,9 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         assert.equal((await http('/vehicles', 'POST', carInput({ plate: null }), unprivileged)).status, 403);
         ok(await http('/vehicles/reservations', 'POST', reserveInput({ vehicleId: other.id, responsibleId: unprivileged.id, startDate: time(185), endDate: time(186) }), unprivileged), 201);
         const current = ok(await http('/vehicles/reservations', 'POST', reserveInput({ vehicleId: other.id, responsibleId: unprivileged.id, startDate: time(-0.25), endDate: time(0.75) }), unprivileged), 201);
-        ok(await photoRequest('/vehicles/reservations/' + current.id + '/checkout', { driverId: unprivileged.id, clientName: 'Skyline', destination: 'Escritorio', purpose: 'OUTRO', odometerOut: 200, fuelOut: 'CHEIO', hadDamageOut: 'false' }, unprivileged), 201);
-        ok(await photoRequest('/vehicles/reservations/' + current.id + '/return', { odometerIn: 210, sameDestination: 'true' }, unprivileged), 201);
+        ok(await approve(current.id), 201);
+        ok(await photoRequest('/vehicles/reservations/' + current.id + '/checkout', { driverId: unprivileged.id, clientName: 'Skyline', destination: 'Escritorio', purpose: 'OUTRO', odometerOut: 16000, fuelOut: 'CHEIO', hadDamageOut: 'false' }, unprivileged), 201);
+        ok(await photoRequest('/vehicles/reservations/' + current.id + '/return', { odometerIn: 16010, sameDestination: 'true' }, unprivileged), 201);
         assert.equal((await http('/vehicles/reservations', 'POST', reserveInput({ startDate: time(100), endDate: time(101) }), reader)).status, 403);
         assert.equal((await http('/vehicles/reservations/' + booking.id, 'PUT', values(booking), reader)).status, 403);
         assert.equal((await http('/vehicles/reservations/' + booking.id + '/cancel', 'PUT', {}, reader)).status, 403);

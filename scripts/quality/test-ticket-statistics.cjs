@@ -33,7 +33,7 @@ async function main() {
     if (vehicles) {
         let baseline = fs.readFileSync(ddlSchema, 'utf8');
         for (const name of ['Vehicle', 'VehicleReservation', 'VehicleUse']) baseline = baseline.replace(new RegExp('^model ' + name + ' \\{[\\s\\S]*?^\\}', 'm'), '');
-        baseline = baseline.replace(/^.*(?:vehicleReservations|vehicleBookingsCreated|vehicleUsesDriven|vehicleCheckouts|vehicleReturns).*\r?\n/gm, '');
+        baseline = baseline.replace(/^.*(?:vehicleReservations|vehicleBookingsCreated|vehicleReservationsReviewed|vehicleUsesDriven|vehicleCheckouts|vehicleReturns).*\r?\n/gm, '');
         ddlSchema = path.join(artifacts, 'baseline-schema.prisma'); fs.writeFileSync(ddlSchema, baseline);
     }
     if (inventoryStatistics) {
@@ -75,6 +75,8 @@ async function main() {
         for (const action of ['view', 'reserve']) await db.query('INSERT INTO "ScreenPermission" (id,screen,action) VALUES ($1,$2,$3)', [crypto.randomUUID(), 'vehicles', action]);
         const useMigration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260921110000_vehicle_checkout_return/migration.sql'), 'utf8');
         assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(useMigration)); await db.exec(useMigration);
+        const workflowMigration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260929160000_vehicle_approval_service_condition_photo/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(workflowMigration)); await db.exec(workflowMigration);
         assert.equal((await db.query('SELECT COUNT(*) AS total FROM "RolePermission" WHERE "roleId"=$1', [internosRoleId])).rows[0].total, 2);
         assert.deepEqual((await db.query('SELECT COUNT(*) AS total FROM "InternalUser"')).rows, before);
         const privateTables = (await db.query("SELECT relrowsecurity FROM pg_class WHERE relname IN ('Vehicle','VehicleReservation','VehicleUse')")).rows;

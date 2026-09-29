@@ -10,7 +10,7 @@ const artifacts = path.join(scratch, 'operational-migrations-qa'); fs.mkdirSync(
 const apiRequire = Module.createRequire(path.join(root, 'apps/api/package.json'));
 const deps = Module.createRequire(path.join(root, 'tmp/security-test-deps/package.json'));
 const { PGlite } = deps('@electric-sql/pglite');
-const names = ['20260918030000_project_operational_service','20260918040000_trips','20260918050000_asset_custody','20260918060000_stock_minimums','20260918070000_structure_cycles','20260918080000_panel_mirrors','20260918100000_vehicle_reservations','20260921110000_vehicle_checkout_return','20260921130000_project_followup_link','20260923120000_panel_attention_clients','20260929120000_panel_multiple_mirrors'];
+const names = ['20260918030000_project_operational_service','20260918040000_trips','20260918050000_asset_custody','20260918060000_stock_minimums','20260918070000_structure_cycles','20260918080000_panel_mirrors','20260918100000_vehicle_reservations','20260921110000_vehicle_checkout_return','20260921130000_project_followup_link','20260923120000_panel_attention_clients','20260929120000_panel_multiple_mirrors','20260929160000_vehicle_approval_service_condition_photo'];
 const tables = names.flatMap(name => [...fs.readFileSync(path.join(root, 'apps/api/prisma/migrations', name, 'migration.sql'), 'utf8').matchAll(/CREATE TABLE "([^"]+)"/g)].map(m => m[1]));
 function ddl(schema) { return execFileSync(process.execPath, [apiRequire.resolve('prisma/build/index.js'), 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', schema, '--script'], { cwd: scratch, encoding: 'utf8', windowsHide: true, env: { ...process.env, DATABASE_URL: 'postgresql://test@127.0.0.1:1/test', DIRECT_URL: 'postgresql://test@127.0.0.1:1/test' } }); }
 let actual, expected;
@@ -19,6 +19,10 @@ let actual, expected;
     for (const table of tables) baseline = baseline.replace(new RegExp('^model ' + table + ' \\{[\\s\\S]*?^\\}', 'm'), '');
     baseline = baseline.replace(/^.*(?:projectServiceAssignments|operationalService|projectService ProjectService|startedAt\s+DateTime\?|completedAt\s+DateTime\?|cancelledAt\s+DateTime\?|tripAssignments|\btrip\s+Trip\?|operationalStructures|panelMirrors?\s+PanelMirror|panelAttentionClients|inventoryLocations|custodyTransfers|custodyTransfer\s+InventoryTransfer|transferItems|custodyItem|stockMinimums|vehicleReservations|vehicleBookingsCreated|vehicleUsesDriven|vehicleCheckouts|vehicleReturns|\buses\s+VehicleUse|\buse\s+VehicleUse).*\r?\n/gm, '');
     baseline = baseline.replace(/^\s+followupId\s+String\?\s+@unique\s*\r?\n/gm, '');
+    baseline = baseline.replace(/^model InternalUser \{[\s\S]*?^\}/m, body => body.split('\n').filter(line => !/\bvehicleReservationsReviewed\b/.test(line)).join('\n'));
+    baseline = baseline.replace(/^model Vehicle \{[\s\S]*?^\}/m, body => body.split('\n').filter(line => !/\b(lastServiceOdometer|lastServiceAt|serviceDueSince)\b/.test(line)).join('\n'));
+    baseline = baseline.replace(/^model VehicleReservation \{[\s\S]*?^\}/m, body => body.split('\n').filter(line => !/\b(approvalStatus|reviewedById|reviewedAt|rejectionReason|reviewedBy)\b/.test(line)).join('\n'));
+    baseline = baseline.replace(/^model VehicleUse \{[\s\S]*?^\}/m, body => body.split('\n').filter(line => !/\b(vehiclePhotoName|vehiclePhotoPath)\b/.test(line)).join('\n'));
     baseline = baseline.replace(/^model Location \{[\s\S]*?^\}/m, body => body.split('\n').filter(line => !/\b(kind|companyId|projectId|isMainWarehouse|company|project|transfersFrom|transfersTo)\b/.test(line)).join('\n'));
     const baselinePath = path.join(artifacts, 'baseline-schema.prisma'); fs.writeFileSync(baselinePath, baseline);
     actual = await PGlite.create(); expected = await PGlite.create(); await actual.exec(ddl(baselinePath)); await expected.exec(ddl(path.join(root, 'apps/api/prisma/schema.prisma')));

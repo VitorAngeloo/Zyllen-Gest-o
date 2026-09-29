@@ -10,6 +10,7 @@ export function VehicleWorkspaceNav() {
     const links = [
         { href: '/dashboard/carros', label: 'Reservas' },
         { href: '/dashboard/carros/movimentacoes', label: 'Retiradas e devoluções' },
+        ...(manager ? [{ href: '/dashboard/carros/aprovacoes', label: 'Autorizações' }] : []),
         ...(manager ? [{ href: '/dashboard/carros/painel', label: 'Painel' }] : []),
     ];
     return <nav aria-label="Áreas de carros" className="flex flex-wrap gap-1 border-b border-white/10">
