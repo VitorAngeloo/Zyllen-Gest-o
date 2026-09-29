@@ -68,9 +68,19 @@ export class PanelDataService {
         else throw new NotFoundException('Chamado indisponível neste espelho');
         return { ...row, attachments: [], messages: [], rating: null };
     }
-    private async selectedCompanyIds(ownerId: string): Promise<string[]> {
+    private async selectedCompanyIds(): Promise<string[]> {
         const rows = await this.prisma.retry(() => this.prisma.$queryRaw<{ companyId: string }[]>`
-            SELECT "companyId" FROM "PanelAttentionClient" WHERE "ownerId" = ${ownerId} ORDER BY "createdAt" ASC, "companyId" ASC
+            WITH "latestTeamSelection" AS (
+                SELECT "ownerId"
+                FROM "PanelAttentionClient"
+                GROUP BY "ownerId"
+                ORDER BY MAX("createdAt") DESC, "ownerId" ASC
+                LIMIT 1
+            )
+            SELECT attention."companyId"
+            FROM "PanelAttentionClient" attention
+            INNER JOIN "latestTeamSelection" latest ON latest."ownerId" = attention."ownerId"
+            ORDER BY attention."createdAt" ASC, attention."companyId" ASC
         `);
         return rows.map(row => row.companyId);
     }
@@ -88,7 +98,7 @@ export class PanelDataService {
     }
     async attentionClients(actor: PanelActor, search = ''): Promise<PanelAttentionClientsData> {
         this.access.require(actor, 'clientes-atencao');
-        const selectedIds = await this.selectedCompanyIds(actor.id);
+        const selectedIds = await this.selectedCompanyIds();
         const optionRows = await this.prisma.retry(() => this.prisma.company.findMany({
             where: { ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}), ...(selectedIds.length ? { id: { notIn: selectedIds } } : {}) },
             select: { id: true }, orderBy: [{ name: 'asc' }, { id: 'asc' }], take: 12,
@@ -101,13 +111,13 @@ export class PanelDataService {
         const existing = input.companyIds.length ? await this.prisma.retry(() => this.prisma.company.count({ where: { id: { in: input.companyIds } } })) : 0;
         if (existing !== input.companyIds.length) throw new BadRequestException('Um ou mais clientes não estão disponíveis');
         await this.prisma.$transaction(async tx => {
-            await tx.$queryRaw`SELECT 1 AS "locked" FROM pg_advisory_xact_lock(hashtext(${`panel-attention:${actor.id}`}))`;
-            await tx.$executeRaw`DELETE FROM "PanelAttentionClient" WHERE "ownerId" = ${actor.id}`;
+            await tx.$queryRaw`SELECT 1 AS "locked" FROM pg_advisory_xact_lock(hashtext(${'panel-attention:team'}))`;
+            await tx.$executeRaw`DELETE FROM "PanelAttentionClient"`;
             if (input.companyIds.length) {
                 const values = input.companyIds.map(companyId => Prisma.sql`(${actor.id}, ${companyId})`);
                 await tx.$executeRaw(Prisma.sql`INSERT INTO "PanelAttentionClient" ("ownerId", "companyId") VALUES ${Prisma.join(values)}`);
             }
-            await tx.auditLog.create({ data: { action: 'PANEL_ATTENTION_CLIENTS_UPDATED', entityType: 'PanelAttentionClient', entityId: actor.id, userId: actor.id, details: { companyIds: input.companyIds } } });
+            await tx.auditLog.create({ data: { action: 'PANEL_ATTENTION_CLIENTS_UPDATED', entityType: 'PanelAttentionClient', entityId: actor.id, userId: actor.id, details: { companyIds: input.companyIds, scope: 'TEAM' } } });
         });
         return this.attentionClients(actor);
     }

@@ -965,7 +965,7 @@ model PanelMirror {
   @@index([ownerId, revokedAt])
 }
 
-// Curadoria manual para o monitor público de clientes; guarda somente os vínculos escolhidos.
+// Curadoria compartilhada da equipe para o monitor público; ownerId registra quem fez o último salvamento.
 model PanelAttentionClient {
   ownerId String
   companyId String

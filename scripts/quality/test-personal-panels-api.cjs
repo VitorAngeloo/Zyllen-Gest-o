@@ -56,10 +56,11 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
             if (view === 'estoque') assert.deepEqual(mirror.data.totals, native.data.totals);
         }
     });
-    await run('Panel: attention clients are curated by an authenticated owner and the mirror exposes only minimal contact data', async () => {
+    await run('Panel: attention clients are shared by the internal team and every mirror exposes only minimal contact data', async () => {
         assert.equal((await request('/personal-panel/attention-clients', unprivileged)).status, 403);
         assert.equal((await request('/personal-panel/attention-clients', client)).status, 403);
         await prisma.company.update({ where: { id: company.id }, data: { phone: '(11) 99999-0000' } });
+        const readerLink = await generate(reader, ['clientes-atencao']);
         const search = ok(await request('/personal-panel/attention-clients?q=Cliente', admin));
         assert.equal(search.options.find(item => item.id === company.id).contactPhone, null);
         const saved = ok(await request('/personal-panel/attention-clients', admin, 'PUT', { companyIds: [company.id] }));
@@ -67,8 +68,14 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         assert.equal(saved.selected[0].name, company.name);
         const mirror = ok(await request(root(link) + '/attention-clients'));
         assert.deepEqual(mirror.map(item => item.id), [company.id]);
+        assert.deepEqual(ok(await request(root(readerLink) + '/attention-clients')).map(item => item.id), [company.id]);
         assert.equal(mirror[0].contactPhone, '(11) 99999-0000');
         assert(!/email|passwordHash|pin4Hash|cpf|address/.test(JSON.stringify(mirror)));
+        const clearedByReader = ok(await request('/personal-panel/attention-clients', reader, 'PUT', { companyIds: [] }));
+        assert.deepEqual(clearedByReader.selected, []);
+        assert.deepEqual(ok(await request(root(link) + '/attention-clients')), []);
+        ok(await request('/personal-panel/attention-clients', admin, 'PUT', { companyIds: [company.id] }));
+        assert.deepEqual(ok(await request(root(readerLink) + '/attention-clients')).map(item => item.id), [company.id]);
         assert.equal((await request('/personal-panel/attention-clients', admin, 'PUT', { companyIds: [company.id, company.id] })).status, 400);
         assert.equal((await request(root(link) + '/attention-clients', null, 'PUT', { companyIds: [] })).status, 404);
     });
