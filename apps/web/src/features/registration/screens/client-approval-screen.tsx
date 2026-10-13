@@ -14,19 +14,18 @@ import { EmptyState, ListSectionHeader, WorkspaceBar, WorkspaceGroup } from '@we
 import { ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
-type ClientRequest = { id: string; name: string; email: string; phone?: string; companyId?: string; companyName?: string; companyCnpj?: string; projectId?: string; status: string; createdAt: string; rejectionReason?: string };
+type ClientRequest = { id: string; name: string; email: string; phone?: string; companyId?: string; companyName?: string; companyCnpj?: string; status: string; createdAt: string; rejectionReason?: string };
 type Option = { id: string; name: string };
 
 export default function ClientApprovalsPage() {
     const { user, userType, isLoading: authLoading } = useAuth();
-    const allowed = userType === 'internal' && ['Administrador', 'Gestor'].includes((user as any)?.role?.name);
+    const allowed = userType === 'internal' && user?.type === 'internal' && ['Administrador', 'Gestor'].includes(user.role.name);
     const opts = useAuthedFetch();
     const qc = useQueryClient();
     const [status, setStatus] = useState('PENDING');
     const [page, setPage] = useState(1);
     const [selected, setSelected] = useState<ClientRequest | null>(null);
     const [companyId, setCompanyId] = useState('');
-    const [projectId, setProjectId] = useState('');
     const [companyName, setCompanyName] = useState('');
     const [companyCnpj, setCompanyCnpj] = useState('');
     const [createCompany, setCreateCompany] = useState(false);
@@ -37,11 +36,8 @@ export default function ClientApprovalsPage() {
         queryFn: () => apiClient.get<{ data: ClientRequest[]; total: number }>(`/register/client-requests?status=${status}&page=${page}&limit=25`, opts) });
     const companies = useQuery({ queryKey: ['approval-company-options'], enabled: allowed,
         queryFn: () => apiClient.get<{ data: Option[] }>('/clients/companies/search', opts) });
-    const projects = useQuery({ queryKey: ['approval-project-options', companyId], enabled: allowed && !!companyId && !createCompany,
-        queryFn: () => apiClient.get<{ data: Option[] }>(`/clients/companies/${companyId}/projects-public`, opts) });
-
     const open = (request: ClientRequest) => {
-        setSelected(request); setCompanyId(request.companyId ?? ''); setProjectId(request.projectId ?? '');
+        setSelected(request); setCompanyId(request.companyId ?? '');
         setCompanyName(request.companyName ?? ''); setCompanyCnpj(request.companyCnpj ?? '');
         setCreateCompany(!request.companyId); setReason(''); setConfirmed(false);
     };
@@ -49,14 +45,14 @@ export default function ClientApprovalsPage() {
         if (!selected || busy) return;
         setBusy(true);
         try {
-            const body = approve ? (createCompany ? { companyName, companyCnpj: companyCnpj || undefined } : { companyId, projectId: projectId || undefined }) : { reason };
+            const body = approve ? (createCompany ? { companyName, companyCnpj: companyCnpj || undefined } : { companyId }) : { reason };
             await apiClient.post(`/register/client-requests/${selected.id}/${approve ? 'approve' : 'reject'}`, body, opts);
             toast.success(approve ? SECURITY_COPY.approved : SECURITY_COPY.rejected);
             setSelected(null);
             await qc.invalidateQueries({ queryKey: ['client-requests'] });
             await qc.invalidateQueries({ queryKey: ['external-users'] });
             await qc.invalidateQueries({ queryKey: ['approval-company-options'] });
-        } catch (error: any) { toast.error(error.message); }
+        } catch (error: unknown) { toast.error(error instanceof Error ? error.message : 'Não foi possível analisar a solicitação.'); }
         finally { setBusy(false); }
     };
 
@@ -85,7 +81,7 @@ export default function ClientApprovalsPage() {
         <ListSectionHeader
             title="Solicitações"
             count={requests.data?.total}
-            description="Revise a identidade, a empresa e o projeto antes de liberar o acesso."
+            description="Revise a identidade e a empresa antes de liberar o acesso a todos os projetos dela."
         />
 
         {requests.isLoading && <p role="status" className="text-sm text-[var(--zyllen-muted)]">Carregando solicitações...</p>}
@@ -112,19 +108,17 @@ export default function ClientApprovalsPage() {
             <DialogContent role="dialog" aria-modal="true" aria-label="Autorizar cliente"><DialogHeader><DialogTitle>Autorizar {selected?.name}</DialogTitle></DialogHeader>
                 <DialogBody><div className="space-y-4">
                     <p>Confira a identidade do solicitante e o vínculo com a empresa por um canal de confiança. Os dados enviados no cadastro não comprovam autorização.</p>
-                    <label className="flex gap-2"><input className="mt-0.5 size-4 accent-[var(--zyllen-highlight)]" type="checkbox" checked={createCompany} onChange={e => { setCreateCompany(e.target.checked); setProjectId(''); setConfirmed(false); }} />Cadastrar nova empresa</label>
+                    <label className="flex gap-2"><input className="mt-0.5 size-4 accent-[var(--zyllen-highlight)]" type="checkbox" checked={createCompany} onChange={e => { setCreateCompany(e.target.checked); setConfirmed(false); }} />Cadastrar nova empresa</label>
                     {createCompany ? <>
                         <label className="block space-y-1.5">Nome da empresa<Input value={companyName} maxLength={200} onChange={e => { setCompanyName(e.target.value); setConfirmed(false); }} /></label>
                         <label className="block space-y-1.5">CNPJ<Input value={companyCnpj} maxLength={30} onChange={e => setCompanyCnpj(e.target.value)} /></label>
                     </> : <>
-                        <label className="block space-y-1.5">Empresa autorizada<Select value={companyId} onValueChange={value => { setCompanyId(value); setProjectId(''); setConfirmed(false); }}><option value="">Selecione...</option>{companies.data?.data.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></label>
-                        <label className="block space-y-1.5">Projeto (opcional)<Select value={projectId} disabled={!companyId || projects.isLoading} onValueChange={value => { setProjectId(value); setConfirmed(false); }}><option value="">Sem projeto</option>{projects.data?.data.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></label>
-                        {projects.isError && <p role="alert">Falha ao carregar projetos. Tente novamente antes de aprovar.</p>}
+                        <label className="block space-y-1.5">Empresa autorizada<Select value={companyId} onValueChange={value => { setCompanyId(value); setConfirmed(false); }}><option value="">Selecione...</option>{companies.data?.data.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></label>
                     </>}
-                    <label className="flex gap-2"><input className="mt-0.5 size-4 accent-[var(--zyllen-highlight)]" type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Conferi a identidade e autorizo acesso aos dados desta empresa.</label>
+                    <label className="flex gap-2"><input className="mt-0.5 size-4 accent-[var(--zyllen-highlight)]" type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Conferi a identidade e autorizo acesso aos dados de todos os projetos desta empresa.</label>
                     <label className="block space-y-1.5">Motivo, se rejeitar<Input value={reason} maxLength={500} onChange={e => setReason(e.target.value)} placeholder="Informe o motivo da rejeição" /></label>
                 </div></DialogBody>
-                <DialogFooter><Button variant="ghost" disabled={busy} onClick={() => setSelected(null)}>Cancelar</Button><Button variant="destructive" disabled={busy || reason.trim().length < 3} onClick={() => decide(false)}>Rejeitar</Button><Button disabled={busy || !confirmed || (createCompany ? companyName.trim().length < 2 : !companyId || projects.isError)} onClick={() => decide(true)}>{busy ? 'Salvando...' : 'Aprovar acesso'}</Button></DialogFooter>
+                <DialogFooter><Button variant="ghost" disabled={busy} onClick={() => setSelected(null)}>Cancelar</Button><Button variant="destructive" disabled={busy || reason.trim().length < 3} onClick={() => decide(false)}>Rejeitar</Button><Button disabled={busy || !confirmed || (createCompany ? companyName.trim().length < 2 : !companyId)} onClick={() => decide(true)}>{busy ? 'Salvando...' : 'Aprovar acesso'}</Button></DialogFooter>
             </DialogContent>
         </Dialog>
     </div>;

@@ -2,7 +2,7 @@
 
 ## Solicitação pública
 
-`POST /register/client` cria uma solicitação pendente, sem criar usuário/empresa nem conceder acesso à empresa informada. Nome da empresa, projeto e demais dados do formulário representam uma intenção; não são autorização de vínculo. O cadastro não apropria OS por correspondência de nome.
+`POST /register/client` cria uma solicitação pendente, sem criar usuário/empresa nem conceder acesso à empresa informada. Nome da empresa e demais dados do formulário representam uma intenção; não são autorização de vínculo. O solicitante escolhe somente a empresa, sem escolher projeto. O cadastro não apropria OS por correspondência de nome.
 
 Após sucesso, o frontend usa `router.replace('/cadastro/solicitacao-enviada')` e apresenta **Solicitação enviada / Aguardando aprovação**. A confirmação explica a aprovação por Administrador/Gestor e orienta contato com a equipe; não promete e-mail automático.
 
@@ -18,7 +18,7 @@ Após sucesso, o frontend usa `router.replace('/cadastro/solicitacao-enviada')` 
 
 Na aba **Empresas** de **Clientes**, o campo de busca consulta a API privada por razão social ou CNPJ e pagina os resultados em lotes de 50. A busca por CNPJ ignora pontuação, inclusive quando o cadastro antigo guarda o número formatado. O total exibido corresponde aos resultados da consulta; a lista não fica limitada às primeiras 500 empresas do carregamento legado. A navegação oferece Anterior, Próxima e entrada numérica para ir diretamente a uma página válida; uma busca nova retorna à primeira página. `GET /clients/companies?q=...&page=...` exige `settings.view` e responde com `data`, `total`, `page` e `pageSize`. A chamada sem parâmetros preserva o contrato anterior para os demais consumidores.
 
-Somente Administrador/Gestor aprovam/rejeitam solicitações ou criam diretamente contas de clientes. O servidor verifica o papel, confirma empresa/projeto, valida a relação em transação e grava auditoria. A tela **Aprovar clientes** não substitui a checagem da API.
+Somente Administrador/Gestor aprovam/rejeitam solicitações ou criam diretamente contas de clientes. O servidor verifica o papel, confirma a empresa em transação e grava auditoria. A aprovação de uma solicitação pública cria o usuário sem projeto específico (`projectId = null`), com acesso a todos os projetos vinculados àquela empresa. A tela **Aprovar clientes** não substitui a checagem da API.
 
 Ao cadastrar uma empresa diretamente, a mesma transação cria um estoque geral vazio `CLIENT`, vinculado à empresa e sem projeto presumido. Quando uma aprovação cria uma empresa nova, o estoque é criado durante a aprovação; aprovar acesso para uma empresa existente não duplica seus locais. Falha na criação do estoque desfaz também a nova empresa. O estoque automático recebe auditoria com o administrador ou gestor responsável.
 

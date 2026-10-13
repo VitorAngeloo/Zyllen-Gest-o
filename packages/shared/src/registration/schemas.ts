@@ -12,7 +12,6 @@ export const registerClientSchema = z.object({
     companyId: z.string().uuid('Company ID inválido').optional(),
     companyName: z.string().min(2, 'Nome da empresa é obrigatório').optional(),
     companyCnpj: z.string().optional(),
-    projectId: z.string().uuid('Project ID inválido').optional(),
 });
 
 export const registerContractorSchema = z.object({

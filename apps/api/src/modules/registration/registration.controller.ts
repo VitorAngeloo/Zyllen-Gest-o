@@ -30,9 +30,9 @@ export class RegistrationController {
     @UseGuards(JwtAuthGuard, ManagerGuard)
     async approveClient(@Param('id') id: string, @Request() req: any,
         @Body(new ZodValidationPipe(z.object({
-            companyId: z.string().uuid().optional(), projectId: z.string().uuid().optional(),
+            companyId: z.string().uuid().optional(),
             companyName: z.string().trim().min(2).max(200).optional(), companyCnpj: z.string().max(30).optional(),
-        }).strict())) body: { companyId?: string; projectId?: string; companyName?: string; companyCnpj?: string }) {
+        }).strict())) body: { companyId?: string; companyName?: string; companyCnpj?: string }) {
         return this.registrationService.approveClient(id, req.user.id, body);
     }
 
@@ -60,7 +60,6 @@ export class RegistrationController {
             companyName?: string;
             companyId?: string;
             companyCnpj?: string;
-            projectId?: string;
         },
     ) {
         return this.registrationService.registerClient(body);

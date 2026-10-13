@@ -34,7 +34,6 @@ export class RegistrationService {
         companyName?: string;
         companyId?: string;
         companyCnpj?: string;
-        projectId?: string;
     }) {
         // Check if email already exists
         const existingUser = await this.prisma.externalUser.findUnique({
@@ -50,11 +49,6 @@ export class RegistrationService {
             if (!company) throw new NotFoundException('Empresa não encontrada');
         } else if (!data.companyName?.trim()) {
             throw new BadRequestException('Informe a empresa para análise do cadastro');
-        }
-        if (data.projectId && (!data.companyId || !await this.prisma.project.findFirst({
-            where: { id: data.projectId, companyId: data.companyId },
-        }))) {
-            throw new BadRequestException('Projeto não pertence à empresa informada');
         }
         const previous = await this.prisma.clientRegistrationRequest.findUnique({ where: { email: data.email } });
         if (previous) throw new ConflictException('Já existe uma solicitação para este email. Entre em contato com a Skyline.');
@@ -75,7 +69,7 @@ export class RegistrationService {
                 where, skip, take, orderBy: { createdAt: 'asc' },
                 select: {
                     id: true, name: true, email: true, phone: true, city: true, state: true, position: true,
-                    companyId: true, projectId: true, companyName: true, companyCnpj: true,
+                    companyId: true, companyName: true, companyCnpj: true,
                     status: true, createdAt: true, reviewedAt: true, rejectionReason: true,
                 },
             }),
@@ -84,7 +78,7 @@ export class RegistrationService {
         return { data, total };
     }
 
-    async approveClient(id: string, reviewerId: string, data: { companyId?: string; projectId?: string; companyName?: string; companyCnpj?: string }) {
+    async approveClient(id: string, reviewerId: string, data: { companyId?: string; companyName?: string; companyCnpj?: string }) {
         return this.prisma.$transaction(async (tx) => {
             const request = await tx.clientRegistrationRequest.findUnique({ where: { id } });
             if (!request) throw new NotFoundException('Solicitação não encontrada');
@@ -101,20 +95,17 @@ export class RegistrationService {
                 await createClientStock(tx, company, reviewerId);
                 companyId = company.id;
             }
-            if (data.projectId && !await tx.project.findFirst({ where: { id: data.projectId, companyId } })) {
-                throw new BadRequestException('Projeto não pertence à empresa aprovada');
-            }
             const user = await tx.externalUser.create({
                 data: {
                     name: request.name, email: request.email, passwordHash: request.passwordHash, cpf: request.cpf,
                     phone: request.phone, city: request.city, state: request.state, position: request.position,
-                    companyId, projectId: data.projectId || null, isActive: true,
+                    companyId, projectId: null, isActive: true,
                 },
                 select: { id: true, name: true, email: true },
             });
             await tx.clientRegistrationRequest.update({ where: { id }, data: { approvedUserId: user.id, passwordHash: '', cpf: null } });
             await tx.auditLog.create({ data: { action: 'CLIENT_REGISTRATION_APPROVED', entityType: 'ClientRegistrationRequest', entityId: id,
-                userId: reviewerId, details: { externalUserId: user.id, companyId, projectId: data.projectId ?? null } } });
+                userId: reviewerId, details: { externalUserId: user.id, companyId, accessScope: 'COMPANY' } } });
             return { data: user, message: 'Cliente aprovado. O acesso já está liberado.' };
         });
     }

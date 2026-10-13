@@ -432,7 +432,7 @@ export const SECURITY_COPY = {
   registrationGoToLogin: 'Ir para o login',
   registrationAnotherRequest: 'Enviar outra solicitação',
   registrationTitle: 'Aprovação de clientes',
-  registrationDescription: 'Confira o vínculo com a empresa e o projeto antes de liberar o acesso.',
+  registrationDescription: 'Confira o vínculo com a empresa antes de liberar o acesso a todos os projetos dela.',
   managerOnly: 'Esta área é restrita a Administrador e Gestor.',
   approved: 'Cliente aprovado. O acesso já está liberado.',
   rejected: 'Solicitação rejeitada.',

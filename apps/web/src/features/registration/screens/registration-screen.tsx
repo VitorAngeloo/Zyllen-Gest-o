@@ -14,7 +14,6 @@ import { PartnershipLogos } from "@web/components/brand/zyllen-logo";
 
 type Tab = "client" | "contractor";
 interface CompanyOption { id: string; name: string; cnpj: string | null }
-interface ProjectOption { id: string; name: string }
 
 function CadastroPageInner() {
     const router = useRouter();
@@ -27,9 +26,8 @@ function CadastroPageInner() {
         if (tabParam === "contractor") setTab("contractor");
     }, [searchParams]);
 
-    // ── Companies & Projects loaded from API ──
+    // ── Companies loaded from API ──
     const [companies, setCompanies] = useState<CompanyOption[]>([]);
-    const [projects, setProjects] = useState<ProjectOption[]>([]);
 
     useEffect(() => {
         apiClient.get<{ data: CompanyOption[] }>("/clients/companies/search")
@@ -41,22 +39,10 @@ function CadastroPageInner() {
     const [clientForm, setClientForm] = useState({
         name: "", email: "", password: "", confirmPassword: "",
         phone: "", city: "", state: "", position: "", cpf: "",
-        companyId: "", projectId: "", companyName: "", companyCnpj: "",
+        companyId: "", companyName: "", companyCnpj: "",
     });
 
     const isNewCompany = clientForm.companyId === "__new__";
-
-    // Load projects when company changes
-    useEffect(() => {
-        if (clientForm.companyId && clientForm.companyId !== "__new__") {
-            apiClient.get<{ data: ProjectOption[] }>(`/clients/companies/${clientForm.companyId}/projects-public`)
-                .then((res) => setProjects(res.data))
-                .catch(() => setProjects([]));
-        } else {
-            setProjects([]);
-        }
-        setClientForm((prev) => ({ ...prev, projectId: "" }));
-    }, [clientForm.companyId]);
 
     // ── Contractor form ──
     const [contractorForm, setContractorForm] = useState({
@@ -71,9 +57,9 @@ function CadastroPageInner() {
         }
         setLoading(true);
         try {
-            const { confirmPassword, ...data } = clientForm;
+            const data = Object.fromEntries(Object.entries(clientForm).filter(([key]) => key !== "confirmPassword"));
             // Strip empty strings and special values
-            const payload: Record<string, any> = {};
+            const payload: Record<string, unknown> = {};
             for (const [k, v] of Object.entries(data)) {
                 if (v && v !== "__new__") payload[k] = v;
             }
@@ -81,8 +67,8 @@ function CadastroPageInner() {
             // Preserve any existing session and do not return to the login page,
             // which redirects authenticated users to their current account.
             router.replace("/cadastro/solicitacao-enviada");
-        } catch (err: any) {
-            toast.error(err.message || "Erro ao cadastrar");
+        } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : "Erro ao cadastrar");
         } finally {
             setLoading(false);
         }
@@ -95,16 +81,16 @@ function CadastroPageInner() {
         }
         setLoading(true);
         try {
-            const { confirmPassword, ...data } = contractorForm;
-            const payload: Record<string, any> = {};
+            const data = Object.fromEntries(Object.entries(contractorForm).filter(([key]) => key !== "confirmPassword"));
+            const payload: Record<string, unknown> = {};
             for (const [k, v] of Object.entries(data)) {
                 if (v) payload[k] = v;
             }
             await apiClient.post("/register/contractor", payload);
             toast.success("Cadastro realizado com sucesso! Faça login para acessar.");
             router.push("/?type=contractor");
-        } catch (err: any) {
-            toast.error(err.message || "Erro ao cadastrar");
+        } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : "Erro ao cadastrar");
         } finally {
             setLoading(false);
         }
@@ -240,7 +226,7 @@ function CadastroPageInner() {
                                     <Label className="text-[var(--zyllen-muted)]">Empresa</Label>
                                     <Select
                                         value={clientForm.companyId}
-                                        onValueChange={(v) => setClientForm({ ...clientForm, companyId: v, projectId: "" })}
+                                        onValueChange={(v) => setClientForm({ ...clientForm, companyId: v })}
                                         placeholder="Selecione a empresa..."
                                         className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
                                     >
@@ -266,25 +252,6 @@ function CadastroPageInner() {
                                             <Label className="text-[var(--zyllen-muted)]">CNPJ</Label>
                                             <Input value={clientForm.companyCnpj} onChange={(e) => setClientForm({ ...clientForm, companyCnpj: e.target.value })} placeholder="00.000.000/0000-00" className={inputClass} />
                                         </div>
-                                    </div>
-                                )}
-
-                                {/* Projeto */}
-                                {clientForm.companyId && !isNewCompany && projects.length > 0 && (
-                                    <div className="space-y-2">
-                                        <Label className="text-[var(--zyllen-muted)]">Projeto</Label>
-                                        <Select
-                                            value={clientForm.projectId}
-                                            onValueChange={(v) => setClientForm({ ...clientForm, projectId: v })}
-                                            placeholder="Selecione o projeto..."
-                                            className="bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white"
-                                        >
-                                            {projects.map((p) => (
-                                                <SelectOption key={p.id} value={p.id}>
-                                                    {p.name}
-                                                </SelectOption>
-                                            ))}
-                                        </Select>
                                     </div>
                                 )}
 
