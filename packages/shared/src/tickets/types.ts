@@ -25,6 +25,7 @@ export interface TicketStatistics {
     period: { start: string; end: string };
     openedInPeriod: number;
     closedInPeriod: number;
+    averageFirstResponseSeconds: number | null;
     current: {
         pending: number;
         inProgress: number;

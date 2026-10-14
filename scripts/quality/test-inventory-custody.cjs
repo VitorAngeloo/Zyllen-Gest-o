@@ -197,11 +197,37 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         const requested = value(await http('/inventory/exit-batch', { actor: requester, method: 'POST', body }), 201);
         assert.equal(requested.approvalRequired, true);
         assert.equal((await prisma.asset.findUnique({ where: { id: writeOff.id } })).currentLocationId, warehouse.id);
+        const pending = value(await http('/inventory/approvals/pending')).find(request => request.id === requested.approvalRequestId);
+        assert.equal(pending.requestType, 'BATCH_WRITE_OFF');
+        assert.deepEqual(pending.assets, [{ id: writeOff.id, assetCode: writeOff.assetCode, sku: { name: sku.name, skuCode: sku.skuCode } }]);
+        assert.equal(pending.payloadJson.eventDescription, body.eventDescription);
         status(await http('/inventory/approvals/' + requested.approvalRequestId + '/approve', { actor: requester, method: 'POST', body: { pin } }), 403);
         status(await http('/inventory/approvals/' + requested.approvalRequestId + '/approve', { actor: approver, method: 'POST', body: { pin } }), 200);
         const lowered = await prisma.asset.findUnique({ where: { id: writeOff.id }, include: { currentLocation: true } });
         assert.equal(lowered.currentLocation.name, 'Baixa'); assert.equal(lowered.status, 'BAIXADO');
         assert.equal(await prisma.stockMovement.count({ where: { assetId: writeOff.id, referenceId: body.requestId } }), 1);
+    });
+    await run('Inventory: pending approvals identify mixed products, legacy quantity exits and missing assets without changing inventory', async () => {
+        const first = await asset();
+        const secondSku = await prisma.skuItem.create({ data: { skuCode: '890777', name: 'Segundo produto QA', categoryId: sku.categoryId } });
+        const second = await prisma.asset.create({ data: { assetCode: 'PENDING-SECOND-QA', skuId: secondSku.id, currentLocationId: warehouse.id } });
+        const missingId = crypto.randomUUID();
+        const batch = await prisma.approvalRequest.create({ data: { requestType: 'BATCH_WRITE_OFF', requestedById: requester.id, payloadJson: { assetIds: [first.id, second.id, missingId, first.id], assetId: first.id } } });
+        const legacy = await prisma.approvalRequest.create({ data: { requestType: 'EXIT_APPROVAL', requestedById: requester.id, payloadJson: { skuId: sku.id, qty: 3 } } });
+        const noPayload = await prisma.approvalRequest.create({ data: { requestType: 'BATCH_WRITE_OFF', requestedById: requester.id, payloadJson: {} } });
+        const completed = await prisma.approvalRequest.create({ data: { requestType: 'BATCH_WRITE_OFF', requestedById: requester.id, status: 'APPROVED', payloadJson: { assetIds: [first.id] } } });
+        const before = await prisma.asset.findMany({ where: { id: { in: [first.id, second.id] } } });
+        const pending = value(await http('/inventory/approvals/pending'));
+        assert.deepEqual(pending.find(request => request.id === batch.id).assets, [
+            { id: first.id, assetCode: first.assetCode, sku: { name: sku.name, skuCode: sku.skuCode } },
+            { id: second.id, assetCode: second.assetCode, sku: { name: secondSku.name, skuCode: secondSku.skuCode } },
+            { id: missingId, assetCode: null, sku: null },
+        ]);
+        assert.deepEqual(pending.find(request => request.id === legacy.id).product, { id: sku.id, name: sku.name, skuCode: sku.skuCode });
+        assert.equal(pending.find(request => request.id === legacy.id).payloadJson.qty, 3);
+        assert.deepEqual(pending.find(request => request.id === noPayload.id).assets, []);
+        assert(!pending.some(request => request.id === completed.id));
+        assert.deepEqual(await prisma.asset.findMany({ where: { id: { in: [first.id, second.id] } } }), before);
     });
     await run('Inventory: quick exit without a client retains location and timeline in Outros', async () => {
         const row = await asset();

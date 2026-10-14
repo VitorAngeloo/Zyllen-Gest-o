@@ -8,6 +8,8 @@ Em **Estoque → Patrimônios**, selecionar **Clientes** e a sala/projeto no fil
 
 ## Responsabilidades
 
+Nas aprovações pendentes da dashboard, a consulta de estoque resolve os patrimônios referenciados na solicitação e apresenta código, produto e SKU, além do motivo e evento informado. Lotes exibem todos os itens em lista rolável, sem repetir IDs; patrimônio não encontrado é sinalizado explicitamente. Saídas por SKU apresentam produto e quantidade quando não há unidade individual selecionada. A consulta usa cache por conta e atualiza a cada 30 segundos, sem movimentar itens nem alterar o fluxo de aprovação por PIN. As regressões de `test:inventory:custody` conferem a identificação pela API em banco descartável; `test:dashboard` confere a lista e sua atualização com dados sintéticos em computador e celular.
+
 `catalog` define SKU/produto; `assets` representa unidade física; `inventory` controla saldo e movimentos. `StockLedgerService` centraliza registro de saída em ledger. Compras/recebimentos precisam respeitar SKU, quantidade e vínculo do patrimônio.
 
 Arquivos de referência em `apps/api`:

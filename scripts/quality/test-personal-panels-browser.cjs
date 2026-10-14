@@ -72,8 +72,8 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             if (url.pathname === '/schedule') return respond({ data: state.empty ? [] : [{ id: 'upcoming-qa', title: 'Visita à unidade QA', type: 'INSTALLATION', status: 'SCHEDULED', startDate: new Date(fixedNow + 3600000).toISOString(), endDate: new Date(fixedNow + 7200000).toISOString(), companyName: 'Cliente agenda QA', projectName: 'Próximo projeto QA', installers: [{ id: 'installer-qa', name: 'Equipe agenda QA' }], address: 'Endereço agenda QA', notes: 'Detalhes do compromisso QA' }], total: state.empty ? 0 : 1 });
             const period = { start: params.start, end: params.end }, generatedAt = new Date(fixedNow).toISOString();
             const data = {
-                atendimentos: { generatedAt, period, source: params.source || 'ALL', scope: 'ALL', openedInPeriod: 1, closedInPeriod: 0, current: { pending: 1, inProgress: 0, waitingClient: 0, resolved: 0, needingAttention: 1, averagePendingSeconds: 4800, oldestPendingAt: ticket.createdAt }, sectors: [{ source: 'INTERNAL', name: 'Financeiro', openedInPeriod: 1 }] },
-                'atendimentos-clientes': { generatedAt, period, source: 'CLIENT', scope: 'ALL', openedInPeriod: 1, closedInPeriod: 0, current: { pending: 1, inProgress: 0, waitingClient: 0, resolved: 0, needingAttention: 1, averagePendingSeconds: 5400, oldestPendingAt: clientTicket.createdAt }, sectors: [{ source: 'CLIENT', name: 'Cliente QA', openedInPeriod: 1 }] },
+                atendimentos: { generatedAt, period, source: params.source || 'ALL', scope: 'ALL', openedInPeriod: 1, closedInPeriod: 0, averageFirstResponseSeconds: 600, current: { pending: 1, inProgress: 0, waitingClient: 0, resolved: 0, needingAttention: 1, averagePendingSeconds: 4800, oldestPendingAt: ticket.createdAt }, sectors: [{ source: 'INTERNAL', name: 'Financeiro', openedInPeriod: 1 }] },
+                'atendimentos-clientes': { generatedAt, period, source: 'CLIENT', scope: 'ALL', openedInPeriod: 1, closedInPeriod: 0, averageFirstResponseSeconds: 900, current: { pending: 1, inProgress: 0, waitingClient: 0, resolved: 0, needingAttention: 1, averagePendingSeconds: 5400, oldestPendingAt: clientTicket.createdAt }, sectors: [{ source: 'CLIENT', name: 'Cliente QA', openedInPeriod: 1 }] },
                 projetos: { generatedAt, period, type: 'ALL', current: { total: state.empty ? 0 : 5, active: state.empty ? 0 : 4 + state.bonus, pending: state.empty ? 0 : 1, scheduled: state.empty ? 0 : 2, inProgress: state.empty ? 0 : 1, done: state.empty ? 0 : 1, cancelled: 0 }, completedInPeriod: state.empty ? 0 : 1, cancelledInPeriod: 0, dataQuality: { completedWithoutDate: 0, cancelledWithoutDate: 0, unclassified: 0 }, highlights: [] },
                 operacoes: state.malformed ? {} : { generatedAt, period, installationsCompleted: 0, removalsCompleted: 0, tripsCompleted: 0, tripsPlanned: 0, current: { plannedTrips: 0, tripsInProgress: 0 }, dataQuality: { servicesCompletedWithoutDate: 0, tripsCompletedWithoutDate: 0, travelWithoutBooking: 0, unclassified: 0 }, nextInstallations: [], relevantInstallations: [], latestInstallations: [], latestRemovals: [], nextInterstateTrips: [] },
                 estoque: { generatedAt, period: { start: new Date(fixedNow - 30 * 86400000).toISOString(), end: generatedAt }, context: 'ALL', location: null, totals: { skus: 6, assets: 40, unlocated: 2, unclassified: 1 }, scope: { assets: 38, available: 8, maintenance: 2 }, movements: [], topEntries: [{ skuId: 'stock-qa', skuCode: '895001', name: 'Produto em uso QA', quantity: 20 }], topExits: [], priorities: [], criticalCount: 0, minimumConfiguredCount: 0, replenishmentConfigured: false }
@@ -327,6 +327,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         const s = await setup({ mirror: true, loggedOut: true, views: ['atendimentos', 'atendimentos-clientes'], query: 'visao=atendimentos-clientes&pausado=1' });
         await expect(selected(s.page)).toHaveAttribute('data-panel-view', 'atendimentos-clientes');
         await expect(s.page.getByText('Chamado do cliente no painel QA', { exact: true })).toBeVisible();
+        await expect(s.page.locator('[data-ticket-metric="wait"] [data-metric-value]')).toHaveText('15min 00s');
         await expect(s.page.getByText('Chamado completo no painel QA', { exact: true })).toHaveCount(0);
         assert(s.requests.some(r => r.path.endsWith('/tickets') && r.params.source === 'CLIENT'));
         assert(s.requests.some(r => r.path.endsWith('/statistics') && r.params.view === 'atendimentos-clientes'));
@@ -334,6 +335,19 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await expect(s.page.getByText('Chamado completo no painel QA', { exact: true })).toBeVisible();
         await expect(s.page.getByText('Chamado do cliente no painel QA', { exact: true })).toHaveCount(0);
         assert(s.requests.some(r => r.path.endsWith('/tickets') && r.params.source === 'INTERNAL'));
+        await expect(s.page.locator('[data-ticket-metric="wait"] [data-metric-value]')).toHaveText('10min 00s');
+        await s.page.getByLabel('Período dos indicadores', { exact: true }).selectOption('CUSTOM');
+        const statisticsCount = s.requests.filter(request => request.path.endsWith('/statistics')).length;
+        await s.page.getByLabel('Data final', { exact: true }).fill('2026-07-14');
+        await expect(s.page.getByRole('alert').filter({ hasText: 'Informe datas válidas' })).toHaveCount(0);
+        await expect(s.page.locator('[data-ticket-metric="wait"] [data-metric-value]')).toHaveText('10min 00s');
+        await s.page.getByLabel('Data inicial', { exact: true }).fill('2026-07-14');
+        await s.page.getByLabel('Data final', { exact: true }).fill('2026-10-14');
+        assert.equal(s.requests.filter(request => request.path.endsWith('/statistics')).length, statisticsCount);
+        await s.page.getByRole('button', { name: 'Aplicar período', exact: true }).click();
+        await expect.poll(() => s.requests.some(request => request.path.endsWith('/statistics') && request.params.source === 'INTERNAL'
+            && request.params.start === '2026-07-14T03:00:00.000Z' && request.params.end === '2026-10-15T03:00:00.000Z')).toBe(true);
+        await expect(s.page.getByRole('alert').filter({ hasText: 'Informe datas válidas' })).toHaveCount(0);
         await s.context.close();
     });
     await run('Monitoring panel: revoked mirror hides cached content after metadata refresh and has no login/navigation links', async () => {

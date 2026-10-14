@@ -48,7 +48,7 @@ async function run(name, work) {
     try { await work(); cases.push({ name, passed: true }); console.log('PASS ' + name); }
     catch (error) { cases.push({ name, passed: false, error: error.message }); console.error('FAIL ' + name + ': ' + error.message); }
 }
-async function setup({ role = 'Administrador', permissions = ['dashboard.view', 'tickets.view', 'tickets.triage'], tickets = fixtures(), failures = {}, viewport, timezoneId } = {}) {
+async function setup({ role = 'Administrador', permissions = ['dashboard.view', 'tickets.view', 'tickets.triage'], tickets = fixtures(), approvals = [], failures = {}, viewport, timezoneId } = {}) {
     const context = await browser.newContext({ viewport: viewport || { width: 1440, height: 1100 }, timezoneId });
     const requests = [], errors = [];
     await context.addInitScript(() => { localStorage.setItem('accessToken', 'synthetic-dashboard-qa'); localStorage.setItem('userType', 'internal'); });
@@ -64,6 +64,7 @@ async function setup({ role = 'Administrador', permissions = ['dashboard.view', 
         if (url.pathname === '/auth/me/permissions') return respond({ data: permissions });
         if (url.pathname === '/tickets/my-internal/pending-rating') return respond({ data: null });
         if (url.pathname === '/tickets/internal-users') return respond({ data: [{ id: 'tech-qa', name: 'Técnico QA', role: { name: 'Técnico' } }] });
+        if (url.pathname === '/inventory/approvals/pending') return respond({ data: approvals });
         if (url.pathname === '/personal-panel/attention-clients') return respond({ data: { selected: [], options: [] } });
         if (url.pathname === '/vehicles/statistics') return respond({ data: { generatedAt: new Date(fixedNow).toISOString(), activeVehicles: 0, occupiedVehicles: 0, availableVehicles: 0, current: [], upcoming: [] } });
         if (url.pathname === '/personal-panel/statistics') return respond({ data: { view: 'estoque', data: {
@@ -77,6 +78,8 @@ async function setup({ role = 'Administrador', permissions = ['dashboard.view', 
             const visible = tickets.filter(t => (source === 'ALL' || t.source === source) && (manager || t.status === 'OPEN' || t.assignedToInternalUserId === 'tech-qa'));
             const pending = visible.filter(t => t.status === 'OPEN' && !t.closedAt && !t.assignedToInternalUserId);
             const opened = visible.filter(t => Date.parse(t.createdAt) >= start && Date.parse(t.createdAt) < end);
+            const responses = visible.filter(t => t.firstResponseAt && Date.parse(t.firstResponseAt) >= start && Date.parse(t.firstResponseAt) < end
+                && Date.parse(t.firstResponseAt) >= Date.parse(t.createdAt) && Date.parse(t.firstResponseAt) <= fixedNow);
             const sectors = new Map();
             for (const t of opened) {
                 const name = t.source === 'INTERNAL' ? t.internalUser?.sector?.trim() || 'Sem setor' : t.company?.name || t.externalUser?.company?.name || 'Cliente não identificado';
@@ -88,6 +91,7 @@ async function setup({ role = 'Administrador', permissions = ['dashboard.view', 
                 generatedAt: new Date(fixedNow).toISOString(), source, scope: manager ? 'ALL' : 'OPEN_AND_ASSIGNED',
                 period: { start: url.searchParams.get('start'), end: url.searchParams.get('end') },
                 openedInPeriod: opened.length,
+                averageFirstResponseSeconds: responses.length ? Math.round(responses.reduce((total, t) => total + Date.parse(t.firstResponseAt) - Date.parse(t.createdAt), 0) / responses.length / 1000) : null,
                 closedInPeriod: visible.filter(t => t.status === 'CLOSED' && t.closedAt && Date.parse(t.closedAt) >= start && Date.parse(t.closedAt) < end).length,
                 current: { pending: pending.length, inProgress: visible.filter(t => t.status === 'IN_PROGRESS' && !t.closedAt).length,
                     waitingClient: visible.filter(t => t.status === 'WAITING_CLIENT' && !t.closedAt).length,
@@ -194,9 +198,10 @@ async function main() {
         try {
             await expect(metric('INTERNAL', 'opened')).toHaveText('4'); await expect(metric('INTERNAL', 'closed')).toHaveText('1');
             await expect(metric('INTERNAL', 'pending')).toHaveText('3'); await expect(metric('INTERNAL', 'in-progress')).toHaveText('0');
-            await expect(metric('INTERNAL', 'attention')).toHaveText('2'); await expect(metric('INTERNAL', 'wait')).toContainText('h');
+            await expect(metric('INTERNAL', 'attention')).toHaveText('2'); await expect(metric('INTERNAL', 'wait')).toHaveText('—');
             await expect(metric('CLIENT', 'opened')).toHaveText('1'); await expect(metric('CLIENT', 'in-progress')).toHaveText('1');
             await expect(metric('CLIENT', 'attention')).toHaveText('1');
+            await expect(metric('CLIENT', 'wait')).toHaveText('1h 15min 00s');
             await expect(sourceView('INTERNAL').getByRole('list', { name: 'Aberturas por setor' })).toContainText('Financeiro');
             await expect(sourceView('CLIENT').getByRole('list', { name: 'Aberturas por cliente' })).toContainText('Empresa QA');
             await sourceView('INTERNAL').getByLabel('Período dos indicadores', { exact: true }).selectOption('7_DAYS');
@@ -207,14 +212,91 @@ async function main() {
             await sourceView('CLIENT').getByLabel('Período dos indicadores', { exact: true }).selectOption('CUSTOM');
             await sourceView('CLIENT').getByLabel('Data inicial', { exact: true }).fill('2026-03-05');
             await sourceView('CLIENT').getByLabel('Data final', { exact: true }).fill('2026-03-04');
+            await sourceView('CLIENT').getByRole('button', { name: 'Aplicar período', exact: true }).click();
             await expect(sourceView('CLIENT').getByRole('alert').filter({ hasText: 'Informe datas válidas' })).toBeVisible();
-            await expect(metric('CLIENT', 'opened')).toHaveCount(0);
+            await expect(metric('CLIENT', 'opened')).toHaveText('1');
             await sourceView('CLIENT').getByLabel('Data final', { exact: true }).fill('2026-03-06');
+            await sourceView('CLIENT').getByRole('button', { name: 'Aplicar período', exact: true }).click();
             await expect(metric('CLIENT', 'opened')).toHaveText('0'); await expect(metric('CLIENT', 'in-progress')).toHaveText('1');
             assert(requests.some(r => r.path === '/tickets/statistics' && r.params.start === '2026-03-05T03:00:00.000Z' && r.params.end === '2026-03-07T03:00:00.000Z'));
             assert(!requests.some(r => r.path === '/tickets/statistics' && Date.parse(r.params.end) <= Date.parse(r.params.start)));
             assert.equal(page.url(), base + '/dashboard'); assert.deepEqual(errors, []);
         } finally { await context.close(); }
+    });
+    await run('Internal custom quarter dates stay editable without premature errors or queries, then apply together', async () => {
+        for (const viewport of [{ width: 1440, height: 1100 }, { width: 390, height: 844 }]) {
+            const s = await setup({ viewport, timezoneId: 'America/Sao_Paulo', tickets: [...fixtures(), ticket('quarter-closed', {
+                status: 'CLOSED', assignedToInternalUserId: 'tech-qa', createdAt: '2026-07-20T15:00:00.000Z',
+                firstResponseAt: '2026-07-20T15:20:00.000Z', closedAt: '2026-07-20T16:00:00.000Z',
+            })] });
+            try {
+                const view = s.page.locator('[data-ticket-source="INTERNAL"]');
+                const opened = view.locator('[data-ticket-metric="opened"] [data-metric-value]');
+                await expect(opened).toHaveText('2');
+                await view.getByLabel('Período dos indicadores', { exact: true }).selectOption('CUSTOM');
+                const before = s.requests.filter(request => request.path === '/tickets/statistics' && request.params.source === 'INTERNAL').length;
+                // Changing the final date first temporarily inverts the draft, which must remain editable.
+                await view.getByLabel('Data final', { exact: true }).fill('2026-07-14');
+                await expect(view.getByRole('alert')).toHaveCount(0);
+                await expect(opened).toHaveText('2');
+                await view.getByLabel('Data inicial', { exact: true }).fill('2026-07-14');
+                await view.getByLabel('Data final', { exact: true }).fill('2026-10-14');
+                assert.equal(s.requests.filter(request => request.path === '/tickets/statistics' && request.params.source === 'INTERNAL').length, before);
+                await view.getByRole('button', { name: 'Aplicar período', exact: true }).click();
+                await expect(opened).toHaveText('3');
+                await expect(view.locator('[data-ticket-metric="closed"] [data-metric-value]')).toHaveText('1');
+                await expect(view.locator('[data-ticket-metric="wait"] [data-metric-value]')).toHaveText('20min 00s');
+                assert(s.requests.some(request => request.path === '/tickets/statistics' && request.params.source === 'INTERNAL'
+                    && request.params.start === '2026-07-14T03:00:00.000Z' && request.params.end === '2026-10-15T03:00:00.000Z'));
+                await expect(view.getByRole('alert')).toHaveCount(0);
+                assert.equal(await s.page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+                await view.screenshot({ path: path.join(shots, `internal-custom-quarter-${viewport.width}.png`) });
+                assert.deepEqual(s.errors, []);
+            } finally { await s.context.close(); }
+        }
+    });
+    await run('Average response wait remains visible with no pending tickets and uses the selected first-response period', async () => {
+        const { context, page, errors } = await setup({ tickets: [
+            ticket('responded', { status: 'CLOSED', createdAt: date(10 * 24 * 60 + 20), firstResponseAt: date(10 * 24 * 60), closedAt: date(5), assignedToInternalUserId: 'tech-qa' }),
+            ticket('zero-wait', { status: 'RESOLVED', createdAt: date(10), firstResponseAt: date(10), assignedToInternalUserId: 'tech-qa' }),
+        ] });
+        try {
+            const view = page.locator('[data-ticket-source="INTERNAL"]');
+            const wait = view.locator('[data-ticket-metric="wait"] [data-metric-value]');
+            await expect(view.locator('[data-ticket-metric="pending"] [data-metric-value]')).toHaveText('0');
+            await expect(wait).toHaveText('10min 00s');
+            await expect(wait).toHaveAttribute('title', 'Da abertura ao primeiro atendimento iniciado no período');
+            await view.getByLabel('Período dos indicadores', { exact: true }).selectOption('7_DAYS');
+            await expect(wait).toHaveText('0s');
+            await expect(page.locator('[data-ticket-source="CLIENT"] [data-ticket-metric="wait"] [data-metric-value]')).toHaveText('—');
+            assert.deepEqual(errors, []);
+        } finally { await context.close(); }
+    });
+    await run('Pending write-offs list asset codes, products and SKUs on desktop/mobile and refresh incoming requests', async () => {
+        const approvals = [{ id: 'batch-qa', requestType: 'BATCH_WRITE_OFF', requestedBy: { name: 'Colaborador QA' }, reason: 'Baixa — QA',
+            payloadJson: { assetIds: ['asset-a', 'asset-b'], eventDescription: 'Itens danificados QA' }, assets: [
+                { id: 'asset-a', assetCode: 'SKY01001', sku: { name: 'Monitor QA', skuCode: '000123' } },
+                { id: 'asset-b', assetCode: 'SKY01002', sku: { name: 'Teclado QA', skuCode: '000456' } },
+            ] }];
+        for (const viewport of [{ width: 1440, height: 1100 }, { width: 390, height: 844 }]) {
+            const s = await setup({ approvals, permissions: ['dashboard.view', 'tickets.view', 'inventory.view'], viewport });
+            try {
+                const section = s.page.getByRole('region', { name: 'Aprovações pendentes' });
+                await expect(section.getByRole('list', { name: 'Itens da solicitação' })).toContainText('SKY01001 — Monitor QA (SKU 000123)');
+                await expect(section.getByRole('list', { name: 'Itens da solicitação' })).toContainText('SKY01002 — Teclado QA (SKU 000456)');
+                await expect(section).toContainText('Itens danificados QA');
+                await expect(section).toContainText('Colaborador QA');
+                if (viewport.width > 1000) {
+                    approvals.push({ id: 'legacy-exit-qa', requestType: 'EXIT_APPROVAL', requestedBy: { name: 'Outra pessoa QA' }, payloadJson: { qty: 3 }, assets: [], product: { name: 'Mouse QA', skuCode: '000789' } });
+                    await s.page.clock.runFor(30_100);
+                    await expect(section).toContainText('Mouse QA · SKU 000789 · Quantidade: 3');
+                    assert(s.requests.filter(request => request.path === '/inventory/approvals/pending').length >= 2);
+                }
+                await section.screenshot({ path: path.join(shots, `pending-approvals-${viewport.width}.png`) });
+                assert.equal(await s.page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+                assert.deepEqual(s.errors, []);
+            } finally { await s.context.close(); }
+        }
     });
     await run('Indicator failure leaves cards usable and retry recovers the summary', async () => {
         const failures = { '/tickets/statistics': true };

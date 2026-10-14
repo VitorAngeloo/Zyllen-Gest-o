@@ -58,9 +58,10 @@ function FullDashboardPage() {
     });
 
     const { data: approvals } = useQuery({
-        queryKey: ["approvals"],
+        queryKey: ["approvals", "pending", user?.id],
         queryFn: () => apiClient.get<{ data: any[] }>("/inventory/approvals/pending", fetchOpts),
         enabled: canViewInventory,
+        refetchInterval: 30_000,
     });
 
     const pendingApprovals = approvals?.data?.length ?? 0;
@@ -197,10 +198,18 @@ function FullDashboardPage() {
                             {approvals?.data?.slice(0, 5).map((req: any) => (
                                 <div key={req.id} className="flex items-center justify-between gap-4 border-l-2 border-l-amber-400/70 px-3 py-3 sm:px-4">
                                     <div className="min-w-0 flex-1">
-                                        <span className="text-sm text-white">{req.requestType === 'UNINSTALLATION' ? 'Conferência de desinstalação' : req.requestType === 'BATCH_WRITE_OFF' ? 'Baixa de estoque' : req.requestType}</span>
+                                        <span className="text-sm text-white">{req.requestType === 'UNINSTALLATION' ? 'Conferência de desinstalação' : req.requestType === 'BATCH_WRITE_OFF' ? 'Baixa de estoque' : req.requestType === 'EXIT_APPROVAL' ? 'Saída de estoque' : req.requestType}</span>
                                         {req.requestType === 'UNINSTALLATION' && <p className="text-xs text-amber-200">{req.payloadJson?.returnedAssetIds?.length ?? 0} devolvidos · {(req.payloadJson?.assetIds?.length ?? 0) - (req.payloadJson?.returnedAssetIds?.length ?? 0)} perdas</p>}
                                         {req.requestType === 'BATCH_WRITE_OFF' && <p className="text-xs text-amber-200">{req.payloadJson?.assetIds?.length ?? 0} patrimônio(s)</p>}
-                                        {req.requestType === 'UNINSTALLATION' && <p className="text-xs text-[var(--zyllen-muted)]">{req.reason}</p>}
+                                        {req.assets?.length > 0 && <ul aria-label="Itens da solicitação" className="my-2 max-h-48 space-y-1 overflow-y-auto text-sm text-white">
+                                            {req.assets.map((asset: any) => <li key={asset.id} className="break-words">
+                                                {asset.assetCode ? <><span className="font-semibold">{asset.assetCode}</span> — {asset.sku?.name} <span className="text-[var(--zyllen-muted)]">(SKU {asset.sku?.skuCode})</span></> : 'Patrimônio não encontrado'}
+                                            </li>)}
+                                        </ul>}
+                                        {!req.assets?.length && req.product && <p className="my-2 break-words text-sm text-white">{req.product.name} · SKU {req.product.skuCode} · Quantidade: {req.payloadJson?.qty ?? 1}</p>}
+                                        {req.requestType === 'BATCH_WRITE_OFF' && !req.assets?.length && <p className="text-xs text-amber-200">Identificação dos itens indisponível.</p>}
+                                        {(req.reason || req.payloadJson?.reason) && <p className="break-words text-xs text-[var(--zyllen-muted)]">Motivo: {req.reason || req.payloadJson?.reason}</p>}
+                                        {req.payloadJson?.eventDescription && <p className="break-words text-xs text-[var(--zyllen-muted)]">Evento: {req.payloadJson.eventDescription}</p>}
                                         <p className="text-xs text-[var(--zyllen-muted)]">
                                             Solicitado por {req.requestedBy?.name}
                                         </p>

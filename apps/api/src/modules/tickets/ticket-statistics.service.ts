@@ -7,6 +7,7 @@ type SummaryRow = {
     opened: bigint; closed: bigint; pending: bigint; inProgress: bigint;
     waitingClient: bigint; resolved: bigint; attention: bigint;
     averagePendingSeconds: number | null; oldestPendingAt: Date | null;
+    averageFirstResponseSeconds: number | null;
 };
 
 @Injectable()
@@ -32,6 +33,9 @@ export class TicketStatisticsService {
                 SELECT
                     COUNT(*) FILTER (WHERE t."createdAt" >= ${startUtc} AND t."createdAt" < ${endUtc}) AS opened,
                     COUNT(*) FILTER (WHERE t.status = 'CLOSED' AND t."closedAt" >= ${startUtc} AND t."closedAt" < ${endUtc}) AS closed,
+                    AVG(EXTRACT(EPOCH FROM (t."firstResponseAt" - t."createdAt")))
+                        FILTER (WHERE t."firstResponseAt" >= ${startUtc} AND t."firstResponseAt" < ${endUtc}
+                            AND t."firstResponseAt" >= t."createdAt" AND t."firstResponseAt" <= ${nowUtc})::float8 AS "averageFirstResponseSeconds",
                     COUNT(*) FILTER (WHERE t.status = 'OPEN' AND t."closedAt" IS NULL AND t."assignedToInternalUserId" IS NULL) AS pending,
                     COUNT(*) FILTER (WHERE t.status = 'IN_PROGRESS' AND t."closedAt" IS NULL) AS "inProgress",
                     COUNT(*) FILTER (WHERE t.status = 'WAITING_CLIENT' AND t."closedAt" IS NULL) AS "waitingClient",
@@ -63,6 +67,7 @@ export class TicketStatisticsService {
             generatedAt: now.toISOString(), source: query.source, scope: manager ? 'ALL' : 'OPEN_AND_ASSIGNED',
             period: { start: start.toISOString(), end: end.toISOString() },
             openedInPeriod: Number(row.opened), closedInPeriod: Number(row.closed),
+            averageFirstResponseSeconds: row.averageFirstResponseSeconds === null ? null : Math.round(row.averageFirstResponseSeconds),
             current: {
                 pending: Number(row.pending), inProgress: Number(row.inProgress), waitingClient: Number(row.waitingClient),
                 resolved: Number(row.resolved), needingAttention: Number(row.attention),

@@ -101,11 +101,35 @@ export class InventoryQueriesService {
     }
 
     async getPendingApprovals() {
-        return this.prisma.approvalRequest.findMany({
+        const requests = await this.prisma.retry(() => this.prisma.approvalRequest.findMany({
             where: { status: 'PENDING' },
             include: { requestedBy: { select: { name: true, email: true } } },
             orderBy: { createdAt: 'desc' },
-        });
+        }));
+        const payloads = requests.map(request => request.payloadJson as {
+            assetIds?: string[]; assetId?: string; skuId?: string;
+        } | null);
+        const idsFor = (payload: typeof payloads[number]) =>
+            [...new Set([...(Array.isArray(payload?.assetIds) ? payload.assetIds.filter(id => typeof id === 'string' && id.length > 0) : []),
+                ...(typeof payload?.assetId === 'string' && payload.assetId ? [payload.assetId] : [])])];
+        const assetIds = [...new Set(payloads.flatMap(idsFor))];
+        const skuIds = [...new Set(payloads.flatMap(payload => typeof payload?.skuId === 'string' ? [payload.skuId] : []))];
+        const [assets, products] = await Promise.all([
+            assetIds.length ? this.prisma.retry(() => this.prisma.asset.findMany({
+                where: { id: { in: assetIds } },
+                select: { id: true, assetCode: true, sku: { select: { name: true, skuCode: true } } },
+            })) : [],
+            skuIds.length ? this.prisma.retry(() => this.prisma.skuItem.findMany({
+                where: { id: { in: skuIds } }, select: { id: true, name: true, skuCode: true },
+            })) : [],
+        ]);
+        const assetsById = new Map(assets.map(asset => [asset.id, asset]));
+        const productsById = new Map(products.map(product => [product.id, product]));
+        return requests.map((request, index) => ({
+            ...request,
+            assets: idsFor(payloads[index]).map(id => assetsById.get(id) ?? { id, assetCode: null, sku: null }),
+            product: productsById.get(payloads[index]?.skuId ?? '') ?? null,
+        }));
     }
 
     async getStats() {

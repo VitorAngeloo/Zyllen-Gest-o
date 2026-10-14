@@ -284,6 +284,7 @@ async function main() {
         assert.equal(data.current.waitingClient, 1); assert.equal(data.current.resolved, 1);
         assert.equal(data.current.needingAttention, 3); assert.equal(data.current.oldestPendingAt, oldAt.toISOString());
         assert(data.current.averagePendingSeconds > 8 * 86_400 && data.current.averagePendingSeconds < 9 * 86_400);
+        assert.equal(data.averageFirstResponseSeconds, 75 * 60);
         assert.deepEqual(data.sectors, [{ source: 'INTERNAL', name: 'Financeiro', openedInPeriod: 6 }, { source: 'CLIENT', name: 'Cliente QA', openedInPeriod: 1 }, { source: 'INTERNAL', name: 'Sem setor', openedInPeriod: 1 }]);
         assert.equal(data.scope, 'ALL');
     });
@@ -301,9 +302,20 @@ async function main() {
         assert.deepEqual(clientStats.sectors, [{ source: 'CLIENT', name: 'Cliente QA', openedInPeriod: 1 }]);
         assert.equal(clientStats.current.pending, 1); assert.equal(clientStats.closedInPeriod, 0);
         assert.equal(internalStats.current.needingAttention, 2); assert.equal(clientStats.current.needingAttention, 1);
+        assert.equal(internalStats.averageFirstResponseSeconds, 75 * 60); assert.equal(clientStats.averageFirstResponseSeconds, null);
         const list = await http('/tickets?source=CLIENT&limit=100');
         assert.equal(list.status, 200); assert.equal(list.body.total, 1); assert.equal(list.body.data[0].source, 'CLIENT');
         assert.equal((await http('/tickets?source=EXTERNAL')).status, 400);
+    });
+    await run('Internal statistics accept a custom three-month period and historical periods across a year boundary', async () => {
+        const quarter = ok(await stats({ source: 'INTERNAL', start: new Date(now - 92 * 86_400_000).toISOString() }));
+        assert.equal(quarter.openedInPeriod, 10); assert.equal(quarter.closedInPeriod, 1);
+        assert.equal(quarter.current.pending, 4); assert.equal(quarter.averageFirstResponseSeconds, 75 * 60);
+        const history = ok(await stats({ source: 'INTERNAL', start: '2025-12-14T03:00:00.000Z', end: '2026-03-15T03:00:00.000Z' }));
+        assert.equal(history.openedInPeriod, 0); assert.equal(history.closedInPeriod, 0);
+        assert.equal(history.current.pending, 4); assert.equal(history.averageFirstResponseSeconds, null);
+        assert.equal(ok(await stats({ start: new Date(now - 366 * 86_400_000).toISOString() })).openedInPeriod, 11);
+        assert.equal((await stats({ start: new Date(now - 366 * 86_400_000 - 1).toISOString() })).status, 400);
     });
     await run('Technicians retain all open requests and only their own assignments; managers have global scope', async () => {
         const data = ok(await stats({}, tech));
@@ -324,14 +336,34 @@ async function main() {
         const before = ok(await stats());
         await prisma.$executeRawUnsafe("SET TIME ZONE 'America/Sao_Paulo'");
         const after = ok(await stats());
-        for (const key of ['openedInPeriod', 'closedInPeriod', 'sectors']) assert.deepEqual(after[key], before[key]);
+        for (const key of ['openedInPeriod', 'closedInPeriod', 'averageFirstResponseSeconds', 'sectors']) assert.deepEqual(after[key], before[key]);
         assert.equal(after.current.pending, before.current.pending);
+    });
+    await run('Response wait survives an empty queue, uses first-response period bounds and preserves source/technician scope', async () => {
+        // All writes here use only the disposable PostgreSQL fixtures.
+        await prisma.ticket.updateMany({ where: { source: 'CLIENT', status: 'OPEN' }, data: { status: 'IN_PROGRESS' } });
+        const responseStart = new Date(now - 2 * 3_600_000), responseEnd = new Date(now - 10 * 60_000);
+        const base = { source: 'CLIENT', internalUserId: null, companyId: company.id, externalUserId: external.id, assignedToInternalUserId: tech.id };
+        await create({ ...base, status: 'CLOSED', createdAt: new Date(responseStart.getTime() - 10 * 60_000), firstResponseAt: responseStart, closedAt: new Date(now - 60_000) });
+        await create({ ...base, status: 'WAITING_CLIENT', assignedToInternalUserId: manager.id, createdAt: new Date(now - 60 * 60_000), firstResponseAt: new Date(now - 30 * 60_000) });
+        await create({ ...base, status: 'IN_PROGRESS', createdAt: oldAt, firstResponseAt: new Date(responseStart.getTime() - 1) });
+        await create({ ...base, status: 'IN_PROGRESS', createdAt: oldAt, firstResponseAt: responseEnd });
+        await create({ ...base, status: 'IN_PROGRESS', createdAt: new Date(now - 20 * 60_000), firstResponseAt: new Date(now - 25 * 60_000) });
+        await create({ ...base, status: 'IN_PROGRESS', createdAt: recentAt, firstResponseAt: new Date(now + 3_600_000) });
+        const period = { source: 'CLIENT', start: responseStart.toISOString(), end: responseEnd.toISOString() };
+        const data = ok(await stats(period));
+        assert.equal(data.current.pending, 0); assert.equal(data.current.averagePendingSeconds, null);
+        assert.equal(data.averageFirstResponseSeconds, 20 * 60);
+        assert.equal(ok(await stats(period, tech)).averageFirstResponseSeconds, 10 * 60);
+        assert.equal(ok(await stats({ ...period, source: 'INTERNAL' })).averageFirstResponseSeconds, null);
+        assert.equal(ok(await stats({ source: 'CLIENT', start: new Date(now).toISOString(), end: new Date(now + 2 * 3_600_000).toISOString() })).averageFirstResponseSeconds, null);
     });
     await run('Empty dataset returns zeros and no invented waiting time or sectors', async () => {
         await prisma.ticket.deleteMany(); // Disposable in-memory database only.
         const data = ok(await stats());
         assert.equal(data.openedInPeriod, 0); assert.equal(data.closedInPeriod, 0); assert.deepEqual(data.sectors, []);
         assert.equal(data.current.averagePendingSeconds, null); assert.equal(data.current.oldestPendingAt, null);
+        assert.equal(data.averageFirstResponseSeconds, null);
     });
     if (panels) await require('./test-personal-panels-api.cjs')({ run, prisma, origin, admin, tech, unprivileged, client, thirdParty, company, internal });
     if (vehicles) await require('./test-vehicles.cjs')({ run, prisma, origin, admin, unprivileged, client, thirdParty, internal });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { TicketSource } from '@zyllen/shared';
 import type { TicketSummary } from '@web/features/tickets/types/ticket.types';
 import type { TicketReadSource } from '@web/features/tickets/types/ticket-read-source';
@@ -8,7 +8,8 @@ import { useTicketDashboard } from '@web/features/tickets/hooks/use-ticket-dashb
 import { useTicketStatistics } from '@web/features/tickets/hooks/use-ticket-statistics';
 import { TicketDetailDialog } from '@web/features/tickets/components/ticket-detail-dialog';
 import { formatTicketElapsed, needsTicketAttention, ticketTimes } from '@web/features/tickets/utils/ticket-time';
-import { localTicketDate, ticketStatisticsPeriod, type TicketPeriodPreset } from '@web/features/tickets/utils/ticket-statistics-period';
+import { useTicketStatisticsPeriod } from '@web/features/tickets/hooks/use-ticket-statistics-period';
+import type { TicketPeriodPreset } from '@web/features/tickets/utils/ticket-statistics-period';
 import { Button } from '@web/components/ui/button';
 import { TICKET_DASHBOARD_COPY as boardCopy, TICKET_INSIGHTS_COPY as copy } from '@web/lib/brand-voice';
 import { mirrorPage, useMirrorPageSize } from './mirror-paging';
@@ -36,11 +37,8 @@ function TicketList({ title, tickets, slide, size, now, loading, failed, onRetry
 }
 
 export function MirrorTickets({ reader, source, slide, onDetailsOpenChange }: { reader: TicketReadSource; source: TicketSource; slide: number; onDetailsOpenChange: (open: boolean) => void }) {
-    const [preset, setPreset] = useState<TicketPeriodPreset>('30_DAYS');
-    const [from, setFrom] = useState(() => localTicketDate(Date.now()));
-    const [to, setTo] = useState(() => localTicketDate(Date.now()));
     const { now, selectedId, setSelectedId, open, inProgress, detail } = useTicketDashboard(true, source, reader);
-    const period = ticketStatisticsPeriod(preset, localTicketDate(now), from, to);
+    const { preset, setPreset, from, setFrom, to, setTo, period, invalidPeriod, isDirty, applyPeriod } = useTicketStatisticsPeriod(now);
     const stats = useTicketStatistics(source, period, reader);
     const size = useMirrorPageSize();
     const sectors = mirrorPage(stats.data?.sectors ?? [], slide, size + 2);
@@ -53,14 +51,14 @@ export function MirrorTickets({ reader, source, slide, onDetailsOpenChange }: { 
         { key: 'closed', label: copy.closed, value: data.closedInPeriod, tone: 'mint' },
         { key: 'pending', label: copy.pending, value: data.current.pending, tone: 'amber' },
         { key: 'in-progress', label: copy.inProgress, value: data.current.inProgress, tone: 'blue' },
-        { key: 'wait', label: copy.wait, value: data.current.averagePendingSeconds === null ? '—' : formatTicketElapsed(data.current.averagePendingSeconds * 1000), tone: 'muted' },
+        { key: 'wait', label: copy.wait, value: data.averageFirstResponseSeconds == null ? '—' : formatTicketElapsed(data.averageFirstResponseSeconds * 1000), tone: 'muted' },
         { key: 'attention', label: copy.attention, value: data.current.needingAttention, tone: data.current.needingAttention ? 'red' : 'muted' },
     ] : [];
     return <div className={styles.viewState}>
         {stats.isError && <div role="alert" className={styles.error}><span>{data ? 'Indicadores desatualizados.' : copy.loadError}</span><Button type="button" size="sm" variant="outline" onClick={() => { void stats.refetch(); }}>{copy.retry}</Button></div>}
         <div className={styles.view}>
             {data ? <div className={styles.metricsSix}>{metrics.map(metric => <div key={metric.key} className={styles.metric} data-tone={metric.tone} data-ticket-metric={metric.key}><span className={styles.metricLabel}>{metric.label}</span><strong className={styles.metricValue} data-metric-value>{metric.value}</strong></div>)}</div> : stats.isLoading ? <div role="status" className={styles.loading}>Carregando indicadores…</div> : null}
-            <div className={styles.contextBar}><span>{data ? `${new Date(data.period.start).toLocaleDateString('pt-BR')} a ${new Date(Date.parse(data.period.end) - 1).toLocaleDateString('pt-BR')} · ${source === 'INTERNAL' ? 'equipe interna' : 'clientes'}` : `${source === 'INTERNAL' ? 'Atendimentos internos' : 'Atendimentos de clientes'} · período selecionado`}</span>{data && <span>Esperando resposta: <strong>{data.current.waitingClient}</strong> · resolvidos: <strong>{data.current.resolved}</strong></span>}{!period && <span role="alert" className={styles.warning}>{copy.invalidPeriod}</span>}<div className={styles.filters}><label><span>Período</span><select aria-label={copy.period} value={preset} onChange={event => setPreset(event.target.value as TicketPeriodPreset)}>{Object.entries(copy.presets).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>{preset === 'CUSTOM' && <><label><span>De</span><input type="date" aria-label={copy.from} value={from} onChange={event => setFrom(event.target.value)} /></label><label><span>Até</span><input type="date" aria-label={copy.to} value={to} onChange={event => setTo(event.target.value)} /></label></>}</div>{data && <span className={styles.updated}>{copy.updated(new Date(data.generatedAt).toLocaleTimeString('pt-BR'))}</span>}</div>
+            <div className={styles.contextBar}><span>{data ? `${new Date(data.period.start).toLocaleDateString('pt-BR')} a ${new Date(Date.parse(data.period.end) - 1).toLocaleDateString('pt-BR')} · ${source === 'INTERNAL' ? 'equipe interna' : 'clientes'}` : `${source === 'INTERNAL' ? 'Atendimentos internos' : 'Atendimentos de clientes'} · período selecionado`}</span>{data && <span>Esperando resposta: <strong>{data.current.waitingClient}</strong> · resolvidos: <strong>{data.current.resolved}</strong></span>}{(invalidPeriod || !period) && <span role="alert" className={styles.warning}>{copy.invalidPeriod}</span>}<div className={styles.filters}><label><span>Período</span><select aria-label={copy.period} value={preset} onChange={event => setPreset(event.target.value as TicketPeriodPreset)}>{Object.entries(copy.presets).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>{preset === 'CUSTOM' && <><label><span>De</span><input type="date" aria-label={copy.from} value={from} onChange={event => setFrom(event.target.value)} /></label><label><span>Até</span><input type="date" aria-label={copy.to} value={to} onChange={event => setTo(event.target.value)} /></label><Button type="button" size="sm" variant="outline" disabled={!isDirty} onClick={applyPeriod}>{copy.applyPeriod}</Button></>}</div>{data && <span className={styles.updated}>{copy.updated(new Date(data.generatedAt).toLocaleTimeString('pt-BR'))}</span>}</div>
             <div className={styles.ticketGrid}>
                 <TicketList title="Chamados em aberto" column="open" tickets={open.data} slide={slide} size={size} now={now} loading={open.isLoading} failed={open.isError} onRetry={() => { void open.refetch(); }} onDetails={setSelectedId} />
                 <TicketList title="Em atendimento" column="in-progress" tickets={inProgress.data} slide={slide} size={size} now={now} loading={inProgress.isLoading} failed={inProgress.isError} onRetry={() => { void inProgress.refetch(); }} onDetails={setSelectedId} />
