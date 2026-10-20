@@ -3,7 +3,7 @@ import { maintenanceApi } from "@web/features/maintenance/api/maintenance-api";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { useAuthedFetch } from "@web/features/auth/context/auth-context";
+import { useAuth, useAuthedFetch } from "@web/features/auth/context/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -18,7 +18,7 @@ import { OsFormWizard, OS_FORM_CONFIG } from "@web/features/maintenance/componen
 import type { OsFormSubmitData, OsFormType } from "@web/features/maintenance/components/os-forms";
 import { MediaUploader } from "@web/features/maintenance/components/os-forms/media-uploader";
 import type { MediaAttachment } from "@web/features/maintenance/components/os-forms/media-uploader";
-import { printOsPdf } from "@web/features/maintenance/utils/os-pdf";
+import { printOsPdfWithVideoSharing } from "@web/features/maintenance/utils/os-pdf-sharing";
 import { getOsFieldRows } from "@web/features/maintenance/utils/os-form-view";
 import { uploadMaintenanceAttachments } from "@web/features/maintenance/utils/maintenance-attachments";
 import { OSFollowupSection } from "@web/features/maintenance/components/os-forms/os-followup-section";
@@ -34,6 +34,8 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "warning" | "defau
 };
 
 export default function ManutencaoPage() {
+    const { user } = useAuth();
+    const canSharePdf = user?.type === "internal" && ["Administrador", "Gestor"].includes(user.role.name);
     const fetchOpts = useAuthedFetch();
     const qc = useQueryClient();
     const [tab, setTab] = useState<Tab>("list");
@@ -167,6 +169,11 @@ export default function ManutencaoPage() {
 
     const handlePrintPdf = async () => {
         if (!selectedOS) return;
+        const pdfWindow = window.open("", "_blank");
+        if (pdfWindow) {
+            pdfWindow.document.write("<!doctype html><html lang=\"pt-BR\"><title>Preparando PDF</title><body>Preparando PDF…</body></html>");
+            pdfWindow.document.close();
+        }
         const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
         let followupBlocks: any[] = [];
         if (selectedOS.formType === "INSTALACAO_SALA") {
@@ -181,7 +188,7 @@ export default function ManutencaoPage() {
                 }));
             } catch { /* ignore */ }
         }
-        printOsPdf({
+        await printOsPdfWithVideoSharing({
             osNumber: selectedOS.osNumber || "OS",
             formType: OS_FORM_CONFIG[selectedOS.formType as OsFormType]?.label || selectedOS.formType || "",
             status: selectedOS.status,
@@ -205,7 +212,7 @@ export default function ManutencaoPage() {
                 fileUrl: `${apiBase}/media/maintenance/${encodeURIComponent(att.id)}/file`,
             })),
             followupBlocks,
-        });
+        }, canSharePdf, fetchOpts, pdfWindow);
     };
 
     const statusColor: Record<string, "warning" | "default" | "success"> = {

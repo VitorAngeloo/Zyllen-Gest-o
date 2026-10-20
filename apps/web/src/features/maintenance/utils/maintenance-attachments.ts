@@ -7,7 +7,15 @@ import {
 } from "@zyllen/shared";
 import { maintenanceApi } from "@web/features/maintenance/api/maintenance-api";
 
-const REQUEST_MAX_BYTES = OS_ATTACHMENT_VIDEO_MAX_BYTES;
+const configuredVideoMaxMB = Number(process.env.NEXT_PUBLIC_OS_VIDEO_MAX_MB);
+// A deployment may lower its upload ceiling to match the API already running.
+export const OS_ATTACHMENT_EFFECTIVE_VIDEO_MAX_BYTES = Math.min(
+    OS_ATTACHMENT_VIDEO_MAX_BYTES,
+    Number.isInteger(configuredVideoMaxMB) && configuredVideoMaxMB > 0
+        ? configuredVideoMaxMB * 1024 * 1024
+        : OS_ATTACHMENT_VIDEO_MAX_BYTES,
+);
+const REQUEST_MAX_BYTES = OS_ATTACHMENT_EFFECTIVE_VIDEO_MAX_BYTES;
 const imageTypes = new Set<string>(OS_ATTACHMENT_IMAGE_MIME_TYPES);
 const videoTypes = new Set<string>(OS_ATTACHMENT_VIDEO_MIME_TYPES);
 
@@ -18,8 +26,8 @@ export function validateMaintenanceAttachment(file: File): string | null {
             : null;
     }
     if (videoTypes.has(file.type)) {
-        return file.size > OS_ATTACHMENT_VIDEO_MAX_BYTES
-            ? `${file.name}: vídeos podem ter no máximo 80 MB.`
+        return file.size > OS_ATTACHMENT_EFFECTIVE_VIDEO_MAX_BYTES
+            ? `${file.name}: vídeos podem ter no máximo ${OS_ATTACHMENT_EFFECTIVE_VIDEO_MAX_BYTES / (1024 * 1024)} MB.`
             : null;
     }
     return `${file.name}: formato não permitido. Use uma foto ou vídeo MP4, WebM, MOV ou AVI.`;

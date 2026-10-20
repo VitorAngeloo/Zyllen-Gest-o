@@ -12,7 +12,7 @@ import { PageHeader } from "@web/components/ui/page-header";
 import { EmptyState, ListSectionHeader, RecordList, RecordRow, WorkspaceBar, WorkspaceGroup } from "@web/components/ui/workspace";
 import { toast } from "sonner";
 import { FileText, ChevronRight, ArrowLeft, Edit, CheckSquare, Printer, Lock } from "lucide-react";
-import { printOsPdf } from "@web/features/maintenance/utils/os-pdf";
+import { printOsPdfWithVideoSharing } from "@web/features/maintenance/utils/os-pdf-sharing";
 import { Skeleton } from "@web/components/ui/skeleton";
 import { OS_FORM_CONFIG } from "@web/features/maintenance/components/os-forms";
 import type { OsFormType, OsFormSubmitData } from "@web/features/maintenance/components/os-forms";
@@ -124,6 +124,11 @@ export default function MinhasOsPage() {
 
     const handlePrintPdf = async () => {
         if (!selectedOS) return;
+        const pdfWindow = window.open("", "_blank");
+        if (pdfWindow) {
+            pdfWindow.document.write("<!doctype html><html lang=\"pt-BR\"><title>Preparando PDF</title><body>Preparando PDF…</body></html>");
+            pdfWindow.document.close();
+        }
         const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
         let followupBlocks: any[] = [];
         if (selectedOS.formType === "INSTALACAO_SALA") {
@@ -138,7 +143,7 @@ export default function MinhasOsPage() {
                 }));
             } catch { /* ignore */ }
         }
-        printOsPdf({
+        await printOsPdfWithVideoSharing({
             osNumber: selectedOS.osNumber || "OS",
             formType: OS_FORM_CONFIG[selectedOS.formType as OsFormType]?.label || selectedOS.formType,
             status: selectedOS.status,
@@ -161,7 +166,7 @@ export default function MinhasOsPage() {
                 fileUrl: `${apiBase}/media/maintenance/${encodeURIComponent(att.id)}/file`,
             })),
             followupBlocks,
-        });
+        }, isManager, fetchOpts, pdfWindow);
     };
 
     const handleEditSubmit = async (data: OsFormSubmitData) => {

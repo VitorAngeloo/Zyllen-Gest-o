@@ -6,6 +6,14 @@ Frontend: Vercel, `skylineti.com`. API: Node.js nesta máquina Windows, porta 30
 
 Antes de publicar, concluir revisão, build/tipos e validação dos fluxos afetados. Se houver schema, seguir [banco de dados](banco-de-dados.md), revisar pendências e ter backup restaurável. As [variáveis de ambiente](variaveis-de-ambiente.md) precisam ser compatíveis com o startup. Não incluir segredos, logs ou backups no commit.
 
+Entrega consolidada de 20/10/2026: reúne no Git as páginas privada/pública de vídeo das OS, links temporários no PDF para Administrador/Gestor, os dois logotipos e a impressão da prévia, a devolução individual pela bipagem rápida e os iniciadores de recuperação de produção. A comparação com a Vercel confirmou que a publicação manual de 13/10 às 13h07 continha as melhorias de mídia; a publicação das 16h14 e a versão automática de 14/10, commit `f1d0115`, não as continham. Arquivos que só existiam localmente devem acompanhar o commit da entrega para que publicações automáticas preservem essas funcionalidades. Arquitetura, tipos, build isolado completo, 24 cenários de interface, sete regressões de limites de mídia, oito cenários de startup e os testes de compartilhamento/reprodução privada e pública passaram com dados sintéticos. O relógio da regressão trimestral e a captura do vídeo sintético foram estabilizados para repetir esses testes em outras datas.
+
+O backend continua nos artefatos de `f8d4341`, com limite efetivo de vídeo de **80 MB**. A revisão automática bloqueou a parada/reinicialização proposta para publicar o shared de 150 MB (`blocked by policy`); a operação não foi executada. O web usa `NEXT_PUBLIC_OS_VIDEO_MAX_MB=80` na Vercel, mantendo texto, validação e lotes compatíveis com essa API. A ampliação do backend permanece pendente e exige o procedimento coordenado abaixo; depois, atualizar ou remover esse teto e recompilar o web. Os artefatos/configuração anteriores, schema e manifesto de 710 arquivos estão no backup privado `C:\Users\SERVIDOR ZYLLEN\Documents\Zyllen-Backups\domain-sync-20261020-140838`. Não houve alteração de schema, geração do Prisma de produção, migration ou escrita de teste no banco compartilhado nesta entrega.
+
+Recuperação de disponibilidade em 20/10/2026: o Windows reiniciou após desligamento inesperado às 05h33. O iniciador correto executou às 05h34, mas a API encerrou com `P1001` após cinco tentativas de conexão ao banco; não havia repetição posterior. A API foi iniciada com os mesmos artefatos publicados, em produção, PID **8072**, e health local/público voltou a responder `200`. CORS respondeu `204` para o domínio web e `/maintenance` permaneceu protegido (`401`). Foi registrada a tarefa `Zyllen API Production Recovery`, no usuário atual e sem elevação, para verificar a cada minuto e na entrada no Windows; a execução real preservou a API ativa e terminou com resultado `0`. O iniciador passou a respeitar a pausa local de manutenção descrita abaixo. Oito cenários isolados de startup e a verificação de arquitetura passaram. Backup do iniciador/atalho anteriores, logs da falha, definição da tarefa e checksums em `C:\Users\SERVIDOR ZYLLEN\Documents\Zyllen-Backups\startup-recovery-20261020-081253`. Configuração, API compilada, shared e banco foram preservados; não houve build, geração de Prisma, migration ou escrita de teste na base real. A recuperação continua dependendo da sessão desse usuário; não foi instalado um serviço nem reiniciado o Windows para teste.
+
+Recuperação de disponibilidade em 19/10/2026: após o reinício do Windows, a API estava parada, `/health` público retornava `502` e `apps/api/dist` estava incompleto, sem `main.js`. O atalho da pasta Inicializar apontava para o launcher de desenvolvimento; a compilação desse modo falhava porque o shared compilado não continha o tipo `averageFirstResponseSeconds`. A execução foi recuperada com os artefatos da última publicação, `f8d4341`: backup `dashboard-20261014-122814/api-dist` mais os oito arquivos de `prepared-api`, com checksums conferidos. Configuração, shared de runtime, Prisma Client e banco foram preservados. Cópia do dist incompleto, atalho anterior e logs em `C:\Users\SERVIDOR ZYLLEN\Documents\Zyllen-Backups\login-recovery-20261019-081509`. Health local/público respondeu `200`, login com conta inexistente respondeu `401` e CORS para `https://skylineti.com` passou. O login com credenciais reais permanece para uso normal da equipe. O atalho foi atualizado para o iniciador de produção descrito abaixo.
+
 Atualização da dashboard em 14/10/2026: o commit `f8d4341` recuperou a identificação de patrimônio/produto/SKU nas aprovações pendentes e passou a calcular a espera entre abertura e primeiro atendimento iniciado no período. Datas personalizadas são editadas sem interromper os indicadores e confirmadas por **Aplicar período**, com regressões para julho a outubro de 2026 e intervalos entre anos. Os dois serviços afetados da API foram compilados em ambiente isolado e publicados com seus artefatos anteriores preservados; a API atende a porta 3001 como `node --enable-source-maps dist/main.js`, PID **27156**, em produção sem watch. Configuração, chave de CPF, schema, Prisma Client e runtime compartilhado permaneceram intactos; as 22 migrations estão aplicadas, sem pendência nem execução de SQL de migração. Backup dos artefatos/configuração e logs em `C:\Users\SERVIDOR ZYLLEN\Documents\Zyllen-Backups\dashboard-20261014-122814`, com checksums conferidos. O deployment Vercel `dpl_Chi6vbfokgNK9x1iMj4aMNYbGUdy` ficou `Ready` e foi promovido para o domínio de produção. Health local/público respondeu `200`, rotas protegidas responderam `401` sem sessão e consultas em `READ ONLY` confirmaram os novos contratos. Os arquivos públicos de `skylineti.com/dashboard` confirmaram as três correções. Tipos, arquitetura, build isolado e 92 cenários de API/navegador passaram. Não houve seed nem criação ou alteração de registros de teste na base compartilhada.
 
 Atualização do fluxo de carros em 29/09/2026: autorização prévia por Administrador/Gestor, operação simplificada de retirada/devolução, foto obrigatória do estado do carro e revisão por hodômetro a cada 5.000 km foram publicados. O backup privado `C:\Users\SERVIDOR ZYLLEN\Documents\Zyllen-Backups\vehicle-approval-service-20260929-172041` foi validado por checksum e restaurado integralmente em PostgreSQL isolado, com 63 tabelas. A única pendência, `20260929160000_vehicle_approval_service_condition_photo`, foi aplicada com `prisma migrate deploy`; as 22 migrations ficaram em dia e a leitura posterior confirmou as estruturas novas sem alterar as oito reservas nem os quatro usos existentes. Shared, Prisma Client e API foram recompilados; a API atende a porta 3001 como `node --enable-source-maps dist/main.js`, PID **16668**, sem watch, com health local/público `200` e endpoints novos protegidos (`401`) sem sessão. O deployment Vercel `dpl_GxEPbpCGRjkqZTMs7gdu9s9GPK63` ficou `Ready`, foi promovido e as quatro páginas de Carros e seus componentes públicos foram confirmados em `skylineti.com`. Tipos, build isolado, arquitetura, 24 cenários integrados, 62 regressões dos painéis, quatro cenários específicos em navegador e a cadeia de 12 migrations operacionais passaram. Não houve seed nem criação de registros de teste na base compartilhada; detalhes no [guia de carros](carros-e-reservas.md#publicação-e-verificação--29092026).
@@ -74,10 +82,10 @@ Avisar sobre recarga de páginas/novo login quando a versão exigir. Reinício d
 Executar os comandos de uma publicação planejada, verificando o sucesso de cada etapa. Exemplos partem da raiz do repositório.
 
 1. Confirmar artefatos/backup e o código que será publicado. Identificar o processo **da API**, seu comando e o PID que escuta 3001.
-2. Encerrar somente o processo identificado da API; se houver supervisor watch indevido, encerrar também esse supervisor após identificá-lo.
+2. Ativar a pausa de recuperação automática conforme a seção abaixo e, somente depois, encerrar o processo identificado da API; se houver supervisor watch indevido, encerrar também esse supervisor após identificá-lo.
 3. Atualizar código e dependências, compilar shared, gerar Prisma Client com API parada e compilar API.
 4. Aplicar apenas o conjunto revisado de migrations pendentes.
-5. Iniciar `node dist/main.js` com `NODE_ENV=production` e verificar health local/público antes de promover frontend dependente.
+5. Iniciar `node dist/main.js` com `NODE_ENV=production` e verificar health local/público antes de promover frontend dependente. Remover a pausa de recuperação somente após concluir a publicação.
 
 Identificação, somente leitura:
 
@@ -135,6 +143,63 @@ Invoke-RestMethod -Uri 'https://api.skylineti.com/health' -Method GET
 
 Esperar porta escutando e health com status ok; confirmar domínio web/deployment, CORS e o fluxo alterado. Smoke tests sem autenticação não equivalem a homologação de todos os fluxos. Não enviar cadastros/OS fictícios ao banco real para verificar uma publicação.
 
+### Inicialização após entrada no Windows
+
+O atalho de inicialização desta máquina deve executar `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "<repositorio>\apps\api\scripts\start-production.ps1"`, com a pasta do repositório como diretório de trabalho. O atalho antigo para `iniciar-servidor.bat` foi substituído em 19/10/2026. O script inicia somente `node --enable-source-maps dist/main.js`, com `NODE_ENV=production`; não instala dependências, gera Prisma Client ou compila. Preserva uma API já ativa na 3001, recusa outro processo nessa porta e usa mutex para evitar inicializações simultâneas.
+
+Para iniciar manualmente, na raiz:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -File .\apps\api\scripts\start-production.ps1
+```
+
+Novas execuções registram stdout/stderr em `%LOCALAPPDATA%\Zyllen\logs\api` e aguardam a confirmação de saúde local. Artefatos ausentes exigem recuperação da última publicação verificada, preservando a configuração, ou nova publicação pelo procedimento acima. Não compilar o dist de produção como parte do boot.
+
+Na recuperação de 19/10/2026, a sintaxe e a execução com a API já ativa foram verificadas, preservando o PID 19036; arquitetura passou e health local/público permaneceu normal. A revisão automática bloqueou a parada/reinicialização proposta para testar uma partida completa (`blocked by policy`), portanto essa verificação não foi executada. Não foi realizado novo reinício do Windows.
+
+### Recuperação automática e pausa para manutenção
+
+Diagnóstico complementar de 20/10/2026: a nova inspeção encontrou a API local/pública e o web com HTTP `200`, ainda no mesmo boot de 05h33 e no mesmo PID **8072**. A tarefa recorrente continuava executando com resultado `0`. O serviço Windows `Cloudflared`, porém, estava em ciclo de falhas (`1067`, evento `7031`, reinício a cada 20 segundos, mais de 490 tentativas desde o boot). Seu `ImagePath` continha somente o executável, sem `tunnel run` nem caminho explícito da configuração, e a conta era `LocalSystem`; os eventos de Application confirmaram a execução sem argumentos. O túnel saudável era outro processo, iniciado por `Startup/run-tunnel.bat` na sessão do usuário, com `/ready` respondendo `200`. Portanto a recuperação atual continua condicionada ao login e o serviço de boot do túnel precisa ser corrigido em uma sessão elevada. Não encerrar o túnel saudável para investigar o serviço defeituoso. A sessão usada no diagnóstico não estava elevada; o serviço e o modo de execução da tarefa não foram alterados, e não foi realizado reboot de teste. Seguir a [configuração oficial de serviço Windows do Cloudflare](https://developers.cloudflare.com/tunnel/features/locally-managed-tunnels/as-a-service/windows/) para conferir os caminhos explícitos e validar uma réplica saudável antes de retirar o atalho. Para a API iniciar antes de login, escolher uma identidade de serviço com acesso mínimo aos artefatos/configuração e validar acesso ao banco/storage; não promover automaticamente o processo da API a `SYSTEM` nem armazenar senhas em scripts.
+
+Registrar ou atualizar a tarefa no usuário que opera a API, na raiz do repositório:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -File .\apps\api\scripts\register-production-recovery.ps1
+```
+
+A tarefa `Zyllen API Production Recovery` executa o mesmo iniciador na entrada desse usuário e a cada minuto, sem prazo final. Se a API encerrou por uma falha transitória, a próxima execução tenta iniciar os artefatos publicados. A tarefa usa sessão interativa e privilégios limitados: depende de o usuário estar conectado, não substitui um serviço de boot e não diagnostica travamentos de uma API que mantém a porta aberta. Não encerra processos existentes. A política `IgnoreNew`, o mutex do iniciador e a conferência da porta evitam partidas simultâneas. A tarefa não tem limite de duração que possa encerrar o processo filho da API.
+
+Antes de parar a API para publicar, gerar Prisma ou fazer outra manutenção, criar `apps/api/.production-maintenance`. O arquivo é local e ignorado pelo Git. Adquiri-lo sob o mesmo mutex garante que uma partida anterior já terminou; se houver um iniciador ocupado, aguardar e repetir, sem prosseguir com a parada:
+
+```powershell
+$maintenanceMutex = New-Object System.Threading.Mutex -ArgumentList $false, 'Local\ZyllenApiProductionStartup'
+$ownsMaintenanceMutex = $false
+try {
+    $ownsMaintenanceMutex = $maintenanceMutex.WaitOne(0)
+    if (-not $ownsMaintenanceMutex) { throw 'Iniciador ocupado. Aguardar e repetir antes de parar a API.' }
+    New-Item -ItemType File -Path .\apps\api\.production-maintenance -Force | Out-Null
+} finally {
+    if ($ownsMaintenanceMutex) { $maintenanceMutex.ReleaseMutex() }
+    $maintenanceMutex.Dispose()
+}
+```
+
+A pausa bloqueia o iniciador manual, o atalho de login e a tarefa recorrente; a API já ativa continua rodando. Durante a publicação, iniciar diretamente com `node dist/main.js` conforme o procedimento acima. Depois de confirmar health local/público e concluir as verificações:
+
+```powershell
+Remove-Item -LiteralPath .\apps\api\.production-maintenance
+```
+
+Se a publicação falhar, manter a pausa enquanto os artefatos estiverem incompletos. Uma pausa esquecida impede a recuperação automática. Para suspender a tarefa por mais tempo sem encerrar a API ativa, usar `Disable-ScheduledTask -TaskName 'Zyllen API Production Recovery'`; para reativar, `Enable-ScheduledTask` com o mesmo nome. Não usar `Stop-ScheduledTask` como pausa, pois pode afetar o processo filho.
+
+Conferir a tarefa e reproduzir as regressões sem banco nem processos reais:
+
+```powershell
+Get-ScheduledTask -TaskName 'Zyllen API Production Recovery'
+Get-ScheduledTaskInfo -TaskName 'Zyllen API Production Recovery'
+powershell.exe -NoLogo -NoProfile -File .\scripts\quality\test-production-startup.ps1
+```
+
 ## Solução de problemas
 
 | Sintoma | Verificação / ação |
@@ -143,6 +208,7 @@ Esperar porta escutando e health com status ok; confirmar domínio web/deploymen
 | `EADDRINUSE` em 3001 | Identificar PID/comando e eventual `nest --watch`; nesta máquina usar apenas a API de produção. |
 | Fix não aparece na API | Confirmar build explícito e artefato publicado; watch pode não reemitir o dist esperado. |
 | Login falha/API indisponível | Verificar listener, health local, log de startup, configuração e túnel. Não abrir segunda API se a porta já estiver ocupada. |
+| API não recupera após falha de partida | Verificar sessão do usuário, estado/último resultado da tarefa de recuperação e existência de `apps/api/.production-maintenance`. Remover a pausa somente quando os artefatos estiverem prontos. |
 | Startup rejeita JWT/storage | Revisar requisitos do [ambiente](variaveis-de-ambiente.md); não restaurar default público ou bucket público para subir. |
 | Build web/Vercel falha | Rodar tsc e build local/isolado; confirmar shared e Root Directory do projeto `web`. |
 | Falha no projeto Vercel legado de API | A API roda no Windows; conferir o projeto web correto. O registro antigo identifica projetos `zyllen-gest-o-api-*` indevidos. |

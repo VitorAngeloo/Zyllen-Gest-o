@@ -37,6 +37,7 @@ Access token expira em `1d` (`auth.module.ts`) e refresh em `7d` (`auth.service.
 | Variável | Uso |
 |---|---|
 | `NEXT_PUBLIC_API_URL` | URL base da API; também usada para compor CSP. |
+| `NEXT_PUBLIC_OS_VIDEO_MAX_MB` | Teto de vídeo da publicação web, limitado pelo máximo de `@zyllen/shared`. Reduzir para acompanhar a API ativa; a mesma configuração controla validação, texto e lotes. Produção em 20/10/2026: `80`, enquanto a API permanece nessa versão. Exige novo build do web. |
 | `NEXT_PUBLIC_ZEBRA_PRINT_URL` | URL opcional do Browser Print. Configuração salva na tela tem prioridade; depois vem tentativa local. |
 
 Mídia usa cookie httpOnly `SameSite=Lax` e depende da topologia de sites. Produção usa `skylineti.com` / `api.skylineti.com`; testes locais usam o mesmo host. Preview Vercel em outro site exige ambiente compatível ou estratégia própria; não tornar anexos públicos para contornar cookies.

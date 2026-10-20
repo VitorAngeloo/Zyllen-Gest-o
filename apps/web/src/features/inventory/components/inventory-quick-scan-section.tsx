@@ -8,6 +8,7 @@ import { Badge } from "@web/components/ui/badge";
 import { ArrowDownCircle, ArrowUpCircle, Search, Loader2, X, MapPin, RefreshCw, Zap, CheckCircle2 } from "lucide-react";
 
 import type { InventoryController } from "../hooks/use-inventory-controller";
+import { stockEntryLocation } from '../utils/inventory-form-options';
 
 export function InventoryQuickScanSection({ controller }: { controller: InventoryController }) {
     const {
@@ -131,7 +132,7 @@ export function InventoryQuickScanSection({ controller }: { controller: Inventor
                                             className="w-full h-9 rounded-md border bg-[var(--zyllen-bg-dark)] border-[var(--zyllen-border)] text-white px-3 text-sm"
                                         >
                                             <option value="">Selecione o local...</option>
-                                            {locations?.data?.filter((l: any) => bipeMode !== "transfer" || l.id !== bipeAsset.currentLocationId).map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                            {locations?.data?.filter((l: any) => bipeMode === "entry" ? stockEntryLocation(l) : l.id !== bipeAsset.currentLocationId).map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
                                         </select>
                                     </div>
                                 )}

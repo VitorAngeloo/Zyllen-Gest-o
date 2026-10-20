@@ -571,7 +571,12 @@ export function useInventoryController() {
                     await exitMut.mutateAsync({ skuId: bipeAsset.skuId, locationId: bipeAsset.currentLocationId, pin: bipePin, motivo: "Saída rápida", assetId: bipeAsset.id });
                 } else if (bipeMode === "entry") {
                     if (!bipeLocationId) { toast.error("Selecione o local de entrada"); return; }
-                    await entryMut.mutateAsync({ skuId: bipeAsset.skuId, locationId: bipeLocationId, quantity: 1, pin: bipePin, assetId: bipeAsset.id });
+                    await entryMut.mutateAsync({
+                        skuId: bipeAsset.skuId, locationId: bipeLocationId, quantity: 1,
+                        pin: bipePin, assetId: bipeAsset.id, assetCode: bipeAsset.assetCode,
+                        sourceLocationId: bipeAsset.currentLocationId,
+                        sourceKind: bipeAsset.currentLocation?.kind,
+                    });
                 } else { // transfer
                     if (!bipeAsset.currentLocationId) { toast.error("Patrimônio sem local atual — faça uma entrada primeiro."); return; }
                     if (!bipeLocationId) { toast.error("Selecione o local de destino"); return; }

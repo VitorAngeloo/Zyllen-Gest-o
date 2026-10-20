@@ -33,7 +33,7 @@ const REDIRECT_MAP: Record<UserType, string> = {
   contractor: "/portal-terceirizado",
 };
 
-function LoginPageInner() {
+function LoginPageInner({ stayOnPage = false }: { stayOnPage?: boolean }) {
   const { login, user, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -49,10 +49,10 @@ function LoginPageInner() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!isLoading && user) {
+    if (!stayOnPage && !isLoading && user) {
       router.replace(REDIRECT_MAP[user.type] || "/dashboard");
     }
-  }, [isLoading, user, router]);
+  }, [isLoading, user, router, stayOnPage]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -60,7 +60,7 @@ function LoginPageInner() {
     try {
       const type = await login(email, password, loginType);
       toast.success(LOGIN_COPY.successToast);
-      router.push(REDIRECT_MAP[type] || "/dashboard");
+      if (!stayOnPage) router.push(REDIRECT_MAP[type] || "/dashboard");
     } catch (error: any) {
       toast.error(error.message || LOGIN_COPY.errorToast);
     } finally {
@@ -197,7 +197,7 @@ function LoginPageInner() {
   );
 }
 
-export default function LoginPage() {
+export function LoginPage({ stayOnPage = false }: { stayOnPage?: boolean }) {
   return (
     <Suspense fallback={
       <div className="flex min-h-screen items-center justify-center bg-[var(--zyllen-bg-dark)]">
@@ -207,7 +207,11 @@ export default function LoginPage() {
         </div>
       </div>
     }>
-      <LoginPageInner />
+      <LoginPageInner stayOnPage={stayOnPage} />
     </Suspense>
   );
+}
+
+export default function LoginScreen() {
+  return <LoginPage />;
 }

@@ -64,6 +64,31 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         return { context, page, requests, errors, company, internalLocation, clientLocation, internalAsset, clientAsset };
     }
 
+    await run('Inventory workspace: quick scan returns only the scanned client asset without uninstalling the room', async () => {
+        const state = await setup('/dashboard/estoque?aba=bipe');
+        try {
+            const search = state.page.getByPlaceholder('Bipe a etiqueta ou digite o código...');
+            await search.fill(state.clientAsset.assetCode);
+            await search.press('Enter');
+            await expect(state.page.getByText(state.clientAsset.assetCode, { exact: true })).toBeVisible();
+            await state.page.getByRole('button', { name: 'Entrada', exact: true }).last().click();
+            await state.page.locator('select').selectOption(state.internalLocation.id);
+            await expect(state.page.locator(`option[value="${state.clientLocation.id}"]`)).toHaveCount(0);
+            await state.page.getByPlaceholder('••••', { exact: true }).fill('1234');
+            await state.page.getByRole('button', { name: 'Confirmar Entrada', exact: true }).click();
+            await expect(state.page.getByText('Registrado com sucesso!', { exact: true })).toBeVisible();
+            const writes = state.requests.filter(request => request.method === 'POST');
+            assert.equal(writes.length, 1);
+            assert.equal(writes[0].path, '/inventory/custody/returns');
+            assert.deepEqual(writes[0].body.assetIds, [state.clientAsset.id]);
+            assert.equal(writes[0].body.fromLocationId, state.clientLocation.id);
+            assert.equal(writes[0].body.toLocationId, state.internalLocation.id);
+            assert.equal(writes[0].body.returnStatus, 'ATIVO');
+            assert.equal(writes[0].body.pin, '1234');
+            assert.deepEqual(state.errors, []);
+        } finally { await state.context.close(); }
+    });
+
     await run('Inventory workspace: one navigation keeps client and Skyline custody explicitly separated', async () => {
         const state = await setup();
         try {

@@ -34,6 +34,7 @@ pnpm-debug.log*
 
 # Local validation artifacts
 tmp/
+output/
 
 # Prisma
 apps/api/prisma/migrations/**/migration_lock.toml
@@ -44,3 +45,6 @@ coverage/
 
 # User uploads (runtime files — not versioned)
 apps/api/uploads/
+
+# Local pause for the production startup/recovery task
+apps/api/.production-maintenance

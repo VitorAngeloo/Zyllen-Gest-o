@@ -6,6 +6,7 @@ import { Label } from "@web/components/ui/label";
 import { Paperclip, X, Video, Loader2, Camera, AlertCircle, Check, ZoomIn } from "lucide-react";
 import { OS_ATTACHMENT_ACCEPT } from "@zyllen/shared";
 import {
+    OS_ATTACHMENT_EFFECTIVE_VIDEO_MAX_BYTES,
     uploadMaintenanceAttachments,
     validateMaintenanceAttachments,
 } from "@web/features/maintenance/utils/maintenance-attachments";
@@ -254,7 +255,7 @@ export function MediaUploader({
                                     : "Clique para adicionar fotos ou vídeos"}
                         </span>
                         <span className="text-xs text-[var(--zyllen-muted)]/50">
-                            Fotos até 20 MB · vídeos até 80 MB
+                            Fotos até 20 MB · vídeos até {OS_ATTACHMENT_EFFECTIVE_VIDEO_MAX_BYTES / (1024 * 1024)} MB
                         </span>
                     </button>
 

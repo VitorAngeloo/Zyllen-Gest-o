@@ -55,6 +55,9 @@ module.exports = async ({ run, browser, base, fixedNow }) => {
             if (request.method() === 'OPTIONS') return respond({});
             if (url.pathname === '/auth/me') return respond({ data: { id: 'user-qa', name: 'Usuário QA', email: 'qa@example.test', type: 'internal', role: { id: 'role-qa', name: role } } });
             if (url.pathname === '/auth/me/permissions') return respond({ data: ['dashboard.view', 'maintenance.view'] });
+            if (request.method() === 'POST' && /^\/media\/(maintenance|os-followup)\/[^/]+\/shares$/.test(url.pathname)) {
+                return respond({ data: { id: `share-${requests.length}`, url: `/media/shared/${'A'.repeat(43)}`, expiresAt: new Date(fixedNow + 86400000).toISOString() } });
+            }
             if (url.pathname === '/tickets/my-internal/pending-rating') return respond({ data: null });
             if (url.pathname === '/maintenance' || url.pathname === '/maintenance/my-orders') {
                 let filtered = orders.filter(os => url.pathname !== '/maintenance/my-orders' || os.openedById === 'user-qa');
@@ -138,13 +141,28 @@ module.exports = async ({ run, browser, base, fixedNow }) => {
             await s.page.getByRole('button', { name: 'Gerar PDF' }).click();
             const pdfPage = await popupPromise;
             await expect(pdfPage.locator('.document')).toBeVisible();
-            await expect(pdfPage.locator('.brand-lockup img')).toHaveAttribute('src', /^data:image\/svg\+xml;base64,/);
-            await expect.poll(() => pdfPage.locator('.brand-lockup img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+            const zyllenLogo = pdfPage.locator('.brand-logos .zyllen-wordmark');
+            const skylineLogo = pdfPage.locator('.brand-logos .skyline-logo');
+            await expect(zyllenLogo).toHaveAttribute('src', /^data:image\/svg\+xml;base64,/);
+            await expect(skylineLogo).toHaveAttribute('src', /^data:image\/svg\+xml;base64,/);
+            const embeddedSkyline = await skylineLogo.getAttribute('src');
+            assert.equal(Buffer.from(embeddedSkyline.split(',')[1], 'base64').toString('utf8'),
+                fs.readFileSync(path.join(__dirname, '../../apps/web/public/brand/logo-skyline.svg'), 'utf8'));
+            await expect.poll(() => zyllenLogo.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+            await expect.poll(() => skylineLogo.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+            const zyllenBox = await zyllenLogo.boundingBox();
+            const skylineBox = await skylineLogo.boundingBox();
+            assert(zyllenBox && skylineBox && skylineBox.x > zyllenBox.x + zyllenBox.width);
             await expect(pdfPage.locator('.document-header')).toContainText('OS-QA-0040');
             await expect(pdfPage.locator('.summary-strip')).toContainText('Santa Ines QA');
             await expect(pdfPage.locator('.detail-list')).toContainText('CPU montado na Skyline');
             await expect(pdfPage.locator('.attachment-item')).toHaveCount(6);
             await expect(pdfPage.locator('.attachment-placeholder')).toHaveCount(6);
+            await expect(pdfPage.getByRole('button', { name: 'Salvar ou imprimir PDF' })).toBeVisible();
+            await expect(pdfPage.locator('.attachment-video-link')).toHaveCount(6);
+            assert.equal(await pdfPage.locator('.attachment-video-link').first().getAttribute('href'),
+                `${base}/os/video-compartilhado?token=${'A'.repeat(43)}`);
+            assert.equal(s.requests.filter(request => request.method === 'POST' && request.path.endsWith('/shares')).length, 6);
             await expect(pdfPage.locator('.brand-watermark')).toHaveCount(1);
             await expect(pdfPage.locator('.brand-watermark .watermark-ink path')).toHaveCount(2);
             await expect(pdfPage.locator('.brand-watermark .watermark-accent path')).toHaveCount(2);
@@ -153,6 +171,7 @@ module.exports = async ({ run, browser, base, fixedNow }) => {
             const output = process.env.AUDIT_OS_PDF_OUTPUT;
             if (output) {
                 fs.mkdirSync(path.dirname(output), { recursive: true });
+                await pdfPage.locator('.document-header').screenshot({ path: output.replace(/\.pdf$/i, '-header.png') });
                 await pdfPage.pdf({ path: output, format: 'A4', printBackground: true, preferCSSPageSize: true });
             }
 

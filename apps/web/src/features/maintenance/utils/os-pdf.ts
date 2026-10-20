@@ -46,6 +46,9 @@ interface OsPdfHtmlOptions {
 // Self-contained copy of public/brand/zyllen-wordmark.svg. Print popups can have an
 // about:blank document URL, so an embedded data URI keeps the official vector reliable.
 const BRAND_WORDMARK_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9Ijg1MCA5OTAgMjMwMCAyNzAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbGxlZGJ5PSJ6eWxsZW4tdGl0bGUiPgogIDx0aXRsZSBpZD0ienlsbGVuLXRpdGxlIj5aeWxsZW4gU3lzdGVtczwvdGl0bGU+CiAgPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCAyMjUwKSBzY2FsZSguMSAtLjEpIiBzdHJva2U9Im5vbmUiPgogICAgPGcgZmlsbD0iI0ZGRkZGRiI+CiAgICAgIDxwYXRoIGQ9Ik04Njc3IDEyNDQzIGMtNCAtMyAtNyAtNDQgLTcgLTkwIGwwIC04MyA0MDMgMCA0MDIgMCAxMjggODUgYzcwIDQ3CjEyNyA4NyAxMjcgOTAgMCA4IC0xMDQ2IDYgLTEwNTMgLTJ6Ii8+CiAgICAgIDxwYXRoIGQ9Ik05NTQwIDExODcwIGwtODcxIC01ODAgMyAtODggMyAtODcgMTMzMyAtMyAxMzMyIC0yIDAgOTAgMCA5MCAtODY3CjAgLTg2OCAwIDg2MyA1NzUgYzQ3NCAzMTYgODYyIDU3NyA4NjIgNTgwIDAgMyAtMjA3IDUgLTQ2MCA1IGwtNDYwIDAgLTg3MAotNTgweiIvPgogICAgICA8cGF0aCBkPSJNMTI2OTMgMTI0MzMgYzkgLTEwIDIxOCAtMTkxIDQ2NiAtNDAzIGw0NTAgLTM4NSAxIC0yNjggMCAtMjY3IDM5OAoyIDM5NyAzIDIgMjYwIGMyIDE0MyAwIDI2NSAtNSAyNzEgLTQgNiAtMjE1IDE4OSAtNDcwIDQwNyBsLTQ2MyAzOTcgLTM5NiAwCmMtMzc3IDAgLTM5NSAtMSAtMzgwIC0xN3oiLz4KICAgICAgPHBhdGggZD0iTTE0ODAwIDEyMjA5IGMtMTUxIC0xMzIgLTI4OCAtMjUzIC0zMDUgLTI3MCBsLTMwIC0yOSAxMzAgMCAxMzAgMAoyNzAgMjM2IGMxNDkgMTI5IDI4NiAyNTEgMzA1IDI2OSBsMzUgMzUgLTEzMCAwIC0xMzAgMCAtMjc1IC0yNDF6Ii8+CiAgICAgIDxwYXRoIGQ9Ik0xNjY3MCAxMTc4MCBsMCAtNjcwIDEzMzMgMiAxMzMyIDMgMyA4OCAzIDg3IC05MzYgMCAtOTM1IDAgMCA1ODAgMAo1ODAgLTQwMCAwIC00MDAgMCAwIC02NzB6Ii8+CiAgICAgIDxwYXRoIGQ9Ik0yMDY3MCAxMTc4MCBsMCAtNjcwIDEzMzMgMiAxMzMyIDMgMyA4OCAzIDg3IC05MzYgMCAtOTM1IDAgMCA1ODAgMAo1ODAgLTQwMCAwIC00MDAgMCAwIC02NzB6Ii8+CiAgICAgIDxwYXRoIGQ9Ik0yNDY3MCAxMTc4MCBsMCAtNjcwIDEzMzAgMCAxMzMwIDAgMCA5MCAwIDkwIC05MzAgMCAtOTMwIDAgMCA0OTAgMAo0OTAgOTMwIDAgOTMwIDAgMCA5MCAwIDkwIC0xMzMwIDAgLTEzMzAgMCAwIC02NzB6Ii8+CiAgICAgIDxwYXRoIGQ9Ik0yODY3MCAxMTc4MCBsMCAtNjcwIDg1IDAgODUgMCAwIDM4NCBjMCAyMTIgMyAzODcgOCAzOTAgNCAyIDM4NwotMTcxIDg1MSAtMzg1IGw4NDMgLTM4OSAzOTQgMCAzOTQgMCAwIDI0OCAwIDI0OSAtMjcgMTMgYy0xNiA3IC00MzcgMTk2IC05MzYKNDIxIGwtOTA4IDQwOSAtMzk1IDAgLTM5NCAwIDAgLTY3MHoiLz4KICAgICAgPHBhdGggZD0iTTMxMTYyIDEyMjE5IGwzIC0yMzAgNzggLTM1IGM0MyAtMTkgODAgLTM0IDgyIC0zNCAzIDAgNSAxMTkgNSAyNjUKbDAgMjY1IC04NSAwIC04NSAwIDIgLTIzMXoiLz4KICAgICAgPHBhdGggZD0iTTI2MDAwIDExNzgwIGwwIC05MCA1MzUgMCA1MzUgMCAwIDkwIDAgOTAgLTUzNSAwIC01MzUgMCAwIC05MHoiLz4KICAgIDwvZz4KICAgIDxnIGZpbGw9IiNBQkZGMTAiPgogICAgICA8cGF0aCBkPSJNMTMwMTUgMTA1NzQgYy02MSAtOSAtMTE1IC0zNSAtMTMwIC02MyAtMjEgLTQxIC0yNyAtMTIwIC0xMiAtMTYwIDYKLTE5IDI1IC00NCA0MCAtNTUgMjYgLTE5IDQ2IC0yMSAyMjcgLTI2IDE5MCAtNSAyMDEgLTYgMjIyIC0yNyAxOCAtMTkgMjAgLTI3CjEyIC01MCAtMTQgLTQwIC00NyAtNTIgLTE3MCAtNTggLTE0OSAtOCAtMTk1IDEgLTIxMyA0MiAtMTcgMzkgLTI1IDQyIC04NSAzNgpsLTQ4IC02IDYgLTQxIGM5IC01NCAzMCAtODUgNjkgLTEwMSA3NSAtMzEgNDI3IC0yNyA0OTkgNiAzOSAxNyA1OSA1MiA2NSAxMTIKNyA3MyAtMTMgMTI2IC01NyAxNTEgLTMxIDE5IC01NyAyMSAtMjMyIDI2IC0xMzUgMyAtMjAxIDkgLTIwOSAxNyAtMTUgMTUgLTE2CjcwIC0yIDg0IDE5IDE5IDg1IDI5IDE4OCAyOCAxMTggMCAxNjkgLTE0IDE3MyAtNDYgMyAtMjEgOSAtMjMgNjMgLTIzIDU2IDAKNTkgMSA1OSAyNSAwIDE0IC03IDQxIC0xNSA2MSAtMjQgNTcgLTYyIDY4IC0yNTUgNzAgLTkxIDEgLTE3OCAwIC0xOTUgLTJ6Ii8+CiAgICAgIDxwYXRoIGQ9Ik0xNTExMCAxMDU3MiBjMCAtNCA2NSAtNzkgMTQ1IC0xNjYgbDE0NSAtMTU4IDAgLTk5IDAgLTk5IDYwIDAgNjAgMAowIDk4IDAgOTcgMTUwIDE2MyBjODMgOTAgMTUwIDE2NiAxNTAgMTY4IDAgMiAtMzMgNCAtNzQgNCBsLTc0IDAgLTEwMiAtMTE1CmMtNTYgLTY0IC0xMDUgLTExNSAtMTEwIC0xMTMgLTQgMiAtNTIgNTMgLTEwNyAxMTMgbC05OSAxMTAgLTcyIDMgYy00MCAyIC03MgotMSAtNzIgLTZ6Ii8+CiAgICAgIDxwYXRoIGQ9Ik0xNzU3NSAxMDU3NCBjLTYxIC05IC0xMTUgLTM1IC0xMzAgLTYzIC0yMyAtNDYgLTI5IC0xMjIgLTEyIC0xNjMKMjggLTY3IDQ3IC03MiAyNzAgLTc4IDE5NCAtNSAxOTkgLTYgMjE4IC0yOSAyNCAtMjkgMjQgLTQzIDEgLTcyIC0xNiAtMTkgLTMzCi0yNCAtMTIzIC0zMiAtNjYgLTcgLTEyOSAtNyAtMTY5IC0xIC01NyA4IC02NiAxMiAtODAgMzkgLTE5IDM3IC0yNiA0MyAtNTMKNDAgLTEyIC0xIC0zNSAtMyAtNTEgLTQgLTI4IC0xIC0yOCAtMiAtMjIgLTQzIDE1IC05NSA1MCAtMTEzIDIyNiAtMTIzIDE0MQotOCAzMDMgNiAzNDggMjkgNTkgMzEgODEgMTYzIDM3IDIyOSAtMjggNDQgLTU4IDUwIC0yNjggNTYgLTE4MSA2IC0yMDAgOAotMjEzIDI1IC0zMCA0MiAtOSA4MiA1MSA5NiA1NCAxMyAyMjEgMTIgMjY3IC0xIDI3IC03IDQwIC0xNyA0NCAtMzQgNiAtMjMgMTEKLTI1IDY1IC0yNSA1NiAwIDU5IDEgNTkgMjUgMCAxNCAtNyA0MSAtMTUgNjEgLTI0IDU3IC02MiA2OCAtMjU1IDcwIC05MSAxCi0xNzggMCAtMTk1IC0yeiIvPgogICAgICA8cGF0aCBkPSJNMTk2NjAgMTA1MzAgbDAgLTQ5IDEyMyAtMyAxMjIgLTMgMyAtMjEyIDIgLTIxMyA2MCAwIDYwIDAgMCAyMTUgMAoyMTUgMTI2IDAgMTI1IDAgLTMgNDggLTMgNDcgLTMwNyAzIC0zMDggMiAwIC01MHoiLz4KICAgICAgPHBhdGggZD0iTTIxODc1IDEwNTY3IGMtMyAtNyAtNCAtMTI1IC0zIC0yNjIgbDMgLTI1MCAyODMgLTMgMjgyIC0yIDAgNDUgMAo0NSAtMjIyIDIgLTIyMyAzIDAgNjUgMCA2NSAyMDggMyAyMDcgMiAwIDQwIDAgNDAgLTIxMCAwIC0yMTAgMCAwIDYwIDAgNjAKMjIzIDIgMjIyIDMgMCA0NSAwIDQ1IC0yNzggMyBjLTIxOSAyIC0yNzkgMCAtMjgyIC0xMXoiLz4KICAgICAgPHBhdGggZD0iTTI0MDQwIDEwMzE1IGwwIC0yNjUgNjAgMCA2MCAwIDAgMjEyIDAgMjEyIDEzMiAtMjEyIDEzMyAtMjEyIDUwIDAKNTAgMSAxMzAgMjA4IDEzMCAyMDkgMyAtMjA5IDIgLTIwOSA2MCAwIDYwIDAgLTIgMjYzIC0zIDI2MiAtODMgMyBjLTQ3IDIgLTg5Ci0yIC05NiAtNyAtNyAtNiAtNjYgLTk2IC0xMzEgLTIwMSAtMTAzIC0xNjUgLTEyMCAtMTg4IC0xMzAgLTE3MiAtNyA5IC01OCA5MQotMTE1IDE4MiAtNTYgOTEgLTEwOSAxNzMgLTExOCAxODMgLTEyIDE0IC0zMiAxNyAtMTA0IDE3IGwtODggMCAwIC0yNjV6Ii8+CiAgICAgIDxwYXRoIGQ9Ik0yNjY0MCAxMDU2OSBjLTMwIC01IC02NSAtMTYgLTc4IC0yNSAtNDkgLTMyIC02OCAtMTQyIC0zNiAtMjA5IDI1Ci01NCA2NyAtNjUgMjU3IC02NiAxOTEgMCAyMzEgLTkgMjM1IC01NCA1IC01MyAtMTQgLTY2IC0xMTQgLTc3IC04OCAtMTAgLTIxMgotNiAtMjQ3IDcgLTEwIDQgLTIxIDIwIC0yNCAzNiAtMyAxNiAtMTEgMjkgLTE3IDMwIC0xMyAxIC04OCAxIC0xMDAgMCAtMTMgLTIKMCAtODggMTggLTExNSAyNiAtNDAgODIgLTUwIDI4NiAtNTAgMjc4IDAgMzEyIDE3IDMxOCAxNTMgNCA3NCAzIDgwIC0yNCAxMTAKLTM5IDQzIC03OCA1MCAtMjY5IDUxIC0xODEgMCAtMjA4IDcgLTIxMyA1NiAtNSA1MyAyMSA2NiAxNDYgNzIgMTUxIDcgMTk5IC0yCjIyMCAtMzkgMTYgLTI3IDIxIC0yOSA3NSAtMjkgbDU4IDAgLTYgMzggYy04IDQ3IC0zMyA4MyAtNzEgMTAyIC0zNSAxNyAtMzI5CjI0IC00MTQgOXoiLz4KICAgIDwvZz4KICA8L2c+Cjwvc3ZnPgo=";
+// Keep the same Grupo Sky Line SVG used in the application header available
+// in print popups, whose about:blank document may not resolve public assets.
+const SKYLINE_LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNjAgMjU4Ij4KICA8IS0tIEdSVVBPIC0tPgogIDx0ZXh0CiAgICB4PSIxMzAiIHk9IjM0IgogICAgdGV4dC1hbmNob3I9Im1pZGRsZSIKICAgIGZvbnQtZmFtaWx5PSInU2Vnb2UgVUknLCdIZWx2ZXRpY2EgTmV1ZScsQXJpYWwsc2Fucy1zZXJpZiIKICAgIGZvbnQtc2l6ZT0iMjEiIGZvbnQtd2VpZ2h0PSI1MDAiIGxldHRlci1zcGFjaW5nPSI3IgogICAgZmlsbD0iIzlBOURCMCIKICA+R1JVUE88L3RleHQ+CgogIDwhLS0gU0tZIOKAlCB0ZWFsL2N5YW4gLS0+CiAgPHRleHQKICAgIHg9IjEzMCIgeT0iMTQ1IgogICAgdGV4dC1hbmNob3I9Im1pZGRsZSIKICAgIGZvbnQtZmFtaWx5PSInU2Vnb2UgVUknLCdIZWx2ZXRpY2EgTmV1ZScsQXJpYWwsc2Fucy1zZXJpZiIKICAgIGZvbnQtc2l6ZT0iMTEyIiBmb250LXdlaWdodD0iNDAwIiBsZXR0ZXItc3BhY2luZz0iLTEiCiAgICBmaWxsPSIjMTVDM0UzIgogID5TS1k8L3RleHQ+CgogIDwhLS0gTElORSDigJQgc2lsdmVyL2xpZ2h0IGdyYXkgLS0+CiAgPHRleHQKICAgIHg9IjEzMCIgeT0iMjQ4IgogICAgdGV4dC1hbmNob3I9Im1pZGRsZSIKICAgIGZvbnQtZmFtaWx5PSInU2Vnb2UgVUknLCdIZWx2ZXRpY2EgTmV1ZScsQXJpYWwsc2Fucy1zZXJpZiIKICAgIGZvbnQtc2l6ZT0iMTEyIiBmb250LXdlaWdodD0iNzAwIiBsZXR0ZXItc3BhY2luZz0iNSIKICAgIGZpbGw9IiNDOENBRDgiCiAgPkxJTkU8L3RleHQ+Cjwvc3ZnPgo=";
 
 const STATUS_LABELS: Record<string, string> = {
     OPEN: "Aberta",
@@ -85,7 +88,11 @@ function attachmentCard(att: { fileName: string; mimeType?: string | null; fileU
     return `<figure class="attachment-item">
         ${isImage
             ? `<img src="${escapeAttr(att.fileUrl)}" alt="${escapeAttr(att.fileName)}" />`
-            : `<div class="attachment-placeholder"><span>${isVideo ? "▶" : "↗"}</span>${isVideo ? "Vídeo" : "Arquivo"}</div>`}
+            : isVideo
+                ? `<div class="attachment-placeholder">${att.fileUrl
+                    ? `<a class="attachment-video-link" href="${escapeAttr(att.fileUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir vídeo: ${escapeAttr(att.fileName)}">▶</a>Abrir vídeo${att.fileUrl.includes("/os/video-compartilhado?") || att.fileUrl.includes("/media/shared/") ? "" : "<small>Requer acesso ao sistema</small>"}`
+                    : "Vídeo indisponível"}</div>`
+                : `<div class="attachment-placeholder"><span>↗</span>Arquivo</div>`}
         <figcaption title="${escapeAttr(att.fileName)}">${escapeHtml(att.fileName)}</figcaption>
     </figure>`;
 }
@@ -193,7 +200,7 @@ export function buildOsPdfHtml(data: OsPdfData, options: OsPdfHtmlOptions = {}):
         .document-header {
             position: relative;
             display: grid;
-            grid-template-columns: 220px minmax(0, 1fr);
+            grid-template-columns: 250px minmax(0, 1fr);
             grid-template-rows: 76px 62px;
             min-height: 138px;
             overflow: hidden;
@@ -205,7 +212,7 @@ export function buildOsPdfHtml(data: OsPdfData, options: OsPdfHtmlOptions = {}):
             position: absolute;
             z-index: 0;
             inset: 0 auto 0 0;
-            width: 325px;
+            width: 368px;
             background: var(--ink);
             clip-path: polygon(0 0, 100% 0, 68% 100%, 0 100%);
         }
@@ -228,10 +235,14 @@ export function buildOsPdfHtml(data: OsPdfData, options: OsPdfHtmlOptions = {}):
             grid-row: 1 / 3;
             align-self: stretch;
             min-width: 0;
-            padding: 25px 25px 20px 29px;
+            padding: 25px 14px 20px 24px;
             color: #fff;
         }
-        .brand-lockup img { display: block; width: 172px; max-width: 100%; height: auto; }
+        .brand-logos { display: flex; align-items: center; gap: 8px; }
+        .brand-logos img { display: block; flex: none; height: auto; }
+        .brand-logos .zyllen-wordmark { width: 158px; max-width: calc(100% - 49px); }
+        .brand-logos .logo-divider { flex: none; width: 1px; height: 29px; background: #69716d; }
+        .brand-logos .skyline-logo { width: 32px; }
         .document-kind {
             display: block;
             margin-top: 12px;
@@ -343,12 +354,17 @@ export function buildOsPdfHtml(data: OsPdfData, options: OsPdfHtmlOptions = {}):
         .attachment-item img { display: block; width: 100%; height: 145px; object-fit: cover; }
         .attachment-placeholder { height: 145px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; background: var(--ink); color: #fff; font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
         .attachment-placeholder span { color: var(--green); font-size: 18px; }
+        .attachment-video-link { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; border: 1px solid var(--green); border-radius: 50%; color: var(--green); font-size: 24px; text-decoration: none; }
+        .attachment-placeholder small { font-size: 8px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+        .attachment-video-link:hover, .attachment-video-link:focus-visible { outline: 2px solid var(--green); outline-offset: -3px; }
         .attachment-item figcaption { padding: 4px 6px; overflow: hidden; color: #666c68; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
         .document-footer { position: relative; display: flex; justify-content: space-between; gap: 20px; margin-top: 24px; padding: 10px 13px 10px 19px; overflow: hidden; background: var(--ink); color: #d8dcd9; font-size: 8px; }
         .document-footer::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 7px; background: var(--green); clip-path: polygon(0 0, 100% 0, 55% 100%, 0 100%); }
         .document-footer strong { color: #fff; letter-spacing: .55px; text-transform: uppercase; }
+        .print-action { position: fixed; z-index: 10; top: 12px; right: 12px; padding: 9px 14px; border: 0; border-radius: 6px; background: var(--ink); color: #fff; cursor: pointer; }
         @page { size: A4; margin: 13mm 13mm 16mm; }
         @media print {
+            .print-action { display: none; }
             body { padding: 0; }
             .document-header { break-inside: avoid; }
             .summary-strip { break-inside: avoid; }
@@ -356,6 +372,7 @@ export function buildOsPdfHtml(data: OsPdfData, options: OsPdfHtmlOptions = {}):
     </style>
 </head>
 <body>
+    <button class="print-action" type="button" onclick="window.print()">Salvar ou imprimir PDF</button>
     <div class="brand-spine" aria-hidden="true"></div>
     <svg class="brand-watermark" aria-hidden="true" viewBox="850 995 300 155">
         <g class="watermark-accent" transform="translate(8 6)">
@@ -372,7 +389,11 @@ export function buildOsPdfHtml(data: OsPdfData, options: OsPdfHtmlOptions = {}):
     <main class="document">
         <header class="document-header">
             <div class="brand-lockup">
-                <img src="${escapeAttr(brandLogoUrl)}" alt="Zyllen Systems">
+                <div class="brand-logos">
+                    <img class="zyllen-wordmark" src="${escapeAttr(brandLogoUrl)}" alt="Zyllen Systems">
+                    <span class="logo-divider" aria-hidden="true"></span>
+                    <img class="skyline-logo" src="${SKYLINE_LOGO_DATA_URI}" alt="Grupo Sky Line">
+                </div>
                 <span class="document-kind">Ordem de serviço</span>
             </div>
             <div class="document-id">
@@ -456,9 +477,23 @@ export function buildOsPdfHtml(data: OsPdfData, options: OsPdfHtmlOptions = {}):
 </html>`;
 }
 
-export function printOsPdf(data: OsPdfData): void {
-    const html = buildOsPdfHtml(data);
-    const win = window.open("", "_blank");
+export function printOsPdf(data: OsPdfData, targetWindow?: Window | null): void {
+    const withVideoLink = (attachment: NonNullable<OsPdfData["attachments"]>[number]) => {
+        if (!attachment.mimeType?.startsWith("video/")) return attachment;
+        const path = new URL(attachment.fileUrl, window.location.origin).pathname;
+        const match = path.match(/^\/media\/(maintenance|os-followup)\/([^/]+)\/file$/);
+        if (!match) return attachment;
+        const url = new URL("/os/video", window.location.origin);
+        url.searchParams.set("kind", match[1]);
+        url.searchParams.set("id", decodeURIComponent(match[2]));
+        return { ...attachment, fileUrl: url.href };
+    };
+    const html = buildOsPdfHtml({
+        ...data,
+        attachments: data.attachments?.map(withVideoLink),
+        followupBlocks: data.followupBlocks?.map(block => ({ ...block, attachments: block.attachments.map(withVideoLink) })),
+    });
+    const win = targetWindow === undefined ? window.open("", "_blank") : targetWindow;
 
     if (!win) {
         const iframe = document.createElement("iframe");
@@ -485,6 +520,7 @@ export function printOsPdf(data: OsPdfData): void {
         return;
     }
 
+    win.document.open();
     win.document.write(html);
     win.document.close();
 }

@@ -18,7 +18,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <AuthProvider anonymous={pathname.startsWith('/painel/espelho/')}>
+            <AuthProvider anonymous={pathname.startsWith('/painel/espelho/') || pathname === '/os/video-compartilhado'}>
                 {children}
                 <Toaster
                     position="top-right"

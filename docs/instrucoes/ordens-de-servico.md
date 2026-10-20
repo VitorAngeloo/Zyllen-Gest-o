@@ -22,13 +22,16 @@ Regressão da interface: `pnpm test:maintenance:browser`, após `pnpm validate:i
 
 Os três portais usam o mesmo gerador em `apps/web/src/features/maintenance/utils/os-pdf.ts`. O documento deve preservar a leitura operacional em A4 e a identidade da Zyllen Systems sem competir com os dados:
 
-- logotipo vetorial oficial `public/brand/zyllen-wordmark.svg` no cabeçalho;
+- logotipo vetorial oficial `public/brand/zyllen-wordmark.svg` ao lado do logo `public/brand/logo-skyline.svg` no cabeçalho, como no sistema; ambos incorporados ao HTML da impressão para não depender do endereço da janela de prévia;
 - base branca, texto `#2C2C2C` e verde `#ABFF10` restrito aos elementos de assinatura visual;
 - cabeçalho assimétrico com painel escuro à esquerda e planos diagonais, seções com numeração em bloco e marca d'água baseada no `Z` oficial em sobreposição grafite e verde;
 - informações gerais em grade, detalhes em linhas e anexos em cartões, com controle de quebra de página;
 - impressão somente depois do carregamento de logotipo, assinaturas e fotos.
+- cartões de vídeo com link somente no botão de play (▶), inclusive nos blocos de acompanhamento; “Abrir vídeo” é uma legenda sem link. Ao gerar o PDF como Administrador/Gestor, o sistema cria um link por vídeo, válido por 24 horas a partir da geração e revogável no anexo. O link abre `/os/video-compartilhado?token=…`, página pública que incorpora o vídeo servido pela API, sem login do destinatário. A ação permanece identificada como “Gerar PDF”; a autorização para criar os links decorre da instrução explícita do usuário para esse fluxo. Se um link falhar durante a preparação, os links já criados são revogados e o PDF ainda é gerado com vídeos sem link, acompanhado de aviso. Os demais usuários geram PDFs com links privados que exigem login. A prévia tem botão “Salvar ou imprimir PDF” caso a impressão automática não abra. PDFs antigos precisam ser gerados novamente.
 
 Qualquer alteração nesse gerador afeta as visões interna, de cliente e de parceiro. Não crie versões visuais divergentes por portal e não remova campos, assinaturas ou anexos do conteúdo exportado.
+
+Regressão dos links: `node scripts/quality/test-os-video-browser.cjs`, com `AUDIT_ARTIFACT_DIR` apontando para o build isolado. O teste usa respostas sintéticas em viewport móvel, cobre os três tipos de conta, manutenção do destino após login, renovação de sessão antes do vídeo, erro de mídia, rejeição de tipo inválido e reprodução anônima na página pública com a CSP atual da API; não acessa o banco compartilhado.
 
 ## Criação de OS e upload em duas etapas
 
@@ -83,7 +86,9 @@ O `formData` recebido é mesclado com o conteúdo existente; chaves omitidas nã
 - **Supabase Storage** quando `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` estão definidos — `filePath` fica prefixado com `supabase:` e o serve redireciona para URL assinada (expiração configurável).
 - **Disco local** (`apps/api/uploads/`) como fallback privado — entregue pelo módulo `media` após autorização. Não há `ServeStaticModule` público em `/uploads`.
 
-Limites de upload: **20 MB por foto**, **80 MB por vídeo** e **10 arquivos por request**. MIME permitido: imagens (jpeg, png, gif, webp, bmp) e vídeos (mp4, webm, quicktime, x-msvideo). A interface valida os arquivos e divide seleções grandes em requests menores antes do envio.
+Limites de upload: **20 MB por foto**, **150 MB por vídeo** e **10 arquivos por request**. MIME permitido: imagens (jpeg, png, gif, webp, bmp) e vídeos (mp4, webm, quicktime, x-msvideo). A interface valida os arquivos e divide seleções grandes em requests menores antes do envio. O limite de vídeo é definido em `packages/shared/src/maintenance/media.ts` e compartilhado pela API, validação e textos da interface.
+
+Esses são os limites do código atual. A publicação web pode reduzir o teto de vídeo por `NEXT_PUBLIC_OS_VIDEO_MAX_MB`, aplicado à validação, aos textos e aos lotes. Em 20/10/2026, a API em execução continua em **80 MB** e o web foi preparado com o mesmo teto; a revisão automática bloqueou a parada/reinicialização necessária para aplicar os 150 MB na API. O aumento permanece pendente de publicação do backend. Regressão isolada: `node scripts/quality/test-maintenance-media.cjs`, após o build isolado indicado em desenvolvimento; usa bytes sintéticos, sem banco.
 
 O upload faz **rollback**: se a persistência no banco falhar, os arquivos já gravados são removidos.
 
@@ -93,9 +98,21 @@ Uploads são classificados pelo cabeçalho binário; extensão e MIME são deriv
 
 O bucket Supabase precisa ser privado; o startup recusa configuração pública ou bucket cuja privacidade não possa ser confirmada. Fotos/vídeos dentro do sistema usam a sessão de mídia httpOnly, sem JWT na URL. A chave de CPF não deve ser alterada durante manutenção de JWT.
 
+Respostas de vídeo privadas e compartilhadas mantêm `Content-Type` detectado por bytes, `Content-Disposition: inline`, proteção contra MIME spoofing e autorização/validade por objeto. A CSP da resposta de anexo permanece restrita (`default-src 'none'; sandbox`), por isso navegar diretamente para `/media/shared/:token` pode abrir um player vazio; a página pública reproduz o arquivo como subrecurso de `<video>` sob a CSP do frontend. A página usa `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store` e `X-Robots-Tag: noindex, nofollow` para não divulgar o token em navegações ou indexação.
+
 Assinatura confirmada não tem retificação, inclusive por administrador. As mutações de uma OS são serializadas por trava no PostgreSQL. O bloqueio aplicativo não equivale a assinatura digital certificada nem a congelamento criptográfico de PDF, mídia e metadados. Encerramento interno exige `maintenance.close`.
 
 Ao alterar OS, validar os controllers `/maintenance`, `/client/maintenance` e `/contractor/maintenance`, suas páginas e permissões específicas. Preservar os arquivos locais no wizard quando a criação falhar, e impedir nova criação quando só o upload falhar.
+
+## Publicação do frontend — 06/10/2026
+
+Publicado no domínio `skylineti.com` o deployment Vercel `dpl_GpDYn1dfG1QGN3YNzdahmcjuEUSq`, com indicação de 150 MB por vídeo e cartões de vídeo clicáveis no PDF. A publicação foi preparada a partir de `1b19327` com somente as alterações de mídia/PDF das OS; outras mudanças locais de estoque/dashboard não foram incluídas. Arquitetura, tipos e build isolado passaram. Os arquivos JavaScript públicos confirmaram o link privado e o limite de 157.286.400 bytes; a API pública respondeu HTTP 200. Não houve publicação da API nem alteração de banco nesta etapa. PDFs antigos precisam ser gerados novamente; abertura do vídeo exige sessão ativa e autorização no navegador. O teste do leitor de PDF no celular permanece para validação do usuário.
+
+Atualização posterior: o deployment `dpl_G9VnSMNjog3ywVH31imfrTUPwddJ` passou a criar, mediante confirmação de Administrador/Gestor, links individuais de 24 horas para vídeos no PDF. O domínio foi confirmado `Ready`, com botão e fluxo de compartilhamento presentes nos arquivos públicos; health da API respondeu HTTP 200. Arquitetura, tipos, build isolado da versão publicada, teste sintético de compartilhamento/rollback e anotação clicável no PDF passaram. Nenhuma migration ou gravação de teste foi aplicada ao banco real. PDFs anteriores mantêm seus links originais.
+
+Correção posterior: o deployment `dpl_BU2YBns6ZiLUrtCbQGwiWNDBdGpe` restaurou o botão simples “Gerar PDF” e retirou a confirmação extra. A prévia oferece “Salvar ou imprimir PDF” caso a impressão automática não abra. Falha na criação de link de vídeo revoga os links da tentativa e ainda produz o PDF, com indicação de vídeo indisponível e aviso na tela de origem. O domínio `skylineti.com` ficou `Ready`, o bundle público confirmou o fluxo novo e a API respondeu HTTP 200. Arquitetura, tipos, build isolado, 14 cenários de navegador (incluindo a geração real da prévia com seis vídeos e links), e teste de falha/rollback passaram sem escrita no banco de produção.
+
+Correção de reprodução em 06/10/2026: o deployment `dpl_Bc8qb8bDCJbAgiexyxexP1aKTSX4` passou a colocar nos novos PDFs o link para `/os/video-compartilhado?token=…`, que exibe o vídeo dentro de um player público. A navegação direta para o anexo compartilhado podia deixar o player nativo vazio por causa da CSP da resposta; a API e sua proteção de arquivos não foram alteradas. O domínio e a API responderam HTTP 200, a página retornou `no-referrer`, `noindex` e `no-store`, e um vídeo sintético foi reproduzido sem login no domínio publicado, usando `api.skylineti.com` como origem de mídia e a CSP atual da API. Arquitetura, tipos, build isolado, 14 cenários de navegador e regressão de compartilhamento/rollback passaram. É necessário gerar um novo PDF para obter esse endereço; PDFs anteriores mantêm os links antigos. Nenhum dado do banco foi alterado na validação.
 
 ## Referências
 

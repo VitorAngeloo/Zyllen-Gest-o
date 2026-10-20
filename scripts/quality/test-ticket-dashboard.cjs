@@ -18,7 +18,8 @@ const cases = [], logs = [];
 const shots = path.join(scratch, process.argv.includes('--maintenance') ? 'maintenance-browser-qa' : process.argv.includes('--structures') ? 'structures-browser-qa' : process.argv.includes('--projects-agenda') ? 'projects-agenda-browser-qa' : process.argv.includes('--panels') ? 'personal-panels-browser-qa' : process.argv.includes('--inventory-statistics') ? 'inventory-statistics-browser-qa' : process.argv.includes('--custody') ? 'custody-browser-qa' : process.argv.includes('--trips') ? 'trips-browser-qa' : process.argv.includes('--project-statistics') ? 'project-statistics-browser-qa' : process.argv.includes('--projects') ? 'project-services-browser-qa' : 'ticket-dashboard-qa');
 fs.mkdirSync(shots, { recursive: true });
 let web, browser;
-const fixedNow = Date.now();
+// Keep relative fixtures inside the explicit July–October regression period.
+const fixedNow = Date.parse('2026-10-14T15:00:00.000Z');
 const date = minutes => new Date(fixedNow - minutes * 60_000).toISOString();
 function ticket(id, overrides = {}) {
     return {

@@ -96,6 +96,8 @@ O módulo `trips` coordena o cadastro `Trip`, seu `Schedule` único e os víncul
 
 Os portais têm páginas de manutenção separadas. Mudanças comuns de OS devem ser verificadas nos três consumidores e seus controllers. Não unificar permissões apenas porque componentes visuais são compartilhados.
 
+`/os/video` delega ao `features/maintenance/screens/os-video-screen.tsx` para vídeos com acesso privado. PDFs compartilháveis gerados por Administrador/Gestor apontam para `/os/video-compartilhado?token=…`, cuja tela incorpora no player o endpoint temporário `/media/shared/:token` por anexo, sem login do destinatário. A API continua aplicando expiração, revogação e autorização do criador. A tela de acesso privado reutiliza o login com permanência na página, sem alterar os redirecionamentos normais dos portais.
+
 ### Contexto de autenticação
 
 `apps/web/src/features/auth/context/auth-context.tsx` expõe `user`, `token`, `permissions`, `userType`, `isLoading`, `needsPin`, `login`, `logout`, `hasPermission` e `clearNeedsPin`. `useAuthedFetch()` memoiza o header Authorization.
