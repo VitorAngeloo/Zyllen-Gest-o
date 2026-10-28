@@ -36,9 +36,9 @@ const AgendaCalendar = dynamic(() => import("./schedule-calendar"), {
     ),
 });
 
-interface Props { section: 'agenda' | 'equipe'; view: Exclude<Tab, 'instaladores'>; onViewChange: (view: Exclude<Tab, 'instaladores'>) => void }
+interface Props { section: 'agenda' | 'equipe'; view: Exclude<Tab, 'instaladores'>; onViewChange: (view: Exclude<Tab, 'instaladores'>) => void; hiddenProjectServiceIds?: ReadonlySet<string> }
 
-export function ScheduleWorkspace({ section, view, onViewChange }: Props) {
+export function ScheduleWorkspace({ section, view, onViewChange, hiddenProjectServiceIds }: Props) {
     const fetchOpts = useAuthedFetch();
     const { user, hasPermission } = useAuth();
     const canView = !!user && hasPermission('schedule.view');
@@ -129,7 +129,7 @@ export function ScheduleWorkspace({ section, view, onViewChange }: Props) {
     // ── Derived data ─────────────────────────────────────────────────────────
 
     const installers = installersRes?.data ?? [];
-    const schedules = schedulesRes?.data ?? [];
+    const schedules = (schedulesRes?.data ?? []).filter(schedule => !schedule.projectService || !hiddenProjectServiceIds?.has(schedule.projectService.id));
 
     const filteredInstallers = search
         ? installers.filter((i) => normalize(i.name).includes(normalize(search)) || normalize(i.email).includes(normalize(search)))

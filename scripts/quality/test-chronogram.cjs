@@ -17,7 +17,7 @@ function load(file) {
     if (modules.has(file)) return modules.get(file).exports;
     const module = { exports: {} }; modules.set(file, module);
     const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-    vm.runInNewContext(code, { module, exports: module.exports, URLSearchParams, require: name => {
+    vm.runInNewContext(code, { module, exports: module.exports, URLSearchParams, process: { env: {} }, require: name => {
         if (name === '@web/features/project-services/api/project-service-api') return { projectServiceApi: projectApi };
         if (name === '@zyllen/shared') return { ...load(path.join(shared, 'schemas')), ...load(path.join(shared, 'planning')) };
         if (name === 'zod') return sharedRequire('zod');
@@ -29,6 +29,7 @@ function load(file) {
 const dates = load('utils/chronogram-dates');
 const adapter = load('utils/chronogram-records');
 const rules = load('utils/chronogram-selectors');
+const { visibleChronogramRecords } = load('utils/chronogram-visibility');
 const navigation = load('utils/chronogram-navigation');
 const { projectPlanningSchema } = load(path.join(shared, 'planning'));
 const { loadChronogramProjects } = load('api/chronogram-api');
@@ -41,6 +42,20 @@ const record = extra => ({ ...adapter.projectToChronogram(project()), ...extra }
 const cases = [];
 async function run(name, test) { try { await test(); cases.push({ name, passed: true }); console.log('PASS ' + name); } catch (error) { cases.push({ name, passed: false }); console.error('FAIL ' + name + ': ' + error.message); } }
 async function main() {
+    await run('Planning visibility excludes only selected project identities and their linked calendar events, preserving source history and new work', () => {
+        const linked = { id: 'hidden-schedule', title: 'Same name', type: 'INSTALLATION', status: 'SCHEDULED', startDate: '2026-10-28T12:00:00Z', endDate: '2026-10-28T13:00:00Z', installers: [] };
+        const projects = [project({ id: 'hidden-project', name: 'Same name', schedule: linked }), project({ id: 'new-project', name: 'Same name' })];
+        const combined = adapter.combineChronogram(projects, [linked, { ...linked, id: 'standalone' }, { ...linked, id: 'travel', trip: { id: 'trip-1', contractors: [] } }]);
+        const legacy = record({ id: 'legacy:hidden-project', sourceId: 'hidden-project', kind: 'legacy', title: 'Same name' });
+        const input = [...combined, legacy];
+        const visible = visibleChronogramRecords(input, new Set(['hidden-project']));
+        assert.equal(visible.length, 4);
+        assert(!visible.some(row => row.id === 'project:hidden-project' || row.id === 'schedule:hidden-schedule'));
+        for (const id of ['project:new-project', 'schedule:standalone', 'trip:trip-1', 'legacy:hidden-project']) assert(visible.some(row => row.id === id));
+        assert.equal(rules.chronogramSummary(visible, filters, '2026-10-26').active.length, 1);
+        assert.equal(visibleChronogramRecords(input, new Set()).length, input.length);
+        assert.equal(input.length, 5); assert.equal(projects.length, 2);
+    });
     await run('Adapter keeps native status and unknown technical fields despite suggestive names and notes', () => {
         const row = adapter.projectToChronogram(project());
         assert.equal(row.stage, 'PENDING'); assert.equal(row.category, null); assert.equal(row.technical, null); assert.equal(row.equipment.length, 0); assert.equal(row.forecast, '');

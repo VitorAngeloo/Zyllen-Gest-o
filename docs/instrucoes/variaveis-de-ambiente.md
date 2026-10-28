@@ -37,6 +37,7 @@ Access token expira em `1d` (`auth.module.ts`) e refresh em `7d` (`auth.service.
 | Variável | Uso |
 |---|---|
 | `NEXT_PUBLIC_API_URL` | URL base da API; também usada para compor CSP. |
+| `NEXT_PUBLIC_PLANNING_HIDDEN_SERVICE_IDS` | IDs de `ProjectService`, separados por vírgula, retirados somente das visualizações de Cronograma e Planejamento e da agenda complementar. Lista explícita dos 15 projetos anteriores ao ZIP, autorizada em 28/10/2026. Não apaga nem cancela registros, não filtra outros módulos e não oculta novos projetos. Configurar igualmente no ambiente local e na produção Vercel; exige novo build. Ausente/vazia, não oculta nenhum projeto. IDs são públicos no bundle, sem nomes ou segredos. |
 | `NEXT_PUBLIC_OS_VIDEO_MAX_MB` | Teto de vídeo da publicação web, limitado pelo máximo de `@zyllen/shared`. Reduzir para acompanhar a API ativa; a mesma configuração controla validação, texto e lotes. Produção em 20/10/2026: `80`, enquanto a API permanece nessa versão. Exige novo build do web. |
 | `NEXT_PUBLIC_ZEBRA_PRINT_URL` | URL opcional do Browser Print. Configuração salva na tela tem prioridade; depois vem tentativa local. |
 

@@ -8,6 +8,7 @@ import { loadChronogramProjects } from '../api/chronogram-api';
 import { projectLegacyApi } from '@web/features/project-services/api/project-legacy-api';
 import { dayKey } from '../utils/chronogram-dates';
 import { combineChronogram, legacyToChronogram } from '../utils/chronogram-records';
+import { visibleChronogramRecords } from '../utils/chronogram-visibility';
 
 export function useChronogram() {
     const { user, userType, hasPermission } = useAuth();
@@ -25,7 +26,7 @@ export function useChronogram() {
         }, refetchInterval: 30_000 });
     const legacy = useQuery({ queryKey: ['project-services', 'chronogram-legacy', user?.id], enabled,
         queryFn: ({ signal }) => projectLegacyApi.listAll({ ...options, signal }), refetchInterval: 30_000 });
-    const records = useMemo(() => [...combineChronogram(projects.data ?? [], schedules.data?.data ?? []), ...(legacy.data ?? []).map(legacyToChronogram)], [projects.data, schedules.data, legacy.data]);
+    const records = useMemo(() => visibleChronogramRecords([...combineChronogram(projects.data ?? [], schedules.data?.data ?? []), ...(legacy.data ?? []).map(legacyToChronogram)]), [projects.data, schedules.data, legacy.data]);
     return { projects, schedules, legacy, records, now, today: dayKey(now),
         loading: projects.isLoading || schedules.isLoading || legacy.isLoading, failed: projects.isError || schedules.isError || legacy.isError,
         ready: !!projects.data && !!schedules.data && !!legacy.data, fetching: projects.isFetching || schedules.isFetching || legacy.isFetching,

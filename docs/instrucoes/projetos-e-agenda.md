@@ -1,5 +1,13 @@
 # Cronograma e Planejamento
 
+## Retirada dos projetos anteriores ao ZIP em 28/10/2026
+
+Após a publicação, o usuário solicitou retirar os projetos que não vieram do ZIP e confirmou **somente a retirada de Cronograma e Planejamento**, preservando banco e vínculos. A leitura identificou 15 `ProjectService` anteriores e 240 registros legados. A lista explícita dos 15 IDs fica na configuração `NEXT_PUBLIC_PLANNING_HIDDEN_SERVICE_IDS`, no frontend local e na produção Vercel; os valores não são versionados. `chronogram-visibility.ts` aplica esse escopo após combinar as fontes e deduplicar seus vínculos, antes dos filtros, cards, calendário, quadro, pendências, resumos e lateral. Assim, os agendamentos vinculados não reaparecem como compromissos avulsos. A agenda complementar recebe a mesma lista por uma propriedade opcional; os demais consumidores de `ScheduleWorkspace` mantêm seu escopo anterior.
+
+Os registros do ZIP continuam somente de consulta. Novos projetos, com IDs fora da lista, aparecem normalmente. Cadastros de clientes, dashboard geral, viagens, OS, estoque, histórico, permissões e estado operacional dos projetos permanecem preservados. Não há exclusão, cancelamento, migration ou escrita no banco nessa alteração. Restaurar a exibição exige retirar os IDs da configuração e reconstruir o frontend; não é um controle de autorização.
+
+Publicado no localhost e no domínio de produção, deployment `dpl_2WqGjpgNiajps4fgG7uV6moJccqK`. A configuração dos 15 IDs foi confirmada nos arquivos efetivamente servidos por ambos. Arquitetura, tipos, build isolado, 21 verificações de domínio e 44 cenários de navegador passaram. O cenário adicional de escopo usa `AUDIT_HIDDEN_PROJECT_SERVICE_ID` sintético igual ao valor compilado em `NEXT_PUBLIC_PLANNING_HIDDEN_SERVICE_IDS` no build isolado, sem credenciais ou acesso real. Leitura pós-alteração confirmou os 15 serviços e seus 15 agendamentos preservados, os 52 cadastros `Project` e os 240 legados. API permaneceu no mesmo PID 24956, com saúde local/pública `200`; não houve recompilação ou reinício do backend.
+
 ## Publicação operacional em 28/10/2026
 
 Etapa 6 autorizada pelo usuário, com matriz dos demais acessos adiada e **Internos sem acesso à página**. Publicação em [skylineti.com/dashboard/projetos](https://skylineti.com/dashboard/projetos), deployment `dpl_7vk4ieZCjMkQmVHosq6jqGdDGnFv`, preparado sem trocar domínio e promovido após verificação da API. API em produção, porta 3001, sem watch, PID **24956**. O localhost usa a API atualizada.
