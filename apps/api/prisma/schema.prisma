@@ -50,6 +50,9 @@ model InternalUser {
   schedulesCreated    Schedule[]        @relation("ScheduleCreatedBy")
   scheduleInstallations ScheduleInstaller[]
   projectServiceAssignments ProjectServiceInternal[]
+  projectPendingsCreated ProjectServicePending[] @relation("ProjectPendingCreator")
+  projectPendingsResolved ProjectServicePending[] @relation("ProjectPendingResolver")
+  projectNotes ProjectServiceNote[]
   assetEvents         AssetEvent[]
   custodyTransfers    InventoryTransfer[]
   panelMirrors        PanelMirror[]
@@ -915,6 +918,28 @@ model Schedule {
 }
 
 // One operational service per client project; legacy projects remain outside this management.
+// Immutable source snapshots, separate from operational identities and execution.
+model ProjectPlanningLegacyImport {
+  id String @id @default(uuid())
+  sourceName String
+  sourceSha256 String @unique
+  artifactSha256 String
+  importedAt DateTime @default(now())
+  importedBy String // Deployment identifier, never a fabricated historical author.
+  records ProjectPlanningLegacyRecord[]
+}
+
+model ProjectPlanningLegacyRecord {
+  id String @id
+  importId String
+  sourceId String
+  payloadSha256 String
+  payload Json
+  rawSource Json
+  batch ProjectPlanningLegacyImport @relation(fields: [importId], references: [id], onDelete: Restrict)
+  @@unique([importId, sourceId])
+}
+
 model ProjectService {
   id             String @id @default(uuid())
   projectId      String @unique
@@ -924,6 +949,9 @@ model ProjectService {
   followupId     String? @unique
   removalCycleId String?
   type           String // INSTALLATION | REMOVAL
+  specifications Json? // Optional descriptive chronogram data; validated by shared schema.
+  planning       Json? // Eight chronogram stages and date/month forecast, separate from execution.
+    originalScheduledStartAt DateTime? // First confirmed start before a reschedule; never backfilled from forecasts.
   urgency        Int @default(0) // 0 normal | 1 high | 2 urgent
   color          String @default("#ABFF10")
   mapsUrl        String?
@@ -944,9 +972,42 @@ model ProjectService {
   contractors ProjectServiceContractor[]
   installationCycle StructureCycle? @relation("CycleInstallation")
   removalCycle StructureCycle? @relation("CycleRemovals", fields: [removalCycleId], references: [id], onDelete: Restrict)
+  pending ProjectServicePending[]
+  annotations ProjectServiceNote[]
   @@index([urgency, createdAt])
   @@index([tripId])
   @@index([removalCycleId])
+}
+
+// Independent project actions and append-only notes; preserve authors and resolution.
+model ProjectServicePending {
+  id String @id @default(uuid())
+  serviceId String
+  type String
+  responsible String @default("")
+  deadline String?
+  detail String @default("")
+  version Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdById String
+  resolvedAt DateTime?
+  resolvedById String?
+  service ProjectService @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  createdBy InternalUser @relation("ProjectPendingCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  resolvedBy InternalUser? @relation("ProjectPendingResolver", fields: [resolvedById], references: [id], onDelete: Restrict)
+  @@index([serviceId, resolvedAt, createdAt])
+}
+
+model ProjectServiceNote {
+  id String @id @default(uuid())
+  serviceId String
+  text String
+  createdAt DateTime @default(now())
+  authorId String
+  service ProjectService @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  author InternalUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  @@index([serviceId, createdAt])
 }
 
 // Persistent identity within the operational domain; no automatic asset/stock links.

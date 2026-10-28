@@ -19,14 +19,14 @@ export class PanelDataService {
     constructor(private readonly prisma: PrismaService, private readonly access: PanelAccessService, private readonly tickets: TicketStatisticsService,
         private readonly projects: ProjectStatisticsService, private readonly operations: OperationsStatisticsService, private readonly inventory: InventoryStatisticsService,
         private readonly vehiclesService: VehiclesService) {}
-    async statistics(actor: PanelActor, query: PanelStatisticsQuery): Promise<PanelStatistics> {
+    async statistics(actor: PanelActor, query: PanelStatisticsQuery, includeChronogram = false): Promise<PanelStatistics> {
         this.access.require(actor, query.view);
         const period = { start: query.start!, end: query.end! };
         if (query.view === 'atendimentos' || query.view === 'atendimentos-clientes') {
             const source: ActiveTicketSource = query.view === 'atendimentos' ? 'INTERNAL' : 'CLIENT';
             return { view: query.view, data: await this.tickets.get({ ...period, source }, actor) };
         }
-        if (query.view === 'projetos') return { view: query.view, data: await this.projects.get({ ...period, type: 'ALL' }) };
+        if (query.view === 'projetos') return { view: query.view, data: await this.projects.get({ ...period, type: 'ALL' }, includeChronogram) };
         if (query.view === 'operacoes') return { view: query.view, data: await this.operations.get({ ...period, type: 'ALL' }) };
         if (query.view === 'estoque') return { view: query.view, data: await this.inventory.statistics({ context: 'ALL' }) };
         throw new BadRequestException('Esta visão possui uma fonte de dados própria');

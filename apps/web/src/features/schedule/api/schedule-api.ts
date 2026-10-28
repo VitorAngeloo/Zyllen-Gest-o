@@ -6,6 +6,9 @@ type PathValue = string | number | null | undefined;
 type QueryValue = PathValue | URLSearchParams;
 
 export const scheduleApi = {
+    async detail(id: string, options?: RequestOptions) {
+        return (await apiClient.get<{ data: Schedule }>(`/schedule/${encodeURIComponent(id)}`, options)).data;
+    },
     upcoming(startDate: string, options?: RequestOptions) {
         const query = new URLSearchParams({ status: 'SCHEDULED', startDate, limit: '5', page: '1' });
         return apiClient.get<{ data: Schedule[]; total: number }>(`/schedule?${query}`, options);

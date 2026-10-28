@@ -28,7 +28,8 @@ Toda alteração de código ou documentação deve seguir a [regra de organizaç
 | Atualizar Vercel ou API Windows | [Implantação](implantacao.md) |
 | Entender login, sessão, RBAC e PIN | [Autenticação e autorização](autenticacao-e-permissoes.md) |
 | Trabalhar com OS, assinatura e anexos | [Ordens de serviço](ordens-de-servico.md) |
-| Gerenciar projetos com um serviço, agenda e equipe na área unificada | [Projetos e agenda](projetos-e-agenda.md) |
+| Consultar o cronograma adaptado, projetos, compromissos e viagens; acompanhar limites da integração local | [Cronograma e Planejamento](projetos-e-agenda.md) |
+| Planejar a integração do cronograma recebido e a evolução para Cronograma e Planejamento | [Roadmap Zyllen](../ROADMAP_ZYLLEN.md), [backlog](../BACKLOG_ZYLLEN.md) e [decisões pendentes](../DECISOES_PENDENTES.md) |
 | Cadastrar viagens e entender os indicadores de instalações/desinstalações/viagens | [Viagens e operações](viagens-e-operacoes.md) |
 | Cadastrar carros e organizar sua agenda independente de reservas | [Carros e reservas](carros-e-reservas.md) |
 | Identificar salas/totens e consultar seus ciclos de instalação/desinstalação | [Estruturas e ciclos](estruturas-e-ciclos.md) |
@@ -44,6 +45,7 @@ Toda alteração de código ou documentação deve seguir a [regra de organizaç
 
 Os arquivos `plano-*.md` e `historico-*.md` estão nesta mesma pasta. Seus nomes e avisos identificam a natureza datada do conteúdo; não são procedimentos atuais nem backlog automaticamente aprovado.
 
+- [Cronograma e Planejamento — referência de 26/10/2026, continuidade em 28/10](../ROADMAP_ZYLLEN.md): análise do código, pacote e transcrições, com oito fases oficiais, inventário de paridade, [tarefas e critérios](../BACKLOG_ZYLLEN.md) e [decisões pendentes](../DECISOES_PENDENTES.md). Frontend, cadastro técnico, oito etapas e previsões preparados localmente estão no guia da área; pendências/anotações, paridade completa, importação e publicação permanecem pendentes. O plano de setembro preserva as entregas anteriores.
 - [Plano de evolução de estoque e patrimônio](plano-evolucao-estoque.md): proposta e registro de abril de 2026; revalidar backlog e premissas antes de executar.
 - [Plano de evolução operacional e painéis](plano-evolucao-operacional-e-paineis.md): proposta de 17/09/2026 baseada no prompt do usuário e no código atual; frentes, dependências, regras de indicadores e decisões ainda necessárias.
 - [Plano de identidade visual e UX](plano-identidade-visual.md): histórico visual de 17–19/09/2026 e [ciclo de UX de 20/09/2026](plano-identidade-visual.md#ciclo-de-ux-de-20092026), com diagnóstico, prioridades, etapas, critérios de aceite e decisões pendentes. O novo ciclo está em planejamento.
@@ -56,7 +58,7 @@ Os arquivos `plano-*.md` e `historico-*.md` estão nesta mesma pasta. Seus nomes
 1. Cada assunto tem uma referência principal. Nos demais documentos, usar links em vez de copiar instruções completas.
 2. Arquivos descritivos usam português, letras minúsculas e hífens, sem espaços ou acentos: `banco-de-dados.md`, `ordens-de-servico.md`.
 3. `README.md`, `AGENTS.md` e `CLAUDE.md` da raiz mantêm seus nomes convencionais como entradas curtas. O conteúdo completo está em `docs/instrucoes/`; `CLAUDE.md` importa diretamente as mesmas instruções para agentes.
-4. Manter os guias, planos e registros diretamente em `docs/instrucoes/`, sem distribuir instruções em outras pastas. Usar os prefixos `plano-` e `historico-` para conteúdo datado. Artefatos e scripts da auditoria ficam em `docs/security-audit/`, com seu guia nesta pasta.
+4. Manter os guias, planos e registros diretamente em `docs/instrucoes/`, sem distribuir instruções em outras pastas. Usar os prefixos `plano-` e `historico-` para conteúdo datado. Artefatos e scripts da auditoria ficam em `docs/security-audit/`, com seu guia nesta pasta. **Exceção solicitada expressamente em 26/10/2026:** `docs/ROADMAP_ZYLLEN.md`, `docs/BACKLOG_ZYLLEN.md` e `docs/DECISOES_PENDENTES.md` preservam os nomes e o destino pedidos pelo usuário; concentram planejamento, sem duplicar procedimentos técnicos desta pasta.
 5. Quando um plano vira implementação, atualizar seu estado e apontar para a referência final. Checkboxes antigos não constituem backlog atual.
 6. Ao mover ou fundir arquivos, atualizar links e registrar a origem na tabela abaixo. Preservar conteúdo único e distinguir propostas de comportamento confirmado.
 7. Não documentar valores de segredos, senhas, PINs ou dados de clientes. Expor apenas nomes de variáveis e placeholders.

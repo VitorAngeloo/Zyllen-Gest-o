@@ -54,7 +54,7 @@ export function ScheduleWorkspace({ section, view, onViewChange }: Props) {
     const [initialDates, setInitialDates] = useState<{ start: string; end: string } | null>(null);
     const [tripDialog, setTripDialog] = useState<{ id?: string } | null>(null);
     const [projectDialog, setProjectDialog] = useState<{ id?: string } | null>(null);
-    const invalidateOperational = async () => { await Promise.all(['schedules', 'project-services', 'trips', 'trip-options', 'operations-statistics'].map(key => qc.invalidateQueries({ queryKey: [key] }))); };
+    const invalidateOperational = async () => { await Promise.all(['schedules', 'project-services', 'trips', 'trip-options', 'operations-statistics', 'panel-statistics', 'project-history'].map(key => qc.invalidateQueries({ queryKey: [key] }))); };
 
     // Schedule filters
     const [filterStatus, setFilterStatus] = useState("");

@@ -6,7 +6,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     const runtime = process.env.AUDIT_RUNTIME_ROOT || 'C:/Users/SERVIDOR ZYLLEN/.cache/codex-runtimes/codex-primary-runtime/dependencies';
     const { expect } = require(path.join(runtime, 'node/node_modules/playwright/test'));
     const token = 'P'.repeat(43), all = ['atendimentos', 'atendimentos-clientes', 'clientes-atencao', 'projetos', 'operacoes', 'estoque', 'carros'];
-    async function setup({ query = '', permissions = ['dashboard.view', 'tickets.view', 'schedule.view', 'inventory.view'], role = 'Gestor', views = all, savedViews = views, active = false, mirror = false, mobile = false, loggedOut = false, fail = {}, empty = false, malformed = false, legacy = false, former = false, viewport, dense = false } = {}) {
+    async function setup({ query = '', permissions = ['dashboard.view', 'tickets.view', 'schedule.view', 'inventory.view'], role = 'Gestor', views = all, savedViews = views, active = false, mirror = false, mobile = false, loggedOut = false, fail = {}, empty = false, malformed = false, legacy = false, former = false, viewport, dense = false, chronogram = false } = {}) {
         const context = await browser.newContext({ viewport: viewport ?? (mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 }), timezoneId: 'America/Sao_Paulo', reducedMotion: 'reduce', permissions: ['clipboard-read', 'clipboard-write'] });
         const requests = [], errors = [], attentionCompanies = [{ id: '20000000-0000-4000-8000-000000000001', name: 'Cliente atenção QA', contactName: 'Responsável QA', contactPhone: '(11) 99999-0000' }];
         const companyDirectory = [...attentionCompanies, { id: '20000000-0000-4000-8000-000000000002', name: 'Cliente disponível QA', cnpj: '12.345.678/0001-90', contactName: null, contactPhone: null }];
@@ -78,6 +78,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
                 operacoes: state.malformed ? {} : { generatedAt, period, installationsCompleted: 0, removalsCompleted: 0, tripsCompleted: 0, tripsPlanned: 0, current: { plannedTrips: 0, tripsInProgress: 0 }, dataQuality: { servicesCompletedWithoutDate: 0, tripsCompletedWithoutDate: 0, travelWithoutBooking: 0, unclassified: 0 }, nextInstallations: [], relevantInstallations: [], latestInstallations: [], latestRemovals: [], nextInterstateTrips: [] },
                 estoque: { generatedAt, period: { start: new Date(fixedNow - 30 * 86400000).toISOString(), end: generatedAt }, context: 'ALL', location: null, totals: { skus: 6, assets: 40, unlocated: 2, unclassified: 1 }, scope: { assets: 38, available: 8, maintenance: 2 }, movements: [], topEntries: [{ skuId: 'stock-qa', skuCode: '895001', name: 'Produto em uso QA', quantity: 20 }], topExits: [], priorities: [], criticalCount: 0, minimumConfiguredCount: 0, replenishmentConfigured: false }
             };
+            if (chronogram && !isPublic) data.projetos.chronogram = { completed: { installations: { total: 3, rooms: 1, screens: 1, unknown: 1 }, removals: { total: 1, rooms: 0, screens: 1, unknown: 0 } }, actions: { open: 4, projects: 2 }, completionWithoutRealDate: 1 };
             if (state.dense) {
                 data.atendimentos.current.pending = 8;
                 data.atendimentos.current.inProgress = 8;
@@ -488,6 +489,18 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         await s.page.clock.runFor(65000); await expect(s.page.locator('[data-dashboard-summary]')).toHaveCount(5);
         await expect(s.page.locator('[data-ticket-id]')).toHaveCount(2);
         assert(await s.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); assert.deepEqual(s.errors, []); await s.context.close();
+    });
+    await run('Chronogram dashboard UI: current actions and real period completions are distinct and link to the integrated workspace on mobile', async () => {
+        const s = await setup({ chronogram: true, mobile: true }); try {
+            const metrics = s.page.getByLabel('Indicadores do cronograma', { exact: true });
+            await expect(metrics.locator('[data-project-chronogram="open-actions"] strong')).toHaveText('4');
+            await expect(metrics.locator('[data-project-chronogram="installations"]')).toContainText('Salas 1 · Telas 1 · Sem classificação 1');
+            await expect(metrics).toContainText('sem data real');
+            await expect(s.page.getByRole('link', { name: 'Abrir Cronograma e Planejamento', exact: true })).toHaveAttribute('href', '/dashboard/projetos?aba=cronograma&visao=agenda');
+            assert(await s.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+            assert(s.requests.every(request => request.method === 'GET')); assert.deepEqual(s.errors, []);
+            await s.page.screenshot({ path: path.join(shots, 'chronogram-dashboard-mobile.png'), fullPage: true, animations: 'disabled' });
+        } finally { await s.context.close(); }
     });
 };
 if (require.main === module) { const result = spawnSync(process.execPath, [path.join(__dirname, 'test-ticket-dashboard.cjs'), '--panels'], { stdio: 'inherit', windowsHide: true }); process.exitCode = result.status ?? 1; }

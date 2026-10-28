@@ -33,6 +33,6 @@ export function ProjectServiceDialog({ id, onClose }: { id?: string; onClose: ()
     if ((id && (!record.data || !record.isFetchedAfterMount)) || !choices.data || record.isError || choices.isError) return <LoadingDialog error={record.isError || choices.isError}
         onClose={onClose} retry={() => { if (id) void record.refetch(); void choices.refetch(); }} />;
     return <ProjectServiceFormDialog key={id ?? 'new'} editing={id ? record.data : undefined} choices={choices.data} options={options} onClose={onClose}
-        onSaved={async () => { await Promise.all(['project-services', 'project-service-options', 'schedules', 'projects', 'trips', 'trip-options', 'operations-statistics', 'project-statistics']
+        onSaved={async () => { await Promise.all(['project-services', 'project-service-options', 'schedules', 'projects', 'trips', 'trip-options', 'operations-statistics', 'project-statistics', 'panel-statistics', 'project-history']
             .map(key => client.invalidateQueries({ queryKey: [key] }))); }} />;
 }

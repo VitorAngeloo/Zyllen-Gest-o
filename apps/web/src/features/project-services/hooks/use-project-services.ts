@@ -14,7 +14,7 @@ export function useProjectServices(params: URLSearchParams) {
     const invalidate = async () => { await Promise.all([
         client.invalidateQueries({ queryKey: ['project-services'] }), client.invalidateQueries({ queryKey: ['project-service-options'] }),
         client.invalidateQueries({ queryKey: ['schedules'] }), client.invalidateQueries({ queryKey: ['projects'] }),
-        ...['trips', 'trip-options', 'operations-statistics', 'structures', 'structure-cycles'].map(key => client.invalidateQueries({ queryKey: [key] })),
+        ...['trips', 'trip-options', 'operations-statistics', 'structures', 'structure-cycles', 'panel-statistics', 'project-history'].map(key => client.invalidateQueries({ queryKey: [key] })),
     ]); };
     const status = useMutation({ mutationFn: ({ id, status }: { id: string; status: ProjectServiceStatus }) => projectServiceApi.status(id, status, options), onSuccess: invalidate });
     return { list, choices, status, invalidate, options };

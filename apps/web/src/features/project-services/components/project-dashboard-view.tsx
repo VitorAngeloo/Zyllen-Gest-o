@@ -5,6 +5,7 @@ import { Button } from '@web/components/ui/button';
 import { Skeleton } from '@web/components/ui/skeleton';
 import { EmptyState, ListSectionHeader } from '@web/components/ui/workspace';
 import { PROJECT_DASHBOARD_COPY as copy, PROJECT_SERVICE_COPY as serviceCopy } from '@web/lib/brand-voice';
+import { ProjectChronogramMetrics } from './project-chronogram-metrics';
 
 interface Props {
     data?: ProjectStatistics;
@@ -80,6 +81,7 @@ export function ProjectDashboardView({ data, loading, failed, fetching, onRetry 
             </div>
 
             {(missingDates || data.dataQuality.unclassified > 0) && <div role="status" className="rounded-md border border-amber-400/25 bg-amber-400/[0.055] px-4 py-3 text-sm text-amber-100"><p className="font-medium">{copy.qualityTitle}</p>{missingDates && <p className="mt-1 text-amber-100/75">{copy.missingDates(data.dataQuality.completedWithoutDate, data.dataQuality.cancelledWithoutDate)}</p>}{data.dataQuality.unclassified > 0 && <p className="mt-1 text-amber-100/75">{copy.unclassified(data.dataQuality.unclassified)}</p>}</div>}
+            {data.chronogram && <ProjectChronogramMetrics data={data.chronogram} />}
             {!data.current.total && <EmptyState title={copy.empty} />}
 
             <section aria-label={copy.highlights} className="space-y-3">

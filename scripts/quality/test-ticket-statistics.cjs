@@ -13,7 +13,7 @@ const vehicles = process.argv.includes('--vehicles');
 const custody = process.argv.includes('--custody');
 const inventoryStatistics = process.argv.includes('--inventory-statistics');
 const projects = process.argv.includes('--projects') || process.argv.includes('--project-statistics') || trips || structures || panels;
-const scratch = path.join(root, 'tmp/architecture-validation');
+const scratch = path.resolve(root, process.env.AUDIT_ARTIFACT_DIR || 'tmp/architecture-validation');
 const artifacts = path.join(scratch, vehicles ? 'vehicles-api-qa' : panels ? 'personal-panels-api-qa' : structures ? 'structures-api-qa' : inventoryStatistics ? 'inventory-statistics-api-qa' : custody ? 'custody-api-qa' : trips ? 'trips-api-qa' : process.argv.includes('--project-statistics') ? 'project-statistics-api-qa' : projects ? 'project-services-api-qa' : 'ticket-statistics-qa');
 const apiRequire = Module.createRequire(path.join(root, 'apps/api/package.json'));
 const deps = Module.createRequire(path.join(root, 'tmp/security-test-deps/package.json'));
@@ -49,10 +49,11 @@ async function main() {
     }
     if (projects) {
         let baseline = fs.readFileSync(ddlSchema, 'utf8');
-        for (const name of ['ProjectService', 'ProjectServiceMarker', 'ProjectServiceInternal', 'ProjectServiceContractor', 'Trip', 'TripContractor', 'OperationalStructure', 'StructureCycle', 'PanelMirror', 'PanelAttentionClient']) {
+        for (const name of ['ProjectPlanningLegacyImport', 'ProjectPlanningLegacyRecord', 'ProjectService', 'ProjectServicePending', 'ProjectServiceNote', 'ProjectServiceMarker', 'ProjectServiceInternal', 'ProjectServiceContractor', 'Trip', 'TripContractor', 'OperationalStructure', 'StructureCycle', 'PanelMirror', 'PanelAttentionClient']) {
             baseline = baseline.replace(new RegExp(`^model ${name} \\{[\\s\\S]*?^\\}`, 'm'), '');
         }
         baseline = baseline.replace(/^.*(?:projectServiceAssignments|operationalService|projectService ProjectService).*\r?\n/gm, '');
+        baseline = baseline.replace(/^.*(?:projectPendingsCreated|projectPendingsResolved|projectNotes\s+ProjectServiceNote).*\r?\n/gm, '');
         baseline = baseline.replace(/^model Schedule \{[\s\S]*?^\}/m, body => body.split('\n').filter(line => !/\b(startedAt|completedAt|cancelledAt)\s+DateTime\?/.test(line)).join('\n'));
         baseline = baseline.replace(/^.*(?:tripAssignments|\btrip\s+Trip\?).*\r?\n/gm, '');
         baseline = baseline.replace(/^.*operationalStructures.*\r?\n/gm, '');
@@ -188,6 +189,57 @@ async function main() {
         await db.exec(migration);
         assert.equal((await db.query('SELECT COUNT(*) AS total FROM "Project"')).rows[0].total, before);
         assert.equal((await db.query("SELECT is_nullable FROM information_schema.columns WHERE table_name = 'ProjectService' AND column_name = 'followupId'")).rows[0].is_nullable, 'YES');
+    });
+    if (projects) await run('Specifications migration: nullable JSON preserves legacy services and existing RLS', async () => {
+        const projectId = (await db.query('SELECT id FROM "Project" LIMIT 1')).rows[0].id;
+        const id = crypto.randomUUID();
+        await db.query('INSERT INTO "ProjectService" (id,"projectId",type,"updatedAt") VALUES ($1,$2,$3,NOW())', [id, projectId, 'INSTALLATION']);
+        const before = (await db.query('SELECT * FROM "ProjectService" WHERE id=$1', [id])).rows[0];
+        const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20261028100000_project_specifications/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(migration));
+        await db.exec(migration);
+        const { specifications, ...after } = (await db.query('SELECT * FROM "ProjectService" WHERE id=$1', [id])).rows[0];
+        assert.equal(specifications, null); assert.deepEqual(after, before);
+        assert.equal((await db.query("SELECT relrowsecurity FROM pg_class WHERE relname='ProjectService'")).rows[0].relrowsecurity, true);
+        await db.query('DELETE FROM "ProjectService" WHERE id=$1', [id]); // Disposable migration fixture only.
+    });
+    if (projects) await run('Planning migration: optional JSON preserves legacy data without changing schedule or execution', async () => {
+        const projectId = (await db.query('SELECT id FROM "Project" LIMIT 1')).rows[0].id;
+        const id = crypto.randomUUID();
+        await db.query('INSERT INTO "ProjectService" (id,"projectId",type,"updatedAt") VALUES ($1,$2,$3,NOW())', [id, projectId, 'INSTALLATION']);
+        const before = (await db.query('SELECT * FROM "ProjectService" WHERE id=$1', [id])).rows[0];
+        const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20261028113000_project_planning/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(migration)); await db.exec(migration);
+        const { planning, ...after } = (await db.query('SELECT * FROM "ProjectService" WHERE id=$1', [id])).rows[0];
+        assert.equal(planning, null); assert.deepEqual(after, before);
+        assert.equal((await db.query("SELECT relrowsecurity FROM pg_class WHERE relname='ProjectService'")).rows[0].relrowsecurity, true);
+        await db.query('DELETE FROM "ProjectService" WHERE id=$1', [id]); // Disposable migration fixture only.
+    });
+    if (projects) await run('Collaboration migration: private child tables preserve projects and restrict deletion of history', async () => {
+        const before = (await db.query('SELECT COUNT(*) AS total FROM "Project"')).rows[0].total;
+        const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20261028130000_project_collaboration/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(migration)); await db.exec(migration);
+        assert.equal((await db.query('SELECT COUNT(*) AS total FROM "Project"')).rows[0].total, before);
+        const tables = (await db.query("SELECT relrowsecurity FROM pg_class WHERE relname IN ('ProjectServicePending','ProjectServiceNote')")).rows;
+        assert.equal(tables.length, 2); assert(tables.every(table => table.relrowsecurity));
+        await db.exec('GRANT SELECT,INSERT ON "ProjectServicePending","ProjectServiceNote" TO projects_untrusted; SET ROLE projects_untrusted');
+        try { assert.equal((await db.query('SELECT * FROM "ProjectServiceNote"')).rows.length, 0); await assert.rejects(() => db.query('INSERT INTO "ProjectServiceNote" (id,"serviceId",text,"authorId") VALUES ($1,$2,$3,$4)', ['blocked', 'blocked', 'blocked', 'blocked']), /row-level security/); }
+        finally { await db.exec('RESET ROLE'); }
+    });
+    if (projects) await run('Original date migration: nullable timestamp preserves legacy services without guessing history', async () => {
+        const before = (await db.query('SELECT COUNT(*) AS total FROM "ProjectService"')).rows[0].total;
+        const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20261028143000_project_original_schedule/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(migration)); await db.exec(migration);
+        assert.equal((await db.query('SELECT COUNT(*) AS total FROM "ProjectService"')).rows[0].total, before);
+        assert.equal((await db.query("SELECT is_nullable FROM information_schema.columns WHERE table_name='ProjectService' AND column_name='originalScheduledStartAt'")).rows[0].is_nullable, 'YES');
+    });
+    if (projects) await run('Legacy migration: additive private snapshot tables cannot create operational events or remove source history', async () => {
+        const before = (await db.query('SELECT COUNT(*) AS total FROM "Project"')).rows[0].total;
+        const sql = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20261028160000_project_legacy_readonly/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(sql)); await db.exec(sql);
+        assert.equal((await db.query('SELECT COUNT(*) AS total FROM "Project"')).rows[0].total, before);
+        const tables = (await db.query("SELECT relrowsecurity FROM pg_class WHERE relname IN ('ProjectPlanningLegacyImport','ProjectPlanningLegacyRecord')")).rows;
+        assert.equal(tables.length, 2); assert(tables.every(row => row.relrowsecurity));
     });
     socket = new PGLiteSocketServer({ db, port: 0, host: '127.0.0.1' });
     await socket.start();

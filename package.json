@@ -18,6 +18,8 @@
     "test:projects": "node scripts/quality/test-project-services.cjs",
     "test:projects:browser": "node scripts/quality/test-project-services-browser.cjs",
     "test:projects:agenda:browser": "node scripts/quality/test-ticket-dashboard.cjs --trips --projects-agenda",
+    "test:chronogram": "node scripts/quality/test-chronogram.cjs",
+    "test:chronogram:browser": "node scripts/quality/test-ticket-dashboard.cjs --chronogram",
     "test:projects:statistics": "node scripts/quality/test-project-statistics.cjs",
     "test:projects:statistics:browser": "node scripts/quality/test-project-statistics-browser.cjs",
     "test:trips": "node scripts/quality/test-trips.cjs",

@@ -169,6 +169,111 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         ok(await http(`/schedule/${created.id}?cancelSeries=true`, { method: 'DELETE' }));
         assert.equal(await prisma.schedule.count({ where: { OR: [{ id: created.id }, { parentScheduleId: created.id }], status: 'CANCELLED' } }), 3);
     });
+    const specifications = { category: 'sala', equipment: ['Projetor QA modelo 1', 'Projetor QA modelo 1'], room: {
+        roomType: 'interativa', format: 'Semicircular', projections: '3', proportion: '16:9', resolution: '3840 × 2160', control: 'Tablet QA', sound: '5.1',
+    } };
+    let technical;
+    await run('Specifications: create/detail/list persist explicit technical data without inferring status or execution', async () => {
+        technical = ok(await create({ name: 'Projeto técnico QA', specifications }), 201);
+        assert.deepEqual(technical.specifications, specifications); assert.equal(technical.status, 'PENDING'); assert.equal(technical.completedAt, null);
+        assert.deepEqual(ok(await state(technical.id)).specifications, specifications);
+        const list = await http('/project-services?limit=100'); assert.deepEqual(list.body.data.find(row => row.id === technical.id).specifications, specifications);
+        assert.equal(ok(await http('/project-services/options')).capabilities.projectSpecifications, true);
+    });
+    await run('Specifications: old clients and agenda edits preserve technical data; null explicitly clears it', async () => {
+        technical = ok(await update(technical.id, { name: technical.name })); assert.deepEqual(technical.specifications, specifications);
+        technical = ok(await update(technical.id, { name: technical.name, startDate: start, endDate: end, installerIds: [tech.id], allowConflicts: true }));
+        ok(await http(`/schedule/${technical.schedule.id}`, { actor: organizer, method: 'PUT', body: { notes: 'Mudança pelo calendário QA' } }));
+        assert.deepEqual(ok(await state(technical.id)).specifications, specifications);
+        const body = { name: technical.name, startDate: start, endDate: end, installerIds: [tech.id], allowConflicts: true, specifications: null };
+        technical = ok(await update(technical.id, body)); assert.equal(technical.specifications, null);
+        assert.equal((await prisma.projectService.findUnique({ where: { id: technical.id } })).specifications, null);
+    });
+    await run('Specifications: schema rejects unknown keys, invalid category, excessive size and incomplete equipment before writing', async () => {
+        const before = await Promise.all([prisma.project.count(), prisma.projectService.count(), prisma.auditLog.count()]);
+        for (const invalid of [{ ...specifications, category: 'invented' }, { ...specifications, unexpected: true }, { ...specifications, equipment: [''] },
+            { ...specifications, equipment: Array(101).fill('Projetor QA') }, { ...specifications, room: { ...specifications.room, resolution: 'x'.repeat(301) } },
+            { ...specifications, room: { ...specifications.room, calculated: true } }]) assert.equal((await create({ specifications: invalid })).status, 400);
+        assert.deepEqual(await Promise.all([prisma.project.count(), prisma.projectService.count(), prisma.auditLog.count()]), before);
+    });
+    await run('Specifications: technical updates roll back with other invalid project data and preserve the audit trail', async () => {
+        const before = ok(await state(technical.id)), audits = await prisma.auditLog.count();
+        const changes = { name: technical.name, startDate: start, endDate: end, installerIds: [crypto.randomUUID()], specifications, allowConflicts: true };
+        assert.equal((await update(technical.id, changes)).status, 400);
+        assert.deepEqual(ok(await state(technical.id)), before); assert.equal(await prisma.auditLog.count(), audits);
+        technical = ok(await update(technical.id, { ...changes, installerIds: [tech.id] }));
+        const audit = await prisma.auditLog.findFirst({ where: { entityId: technical.id, action: 'PROJECT_SERVICE_UPDATE' }, orderBy: { createdAt: 'desc' } });
+        assert.deepEqual(audit.details.specifications, specifications); assert.equal(audit.details.previousSpecifications, null); assert.equal(audit.userId, organizer.id);
+        assert.equal((await http(`/project-services/${technical.id}`, { actor: reader, method: 'PUT', body: input(changes) })).status, 403);
+        assert.deepEqual(ok(await http(`/project-services/${technical.id}`, { actor: reader })).specifications, specifications);
+        for (const actor of [client, thirdParty]) assert.equal((await http(`/project-services/${technical.id}`, { actor })).status, 403);
+    });
+    await run('Specifications: unknown category and blank room type remain unknown; changing category preserves entered room fields', async () => {
+        const unknown = ok(await create({ specifications: { category: null, equipment: [], room: {} } }), 201);
+        assert.equal(unknown.specifications.category, null); assert.equal(unknown.specifications.room.roomType, '');
+        const changed = ok(await update(unknown.id, { specifications: { ...specifications, category: 'tela' } }));
+        assert.equal(changed.specifications.category, 'tela'); assert.deepEqual(changed.specifications.room, specifications.room);
+    });
+    let planned;
+    await run('Planning: all eight stages persist without creating schedules, timestamps or automatic operational transitions', async () => {
+        const before = await prisma.schedule.count();
+        for (const stage of ['contrato', 'kickoff', 'semprev', 'predef', 'agendado', 'pausado', 'concluido', 'cancelado']) {
+            const planning = { stage, forecast: '2027-01' };
+            planned = ok(await create({ name: 'Planejamento QA ' + stage, planning }), 201);
+            assert.deepEqual(planned.planning, planning); assert.equal(planned.status, 'PENDING'); assert.equal(planned.schedule, null);
+            assert.equal(planned.startedAt, null); assert.equal(planned.completedAt, null); assert.equal(planned.cancelledAt, null);
+            assert.deepEqual(ok(await state(planned.id)).planning, planning);
+        }
+        assert.equal(await prisma.schedule.count(), before);
+        assert.equal(ok(await http('/project-services/options')).capabilities.projectPlanning, true);
+        const list = await http('/project-services?limit=100'); assert.deepEqual(list.body.data.find(row => row.id === planned.id).planning, planned.planning);
+    });
+    await run('Planning: month/day precision survives roundtrip and old-client edits; clearing is explicit', async () => {
+        const planning = { stage: 'predef', forecast: '2028-02-29' };
+        planned = ok(await update(planned.id, { name: planned.name, planning, specifications }));
+        assert.deepEqual(planned.planning, planning);
+        planned = ok(await update(planned.id, { name: planned.name })); assert.deepEqual(planned.planning, planning); assert.deepEqual(planned.specifications, specifications);
+        planned = ok(await update(planned.id, { name: planned.name, planning: null })); assert.equal(planned.planning, null); assert.deepEqual(planned.specifications, specifications);
+        const legacy = ok(await create({ name: 'Planejamento ausente QA' }), 201); assert.equal(legacy.planning, null);
+    });
+    await run('Planning: invalid dates, mixed precision, operational statuses and unexpected fields are rejected before writing', async () => {
+        const before = await Promise.all([prisma.project.count(), prisma.projectService.count(), prisma.schedule.count(), prisma.auditLog.count()]);
+        for (const planning of [{ stage: 'DONE', forecast: null }, { stage: 'predef', forecast: '2027-02-29' }, { stage: 'predef', forecast: '2100-02-29' },
+            { stage: 'predef', forecast: '2026-13' }, { stage: 'predef', forecast: '2026-04-31' }, { stage: 'predef', forecast: '2026-01-05T00:00:00Z' },
+            { stage: 'predef', forecast: '' }, { stage: null, forecast: '2027-01', completedAt: new Date().toISOString() }]) {
+            assert.equal((await create({ planning })).status, 400);
+        }
+        assert.deepEqual(await Promise.all([prisma.project.count(), prisma.projectService.count(), prisma.schedule.count(), prisma.auditLog.count()]), before);
+    });
+    await run('Planning: scheduling, agenda rescheduling and real completion preserve independent stage and forecast', async () => {
+        const planning = { stage: 'contrato', forecast: '2027-01' };
+        const slot = new Date(Date.parse(start) + 25 * 86_400_000).toISOString();
+        planned = ok(await update(planned.id, { name: planned.name, planning, startDate: slot, endDate: new Date(Date.parse(slot) + 3_600_000).toISOString(), installerIds: [tech.id] }));
+        assert.equal(planned.status, 'SCHEDULED'); assert.deepEqual(planned.planning, planning); assert.equal(planned.completedAt, null);
+        const shifted = new Date(Date.parse(slot) + 86_400_000).toISOString();
+        ok(await http(`/schedule/${planned.schedule.id}`, { actor: organizer, method: 'PUT', body: { startDate: shifted, endDate: new Date(Date.parse(shifted) + 3_600_000).toISOString() } }));
+        planned = ok(await state(planned.id)); assert.deepEqual(planned.planning, planning); assert.equal(planned.schedule.startDate, shifted);
+        planned = ok(await status(planned.id, 'DONE')); assert(planned.completedAt); assert.deepEqual(planned.planning, planning);
+        const completedAt = planned.completedAt;
+        planned = ok(await update(planned.id, { name: planned.name, planning: { stage: 'pausado', forecast: '2028-02' }, startDate: planned.schedule.startDate, endDate: planned.schedule.endDate, installerIds: [tech.id] }));
+        assert.equal(planned.status, 'DONE'); assert.equal(planned.completedAt, completedAt);
+    });
+    await run('Planning: failed changes roll back atomically; successful changes record actor and before/after', async () => {
+        const before = ok(await state(planned.id)), audits = await prisma.auditLog.count();
+        const planning = { stage: 'kickoff', forecast: '2028-02-29' };
+        const body = { name: before.name, planning, startDate: before.schedule.startDate, endDate: before.schedule.endDate, installerIds: [crypto.randomUUID()] };
+        assert.equal((await update(planned.id, body)).status, 400); assert.deepEqual(ok(await state(planned.id)), before); assert.equal(await prisma.auditLog.count(), audits);
+        planned = ok(await update(planned.id, { ...body, installerIds: [tech.id] }));
+        const audit = await prisma.auditLog.findFirst({ where: { entityId: planned.id, action: 'PROJECT_SERVICE_UPDATE' }, orderBy: { createdAt: 'desc' } });
+        assert.deepEqual(audit.details.previousPlanning, before.planning); assert.deepEqual(audit.details.planning, planning); assert.equal(audit.userId, organizer.id);
+        assert.equal((await http(`/project-services/${planned.id}`, { actor: reader, method: 'PUT', body: input(body) })).status, 403);
+        assert.deepEqual(ok(await http(`/project-services/${planned.id}`, { actor: reader })).planning, planning);
+        for (const actor of [client, thirdParty]) assert.equal((await http(`/project-services/${planned.id}`, { actor })).status, 403);
+    });
+    await require('./test-project-collaboration.cjs')({ run, prisma, http, ok, create, organizer, reader, admin, client, thirdParty });
+    await require('./test-project-actions.cjs')({ run, prisma, http, ok, create, organizer, reader, tech, client, thirdParty, start, end });
+    await require('./test-project-planning-access.cjs')({ run, prisma, http, ok, create, internal, organizer, reader, client, thirdParty, unprivileged });
+    await require('./test-project-legacy.cjs')({ run, prisma, http, ok, reader, organizer, client, thirdParty, unprivileged });
 };
 if (require.main === module) {
     const result = spawnSync(process.execPath, [path.join(__dirname, 'test-ticket-statistics.cjs'), '--projects'], { stdio: 'inherit', windowsHide: true });

@@ -420,6 +420,7 @@ async function main() {
     if (process.argv.includes('--panels')) await require('./test-personal-panels-browser.cjs')({ run, browser, base, shots, fixedNow });
     if (process.argv.includes('--panels')) await require('./test-vehicles-browser.cjs')({ run, browser, base, shots, fixedNow });
     if (process.argv.includes('--projects-agenda')) await require('./test-projects-agenda-browser.cjs')({ run, browser, base, shots, fixedNow });
+    if (process.argv.includes('--chronogram')) await require('./test-chronogram-browser.cjs')({ run, browser, base, shots, fixedNow });
     if (process.argv.includes('--structures')) await require('./test-structures-browser.cjs')({ run, browser, base, shots, fixedNow });
     if (process.argv.includes('--followup-search')) await require('./test-followup-company-search-browser.cjs')({ run, browser, base });
     if (process.argv.includes('--maintenance')) await require('./test-maintenance-list-browser.cjs')({ run, browser, base, fixedNow });

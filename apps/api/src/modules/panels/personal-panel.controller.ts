@@ -11,7 +11,7 @@ export class PersonalPanelController {
     @Get('statistics')
     async statistics(@Request() req: any, @Query(new ZodValidationPipe(panelStatisticsQuerySchema)) query: PanelStatisticsQuery) {
         this.internal(req);
-        return { data: await this.data.statistics(await this.access.owner(req.user.id), query) };
+        return { data: await this.data.statistics(await this.access.owner(req.user.id), query, true) };
     }
     private internal(req: any) { if (req.user.type !== 'internal') throw new ForbiddenException('Este painel é destinado à equipe interna'); }
     @Get('mirror')

@@ -268,8 +268,8 @@ export function hasForbiddenWords(text: string): string[] {
 }
 
 export const PROJECTS_AGENDA_COPY = {
-  title: 'Projetos e Agenda', description: 'Organize projetos, agenda, viagens e equipe em um só lugar.',
-  navigation: 'Projetos e Agenda', sections: { 'visao-geral': 'Visão geral', projetos: 'Projetos', agenda: 'Agenda', viagens: 'Viagens', equipe: 'Equipe' },
+  title: 'Cronograma e Planejamento', description: 'Consulte o cronograma, os projetos e as viagens da operação.',
+  navigation: 'Cronograma e Planejamento', sections: { 'visao-geral': 'Visão geral', projetos: 'Projetos', agenda: 'Agenda', viagens: 'Viagens', equipe: 'Equipe' },
   tabsLabel: 'Seções de projetos e agenda', calendar: 'Calendário', list: 'Lista',
   newSchedule: '+ Novo Agendamento',
   agendaTitle: 'Agenda operacional', teamDescription: 'Consulte os instaladores e configure sua participação na agenda conforme suas permissões.',
@@ -277,7 +277,7 @@ export const PROJECTS_AGENDA_COPY = {
   searchSchedule: 'Buscar agendamento', searchInstaller: 'Buscar técnico', statusFilter: 'Status dos agendamentos', typeFilter: 'Tipo dos agendamentos',
   loadingProject: 'Carregando projeto...', projectError: 'Não foi possível carregar o projeto ou as opções de cadastro.',
   teamError: 'Não foi possível carregar a equipe. Tente novamente.',
-  loading: 'Carregando projetos e agenda...',
+  loading: 'Carregando cronograma e planejamento...',
   overviewPeriod: 'Período dos indicadores', overviewProjects: 'Indicadores dos projetos', overviewTrips: 'Instalações e viagens',
   overviewScope: 'Situação atual dos projetos e realizações pelas datas reais no período. Viagens compartilham a mesma agenda.',
   installationHistory: 'Histórico de instalações', hideInstallationHistory: 'Fechar histórico de instalações',

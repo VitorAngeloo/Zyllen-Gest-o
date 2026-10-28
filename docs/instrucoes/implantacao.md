@@ -2,6 +2,8 @@
 
 ## Topologia e preparação
 
+**Publicação de Cronograma e Planejamento em 28/10/2026:** cinco migrations aditivas aplicadas, 27 migrations em dia, Prisma gerado com API parada e 88 artefatos revisados publicados seletivamente, preservando os demais módulos, configuração e teto vigente de vídeos de 80 MB. API em produção, sem watch, PID 24956; execução acompanhada após a inicialização desanexada ser rejeitada automaticamente. Recuperação automática Ready/resultado 0 e pausa removida após health local/público `200`. Backup privado `chronogram-20261028-121144`, restauração de 63 tabelas e ensaio das migrations/carga do ZIP verificados. Deployment `dpl_7vk4ieZCjMkQmVHosq6jqGdDGnFv` preparado sem domínio e promovido para `skylineti.com`; arquivos públicos conferidos. O ZIP entrou somente como legado de consulta (240 registros/seis pendências), sem gerar execução ou cadastros operacionais. Internos explicitamente bloqueado; sem concessões de acesso. [Evidências e limites](projetos-e-agenda.md#publicação-operacional-em-28102026).
+
 Frontend: Vercel, `skylineti.com`. API: Node.js nesta máquina Windows, porta 3001, Cloudflare para `api.skylineti.com`. Banco: Supabase PostgreSQL compartilhado com produção. A API não tem deploy efetivo pelo runner Docker; sua publicação é manual.
 
 Antes de publicar, concluir revisão, build/tipos e validação dos fluxos afetados. Se houver schema, seguir [banco de dados](banco-de-dados.md), revisar pendências e ter backup restaurável. As [variáveis de ambiente](variaveis-de-ambiente.md) precisam ser compatíveis com o startup. Não incluir segredos, logs ou backups no commit.

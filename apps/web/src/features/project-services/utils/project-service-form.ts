@@ -6,6 +6,8 @@ export type ProjectServiceFormValues = Omit<ProjectServiceInput, 'startDate' | '
 
 export function projectServiceFormValues(record?: ProjectServiceRecord): ProjectServiceFormValues {
     return {
+        specifications: record?.specifications ?? undefined,
+        planning: record?.planning ?? undefined,
         companyId: record?.company.id ?? '', projectId: record?.projectId, followupId: record?.followup?.id ?? null, name: record?.name ?? '', type: record?.type ?? 'INSTALLATION',
         structureId: record?.structureCycle?.structureId ?? null, removalCycleId: record?.type === 'REMOVAL' ? record.structureCycle?.id ?? null : null,
         markerId: record?.marker?.id ?? null, urgency: record?.urgency ?? 0, color: record?.color ?? '#ABFF10',

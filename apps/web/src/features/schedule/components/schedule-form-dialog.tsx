@@ -212,6 +212,8 @@ export function ScheduleFormDialog({
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["schedules"] });
             qc.invalidateQueries({ queryKey: ['project-services'] });
+            qc.invalidateQueries({ queryKey: ['panel-statistics'] });
+            qc.invalidateQueries({ queryKey: ['project-history'] });
             toast.success("Agendamento atualizado com sucesso");
             onSuccess();
             onOpenChange(false);

@@ -457,7 +457,9 @@ export class ScheduleService {
         }
 
         if (linked) {
-            await tx.projectService.update({ where: { id: linked.id }, data: { type: data.type, notes: data.notes } });
+            const moved = data.startDate !== undefined && new Date(data.startDate).getTime() !== new Date(previous.startDate).getTime();
+            await tx.projectService.update({ where: { id: linked.id }, data: { type: data.type, notes: data.notes,
+                ...(moved && !linked.originalScheduledStartAt ? { originalScheduledStartAt: new Date(previous.startDate) } : {}) } });
             if (data.title !== undefined || data.address !== undefined) {
                 await tx.project.update({ where: { id: linked.projectId }, data: { name: data.title, address: data.address } });
             }
@@ -470,6 +472,8 @@ export class ScheduleService {
         if (actorId) await tx.auditLog.create({ data: { action: 'SCHEDULE_UPDATE', entityType: 'Schedule', entityId: id, userId: actorId, createdAt: new Date(),
             details: { previousStatus: previous.status, status: data.status ?? previous.status,
                 previousStart: new Date(previous.startDate).toISOString(), previousEnd: new Date(previous.endDate).toISOString(),
+                start: new Date(data.startDate ?? previous.startDate).toISOString(), end: new Date(data.endDate ?? previous.endDate).toISOString(),
+                ...(data.notes !== undefined ? { previousNotes: previous.notes, notes: data.notes } : {}),
                 previousStartedAt: previous.startedAt ? new Date(previous.startedAt).toISOString() : null,
                 previousCompletedAt: previous.completedAt ? new Date(previous.completedAt).toISOString() : null,
                 previousCancelledAt: previous.cancelledAt ? new Date(previous.cancelledAt).toISOString() : null } } });

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { projectSpecificationsSchema } from './specifications';
+import { projectPlanningSchema } from './planning';
 
 export const PROJECT_SERVICE_TYPES = ['INSTALLATION', 'REMOVAL'] as const;
 export const PROJECT_SERVICE_STATUSES = ['PENDING', 'SCHEDULED', 'IN_PROGRESS', 'DONE', 'CANCELLED'] as const;
@@ -18,6 +20,9 @@ export const projectStatisticsQuerySchema = z.object({
 export type ProjectStatisticsQuery = z.infer<typeof projectStatisticsQuerySchema>;
 
 export const projectServiceInputSchema = z.object({
+    // Omission preserves existing data; null explicitly clears the specifications.
+    specifications: projectSpecificationsSchema.nullable().optional(),
+    planning: projectPlanningSchema.nullable().optional(),
     companyId: z.string().uuid(),
     projectId: z.string().uuid().optional(),
     followupId: z.string().uuid().nullable().default(null),

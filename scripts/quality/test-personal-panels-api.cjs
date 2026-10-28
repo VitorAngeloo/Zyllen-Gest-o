@@ -192,5 +192,13 @@ module.exports = async ({ run, prisma, origin, admin, tech, unprivileged, client
         try { assert.equal((await request('/personal-panel/mirror', admin, 'POST', { views: all })).status, 500); assert.equal((await request(root(link))).status, 200); }
         finally { await prisma.$executeRawUnsafe('DROP TRIGGER fail_panel_audit ON "AuditLog"'); await prisma.$executeRawUnsafe('DROP FUNCTION fail_panel_audit()'); }
     });
+    await run('Chronogram dashboard: internal aggregate includes new metrics while the anonymous mirror retains its existing projection', async () => {
+        const native = ok(await stats('projetos', null, admin)).data;
+        assert(native.chronogram); assert.equal(typeof native.chronogram.actions.open, 'number');
+        const fresh = await generate(admin, ['projetos']);
+        const publicData = ok(await stats('projetos', fresh)).data;
+        assert(!Object.hasOwn(publicData, 'chronogram'));
+        assert.deepEqual(publicData.current, native.current);
+    });
 };
 if (require.main === module) { const result = spawnSync(process.execPath, [path.join(__dirname, 'test-ticket-statistics.cjs'), '--panels'], { stdio: 'inherit', windowsHide: true }); process.exitCode = result.status ?? 1; }

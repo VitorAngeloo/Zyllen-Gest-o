@@ -1,12 +1,15 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { ProjectServiceInput, ProjectServiceRecord, ProjectServiceStatus } from '@zyllen/shared';
+import { projectPlanningSchema, projectSpecificationsSchema } from '@zyllen/shared';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { ScheduleService } from '../schedule/schedule.service';
 import { StructureCyclesService } from '../structures/structure-cycles.service';
 
 const person = { id: true, name: true, sector: true, agendaColor: true, role: { select: { name: true } } } as const;
 const include = {
+    pending: { include: { createdBy: { select: { id: true, name: true } }, resolvedBy: { select: { id: true, name: true } } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
+    annotations: { include: { author: { select: { id: true, name: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] },
     project: { include: { company: { select: { id: true, name: true } } } },
     marker: { select: { id: true, name: true } }, followup: { select: { id: true, code: true } }, schedule: true,
     installationCycle: { include: { structure: { select: { id: true, name: true } } } },
@@ -19,7 +22,16 @@ type ServiceRow = Prisma.ProjectServiceGetPayload<{ include: typeof include }>;
 
 function record(row: ServiceRow): ProjectServiceRecord {
     const cycle = row.installationCycle ?? row.removalCycle;
+    const specifications = projectSpecificationsSchema.safeParse(row.specifications);
+    const planning = projectPlanningSchema.safeParse(row.planning);
     return {
+        originalScheduledStartAt: row.originalScheduledStartAt?.toISOString() ?? null, actionsAvailable: true,
+        pending: row.pending.map(item => ({ id: item.id, type: item.type, responsible: item.responsible, deadline: item.deadline, detail: item.detail,
+            version: item.version, createdAt: item.createdAt.toISOString(), createdBy: item.createdBy, updatedAt: item.updatedAt.toISOString(),
+            resolvedAt: item.resolvedAt?.toISOString() ?? null, resolvedBy: item.resolvedBy })),
+        annotations: row.annotations.map(item => ({ id: item.id, text: item.text, createdAt: item.createdAt.toISOString(), author: item.author })),
+        planning: planning.success ? planning.data : null,
+        specifications: specifications.success ? specifications.data : null,
         id: row.id, projectId: row.projectId, name: row.project.name, company: row.project.company,
         structureCycle: cycle ? { id: cycle.id, structureId: cycle.structureId, structureName: cycle.structure.name, installationId: cycle.installationId } : null,
         type: row.type as ProjectServiceRecord['type'], status: (row.schedule?.status ?? (row.cancelledAt ? 'CANCELLED' : 'PENDING')) as ProjectServiceStatus,
@@ -47,7 +59,7 @@ export class ProjectServicesService {
             this.prisma.internalUser.findMany({ where: { isActive: true }, select: person, orderBy: { name: 'asc' } }),
             this.prisma.contractorUser.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
         ]));
-        return { companies, projects: projects.map(({ operationalService, ...project }) => ({ ...project, hasService: !!operationalService })), markers,
+        return { capabilities: { projectSpecifications: true, projectPlanning: true }, companies, projects: projects.map(({ operationalService, ...project }) => ({ ...project, hasService: !!operationalService })), markers,
             followups: followups.map(({ operationalService, ...item }) => ({ ...item, serviceId: operationalService?.id ?? null })),
             internalUsers: internalUsers.map(user => ({ id: user.id, name: user.name, sector: user.sector, agendaColor: user.agendaColor, roleName: user.role.name })), contractors };
     }
@@ -107,6 +119,8 @@ export class ProjectServicesService {
     }
     private serviceData(input: ProjectServiceInput, sectors: string[]) {
         return { type: input.type, markerId: input.markerId, urgency: input.relevant ? 2 : input.urgency, color: input.color,
+            ...(input.specifications !== undefined ? { specifications: input.specifications === null ? Prisma.DbNull : input.specifications } : {}),
+            ...(input.planning !== undefined ? { planning: input.planning === null ? Prisma.DbNull : input.planning } : {}),
             mapsUrl: input.mapsUrl || null, notes: input.notes || null, sectors, requiresTravel: input.requiresTravel, relevant: input.relevant };
     }
 
@@ -200,7 +214,9 @@ export class ProjectServicesService {
                     await tx.projectService.update({ where: { id: service.id }, data: { scheduleId: schedule.id } });
                     await this.upsertTrip(tx, service.id, projectId, input, actorId, schedule.id);
                 }
-                await this.audit(tx, 'PROJECT_SERVICE_CREATE', service.id, actorId, { projectId, type: input.type });
+                await this.audit(tx, 'PROJECT_SERVICE_CREATE', service.id, actorId, { projectId, type: input.type,
+                    ...(input.specifications !== undefined ? { specifications: input.specifications } : {}),
+                    ...(input.planning !== undefined ? { planning: input.planning } : {}) });
                 return service.id;
             });
             return this.find(id);
@@ -233,7 +249,9 @@ export class ProjectServicesService {
                 await tx.projectService.update({ where: { id }, data: { scheduleId: schedule.id } });
                 await this.upsertTrip(tx, id, service.projectId, input, actorId, schedule.id);
             }
-            await this.audit(tx, 'PROJECT_SERVICE_UPDATE', id, actorId, { projectId: service.projectId });
+            await this.audit(tx, 'PROJECT_SERVICE_UPDATE', id, actorId, { projectId: service.projectId,
+                ...(input.specifications !== undefined ? { previousSpecifications: service.specifications, specifications: input.specifications } : {}),
+                ...(input.planning !== undefined ? { previousPlanning: service.planning, planning: input.planning } : {}) });
         });
         return this.find(id);
     }

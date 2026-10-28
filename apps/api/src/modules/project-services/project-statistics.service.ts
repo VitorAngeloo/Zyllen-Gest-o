@@ -13,7 +13,7 @@ type Highlight = Omit<ProjectDashboardHighlight, 'startDate' | 'endDate'> & { st
 export class ProjectStatisticsService {
     constructor(private readonly prisma: PrismaService) {}
 
-    async get(query: ProjectStatisticsQuery): Promise<ProjectStatistics> {
+    async get(query: ProjectStatisticsQuery, includeChronogram = true): Promise<ProjectStatistics> {
         const now = new Date();
         const start = new Date(query.start).toISOString(), end = new Date(query.end).toISOString();
         // Prisma DateTime columns store UTC without a time zone. Never use planned dates for historical totals.
@@ -24,7 +24,7 @@ export class ProjectStatisticsService {
         const base = Prisma.sql`FROM "ProjectService" p LEFT JOIN "Schedule" s ON s.id = p."scheduleId"`;
         const filter = query.type === 'ALL' ? Prisma.sql`TRUE` : Prisma.sql`p.type = ${query.type}`;
         // All joins are one-to-one: assignees, free events and recurrences cannot multiply projects.
-        const [summary, highlights] = await this.prisma.retry(() => this.prisma.$transaction([
+        const [summary, highlights, categories, actions] = await this.prisma.retry(() => this.prisma.$transaction([
             this.prisma.$queryRaw<Summary[]>(Prisma.sql`
                 SELECT COUNT(*) AS total,
                     COUNT(*) FILTER (WHERE ${state} = 'PENDING') AS pending,
@@ -49,10 +49,27 @@ export class ProjectStatisticsService {
                 WHERE ${filter} AND ${state} IN ('PENDING', 'SCHEDULED', 'IN_PROGRESS')
                 ORDER BY p.urgency DESC, p.relevant DESC, p."createdAt" ASC, p.id ASC LIMIT 5
             `),
+            this.prisma.$queryRaw<{ type: string; category: string | null; total: bigint }[]>(includeChronogram ? Prisma.sql`
+                SELECT p.type, p.specifications->>'category' AS category, COUNT(*) AS total ${base}
+                WHERE ${filter} AND ${state} = 'DONE' AND s."completedAt" >= ${startUtc} AND s."completedAt" < ${endUtc}
+                GROUP BY p.type, p.specifications->>'category'
+            ` : Prisma.sql`SELECT NULL::text AS type, NULL::text AS category, 0::bigint AS total WHERE FALSE`),
+            this.prisma.$queryRaw<{ open: bigint; projects: bigint; missingDate: bigint }[]>(includeChronogram ? Prisma.sql`
+                SELECT COALESCE(SUM((SELECT COUNT(*) FROM "ProjectServicePending" a WHERE a."serviceId" = p.id AND a."resolvedAt" IS NULL)), 0)::bigint AS open,
+                    COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "ProjectServicePending" a WHERE a."serviceId" = p.id AND a."resolvedAt" IS NULL)) AS projects,
+                    COUNT(*) FILTER (WHERE (${state} = 'DONE' OR p.planning->>'stage' = 'concluido') AND s."completedAt" IS NULL) AS "missingDate"
+                ${base} WHERE ${filter}
+            ` : Prisma.sql`SELECT 0::bigint AS open, 0::bigint AS projects, 0::bigint AS "missingDate"`),
         ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }));
         const row = summary[0];
         const pending = Number(row.pending), scheduled = Number(row.scheduled), inProgress = Number(row.inProgress);
+        const split = (type: string) => {
+            const rows = categories.filter(item => item.type === type), sum = (category?: string) => rows.filter(item => category === undefined || item.category === category).reduce((count, item) => count + Number(item.total), 0);
+            const total = sum(), rooms = sum('sala'), screens = sum('tela');
+            return { total, rooms, screens, unknown: total - rooms - screens };
+        };
         return {
+            ...(includeChronogram ? { chronogram: { completed: { installations: split('INSTALLATION'), removals: split('REMOVAL') }, actions: { open: Number(actions[0].open), projects: Number(actions[0].projects) }, completionWithoutRealDate: Number(actions[0].missingDate) } } : {}),
             generatedAt: now.toISOString(), type: query.type, period: { start, end },
             current: { total: Number(row.total), active: pending + scheduled + inProgress, pending, scheduled, inProgress,
                 done: Number(row.done), cancelled: Number(row.cancelled) },

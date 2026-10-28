@@ -1,4 +1,7 @@
 import type { ProjectServiceStatus, ProjectServiceType, ProjectStatisticsQuery } from './schemas';
+import type { ProjectSpecifications } from './specifications';
+import type { ProjectPlanning } from './planning';
+import type { ProjectNoteRecord, ProjectPendingRecord } from './collaboration';
 
 export interface ProjectDashboardHighlight {
     id: string;
@@ -16,6 +19,11 @@ export interface ProjectDashboardHighlight {
 }
 
 export interface ProjectStatistics {
+    chronogram?: {
+        completed: { installations: ProjectCategoryTotals; removals: ProjectCategoryTotals };
+        actions: { open: number; projects: number };
+        completionWithoutRealDate: number;
+    };
     generatedAt: string;
     type: ProjectStatisticsQuery['type'];
     period: { start: string; end: string };
@@ -33,6 +41,7 @@ export interface ProjectStatistics {
     dataQuality: { completedWithoutDate: number; cancelledWithoutDate: number; unclassified: number };
     highlights: ProjectDashboardHighlight[];
 }
+export interface ProjectCategoryTotals { total: number; rooms: number; screens: number; unknown: number }
 
 export interface ProjectServicePerson { id: string; name: string; sector?: string | null; agendaColor?: string | null; roleName?: string }
 export interface ProjectServiceScheduleContext {
@@ -41,6 +50,12 @@ export interface ProjectServiceScheduleContext {
     contractors: { user: { id: string; name: string } }[];
 }
 export interface ProjectServiceRecord {
+    originalScheduledStartAt?: string | null;
+    actionsAvailable?: boolean;
+    pending?: ProjectPendingRecord[];
+    annotations?: ProjectNoteRecord[];
+    planning?: ProjectPlanning | null;
+    specifications?: ProjectSpecifications | null;
     id: string;
     projectId: string;
     name: string;
@@ -70,6 +85,7 @@ export interface ProjectServiceRecord {
     structureCycle?: { id: string; structureId: string; structureName: string; installationId: string } | null;
 }
 export interface ProjectServiceOptions {
+    capabilities?: { projectSpecifications?: boolean; projectPlanning?: boolean };
     companies: { id: string; name: string; address: string | null; city: string | null; state: string | null }[];
     projects: { id: string; name: string; companyId: string; address: string | null; city: string | null; state: string | null; hasService: boolean }[];
     markers: { id: string; name: string }[];

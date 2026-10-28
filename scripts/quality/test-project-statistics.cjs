@@ -120,6 +120,20 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         for (const value of [{ type: 'SUPPORT' }, { type: 'REMOVAL\' OR TRUE --' }, { start: 'bad' }, { start: '2026-01-01' }, { end: query.start },
             { start: query.end, end: query.start }, { start: '2000-01-01T00:00:00Z' }, { companyId: company.id }, { limit: '100' }]) assert.equal((await stats(value)).status, 400);
     });
+    await run('Chronogram statistics: category completions reconcile with real period dates and manual actions never multiply projects', async () => {
+        const service = await fixture('Cronograma indicadores QA', 'DONE', 'INSTALLATION', { completedAt: start });
+        await prisma.projectService.update({ where: { id: service.id }, data: { specifications: { category: 'sala', equipment: [], room: null }, planning: { stage: 'kickoff', forecast: '2028-01' } } });
+        const withoutDate = await fixture('Planejamento concluído sem execução QA', 'PENDING');
+        await prisma.projectService.update({ where: { id: withoutDate.id }, data: { planning: { stage: 'concluido', forecast: '2028-01' } } });
+        await prisma.projectServicePending.createMany({ data: [{ serviceId: service.id, type: 'Aguardando contrato', createdById: admin.id }, { serviceId: service.id, type: 'Outra', createdById: admin.id }, { serviceId: service.id, type: 'Já resolvida', createdById: admin.id, resolvedAt: new Date(), resolvedById: admin.id }] });
+        const data = ok(await stats()), metric = data.chronogram;
+        assert.equal(metric.completed.installations.total + metric.completed.removals.total, data.completedInPeriod);
+        for (const split of Object.values(metric.completed)) assert.equal(split.total, split.rooms + split.screens + split.unknown);
+        assert.equal(metric.completed.installations.rooms, 1); assert.equal(metric.actions.open, 2); assert.equal(metric.actions.projects, 1);
+        assert.equal(metric.completionWithoutRealDate, data.dataQuality.completedWithoutDate + 1);
+        const removal = ok(await stats({ type: 'REMOVAL' })).chronogram; assert.equal(removal.actions.open, 0); assert.equal(removal.completed.installations.total, 0);
+        await prisma.projectServicePending.deleteMany({ where: { serviceId: service.id } });
+    });
 };
 if (require.main === module) {
     const result = spawnSync(process.execPath, [path.join(__dirname, 'test-ticket-statistics.cjs'), '--project-statistics'], { stdio: 'inherit', windowsHide: true });

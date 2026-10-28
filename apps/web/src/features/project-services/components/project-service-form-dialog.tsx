@@ -14,6 +14,8 @@ import { PROJECT_SERVICE_COPY as copy, PROJECTS_AGENDA_COPY as workspaceCopy, ST
 import { StructureHistory } from '@web/features/structures/components/structure-history';
 import { projectServiceApi } from '../api/project-service-api';
 import { projectServiceFormValues, type ProjectServiceFormValues } from '../utils/project-service-form';
+import { ProjectSpecificationFields } from './project-specification-fields';
+import { ProjectPlanningFields } from './project-planning-fields';
 
 const fieldClass = 'w-full min-w-0 rounded-lg border border-[var(--zyllen-border)] bg-[var(--zyllen-bg)] px-3 py-2 text-sm text-white [color-scheme:dark]';
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -28,6 +30,8 @@ export function ProjectServiceFormDialog({ editing, initialDates, choices, optio
     const { hasPermission } = useAuth();
     const client = useQueryClient();
     const canSave = hasPermission(editing ? 'schedule.update' : 'schedule.create');
+    const supportsSpecifications = choices.capabilities?.projectSpecifications === true;
+    const supportsPlanning = choices.capabilities?.projectPlanning === true;
     const [form, setForm] = useState(() => ({ ...projectServiceFormValues(editing), ...(!editing && initialDates ? { startDate: initialDates.start, endDate: initialDates.end } : {}) }));
     const [error, setError] = useState('');
     const [historyOpen, setHistoryOpen] = useState(false);
@@ -55,7 +59,9 @@ export function ProjectServiceFormDialog({ editing, initialDates, choices, optio
     }
     const save = useMutation({
         mutationFn: async () => {
-            const input = projectServiceInputSchema.safeParse({ ...form, sectors: [], startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
+            const { specifications, planning, ...base } = form;
+            const input = projectServiceInputSchema.safeParse({ ...base, ...(supportsSpecifications && specifications !== undefined ? { specifications } : {}),
+                ...(supportsPlanning && planning !== undefined ? { planning } : {}), sectors: [], startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
                 endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined });
             if (!input.success) throw new Error(input.error.issues.map(issue => issue.message).join('. '));
             return projectServiceApi.save(editing?.id, input.data, options);
@@ -115,6 +121,8 @@ export function ProjectServiceFormDialog({ editing, initialDates, choices, optio
                 </div>
                 <div className="flex flex-wrap items-center gap-5 text-xs text-[var(--zyllen-muted)]"><Field label={copy.color}><input type="color" aria-label={copy.color} value={form.color} onChange={event => field('color', event.target.value)} className="h-9 w-16 rounded border border-[var(--zyllen-border)]" /></Field><label className="flex items-center gap-2"><input type="checkbox" checked={form.requiresTravel} disabled={!!editing?.trip} onChange={event => field('requiresTravel', event.target.checked)} />Terá viagem?</label><label className="flex items-center gap-2"><input type="checkbox" checked={form.relevant} onChange={event => { field('relevant', event.target.checked); if (event.target.checked) field('urgency', 2); }} />{copy.relevant}</label></div>
                 {form.requiresTravel && <fieldset className="space-y-3 rounded-lg border border-sky-400/30 p-3"><legend className="px-1 text-sm text-white">Viagem do projeto</legend><p className="text-xs text-[var(--zyllen-muted)]">O destino, endereço e período vêm dos campos do projeto. Informe a origem e escolha os participantes.</p><div className="grid gap-3 sm:grid-cols-2"><Field label="Cidade de origem"><Input autoComplete="off" required value={form.travelOriginCity} onChange={event => field('travelOriginCity', event.target.value)} /></Field><Field label="UF de origem"><Input autoComplete="off" required maxLength={2} value={form.travelOriginState} onChange={event => field('travelOriginState', event.target.value.toUpperCase())} /></Field></div><div className="max-h-36 space-y-2 overflow-y-auto">{travelPeople.map(person => <label key={person.id} className="flex items-center gap-2 text-sm text-[var(--zyllen-muted)]"><input type="checkbox" checked={form.travelParticipantIds.includes(person.id)} disabled={person.inactive && !form.travelParticipantIds.includes(person.id)} onChange={() => toggle('travelParticipantIds', person.id)} />{person.name} · {person.roleName}</label>)}{!travelPeople.length && <p className="text-xs text-amber-200">Nenhum colaborador de nível Técnico ou superior disponível.</p>}</div></fieldset>}
+                {(supportsPlanning || editing?.planning) && <ProjectPlanningFields value={form.planning} scheduled={!!form.startDate} disabled={!supportsPlanning || !canSave || save.isPending} onChange={value => field('planning', value)} />}
+                {(supportsSpecifications || editing?.specifications) && <ProjectSpecificationFields value={form.specifications} disabled={!supportsSpecifications || !canSave || save.isPending} onChange={value => field('specifications', value)} />}
                 <Field label={copy.notes}><Textarea aria-label={copy.notes} autoComplete="off" value={form.notes} rows={3} maxLength={10000} onChange={event => field('notes', event.target.value)} /></Field>
                 {error && <div role="alert" className="space-y-3 rounded-lg border border-red-400/50 p-3 text-sm text-red-200"><p>{error}</p>{error.includes('conflito de horário') && <label className="flex items-start gap-2"><input type="checkbox" checked={form.allowConflicts} onChange={event => field('allowConflicts', event.target.checked)} />{copy.allowConflicts}</label>}</div>}
             </fieldset>

@@ -1,5 +1,7 @@
 # Viagens e painel operacional
 
+**Adaptação local em 26/10/2026:** Viagens permanece acessível na seção **Cronograma e Planejamento**, reutilizando a tela, os registros e o popup existentes. O cronograma adaptado também preserva os deslocamentos em sua agenda/calendário. A expansão de logística/visões pessoais continua na Fase 06 do [roadmap](../ROADMAP_ZYLLEN.md), com tarefas no [backlog](../BACKLOG_ZYLLEN.md); não houve alteração do cadastro ou da API de viagens nesta etapa.
+
 **Atualização de 21/09/2026:** uma viagem nova nasce da opção **Terá viagem?** no cadastro do projeto, com participantes de nível Técnico ou superior. O destino, endereço e período vêm do projeto; a origem é informada no mesmo formulário. A aba Viagens é uma visão de consulta, filtros e acompanhamento de status. Os botões **Nova viagem** da Agenda e da aba Viagens e as rotas de criação/edição direta de viagem foram removidos. Viagens legadas permanecem visíveis. Os parágrafos datados de 18/09 abaixo documentam a implementação anterior e não descrevem mais a entrada atual de novos dados.
 
 **Estado em 18/09/2026:** API/migração publicadas na R1. Na R3, cadastro e indicadores estão dentro de [Projetos e Agenda](projetos-e-agenda.md), disponível no localhost. Frontend ainda não publicado no Vercel.
@@ -60,7 +62,7 @@ Atualização a cada 30 segundos, opção manual e horário da última consulta.
 
 ## Permissões, migração e validação
 
-`GET /trips`, `/trips/options`, `/trips/statistics` e `/trips/:id` exigem usuário interno e `schedule.view`. `POST /trips` exige `schedule.create`; `PUT /trips/:id` e `/trips/:id/status` exigem `schedule.update`. Administrador mantém o bypass existente. A entrega não concede permissões novas nem acesso à manutenção para `Internos`.
+Conferência do código em 26/10/2026: `GET /trips`, `/trips/options`, `/trips/statistics` e `/trips/:id` exigem usuário interno e `schedule.view`; `PUT /trips/:id/status` exige `schedule.update`. O controller atual não expõe `POST /trips` nem `PUT /trips/:id` para cadastro/edição avulsos; novas viagens são coordenadas pelo cadastro do projeto. As descrições de criação/edição direta acima são históricas e não devem orientar novos consumidores. Administrador mantém o bypass existente. Esta revisão não concede permissões novas nem acesso à manutenção para `Internos`.
 
 Migração aditiva [20260918040000_trips](../../apps/api/prisma/migrations/20260918040000_trips/migration.sql): duas tabelas privadas com RLS sem políticas públicas, coluna opcional `ProjectService.tripId`, índices e FKs. Gerada offline, não remove/preenche registros existentes. Depende de `20260918030000_project_operational_service`; a nova API da agenda consulta ambas as estruturas. Conferir drift e **todas** as pendências antes da publicação; seguir [banco de dados](banco-de-dados.md) e [implantação](implantacao.md) para client/API/web coordenados. Não aplicar migrações automaticamente na base compartilhada.
 
