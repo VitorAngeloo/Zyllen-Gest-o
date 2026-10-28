@@ -15,6 +15,7 @@ export function matchesFilters(record: ChronogramRecord, filters: ChronogramFilt
     return !filters.search || haystack.includes(normalizeSearch(filters.search));
 }
 export const isActiveProject = (record: ChronogramRecord) => record.kind === 'project' && ACTIVE_STAGES.includes(record.stage) && ['PENDING', 'SCHEDULED', 'IN_PROGRESS'].includes(record.operationalStatus);
+export const isPlanningProject = (record: ChronogramRecord) => isActiveProject(record) || record.kind === 'legacy' && ACTIVE_STAGES.includes(record.stage);
 export const needsConfirmation = (record: ChronogramRecord, today: string) => record.operationalStatus === 'SCHEDULED' && !!record.start && (record.end || record.start) < today;
 export function pendingRows(records: ChronogramRecord[], today: string): ChronogramAlert[] {
     return records.flatMap(record => {

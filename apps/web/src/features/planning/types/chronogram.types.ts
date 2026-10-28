@@ -1,4 +1,4 @@
-import type { ProjectPlanning, ProjectPlanningStage, ProjectRoomSpecifications, ProjectServiceStatus, ScheduleType } from '@zyllen/shared';
+import type { ProjectPlanning, ProjectPlanningStage, ProjectRoomSpecifications, ProjectServiceStatus, ScheduleType, ProjectLegacyRecord } from '@zyllen/shared';
 
 /** View model adapted from cronograma-skyline/src/tipos.ts; never a database contract. */
 export type ChronogramStage = ProjectPlanningStage | ProjectServiceStatus | 'UNKNOWN';
@@ -17,6 +17,7 @@ export interface ChronogramRecord {
     sourceId: string;
     kind: 'project' | 'schedule' | 'trip' | 'legacy';
     legacySource?: { name: string; sha256: string; importedAt: string; sourceId: string };
+    legacy?: ProjectLegacyRecord;
     title: string; company: string; city: string; state: string; address: string;
     service: ChronogramService; stage: ChronogramStage;
     operationalStatus: ProjectServiceStatus | 'UNKNOWN';

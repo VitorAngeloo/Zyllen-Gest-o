@@ -12,11 +12,12 @@ const value = (item: Prisma.JsonValue | undefined): string => item == null ? '' 
 @Injectable()
 export class ProjectHistoryService {
     constructor(private readonly prisma: PrismaService) {}
-    async list(id: string, page: number, limit: number) {
+    async list(id: string, page: number, limit: number, legacy = false) {
         return this.prisma.retry(() => this.prisma.$transaction(async tx => {
-            const record = await tx.projectService.findUnique({ where: { id }, select: { scheduleId: true } });
+            const record = legacy ? await tx.projectPlanningLegacyRecord.findUnique({ where: { id }, select: { id: true } }).then(row => row ? { scheduleId: null } : null)
+                : await tx.projectService.findUnique({ where: { id }, select: { scheduleId: true } });
             if (!record) throw new NotFoundException('Projeto operacional não encontrado');
-            const where: Prisma.AuditLogWhereInput = { OR: [ { entityType: 'ProjectService', entityId: id },
+            const where: Prisma.AuditLogWhereInput = legacy ? { entityType: 'ProjectPlanningLegacyRecord', entityId: id } : { OR: [ { entityType: 'ProjectService', entityId: id },
                 ...(record.scheduleId ? [{ entityType: 'Schedule', entityId: record.scheduleId }] : []) ] };
             const [rows, total] = await Promise.all([
                 tx.auditLog.findMany({ where, include: { user: { select: { name: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * limit, take: limit }),
@@ -25,7 +26,11 @@ export class ProjectHistoryService {
             const data: ProjectHistoryEntry[] = rows.map(row => {
                 const details = row.details && !Array.isArray(row.details) && typeof row.details === 'object' ? row.details : {};
                 const changes: ProjectHistoryEntry['changes'] = fields.filter(([after]) => Object.hasOwn(details, after)).map(([after, before, label]) => ({ field: label, before: value(details[before]), after: value(details[after]) }));
-                if (details.previous && details.next) changes.push({ field: 'Pendência', before: value(details.previous), after: value(details.next) });
+                if (legacy && details.previous && details.next && typeof details.previous === 'object' && typeof details.next === 'object') {
+                    const before = details.previous as Prisma.JsonObject, after = details.next as Prisma.JsonObject;
+                    const labels: Record<string, string> = { name: 'Cliente', location: 'Cidade/UF', service: 'Serviço', planning: 'Planejamento', specifications: 'Características técnicas', start: 'Início', end: 'Fim', original: 'Data original', technician: 'Técnico', notes: 'Observação', pending: 'Pendências', annotations: 'Anotações' };
+                    for (const [key, label] of Object.entries(labels)) if (value(before[key]) !== value(after[key])) changes.push({ field: label, before: value(before[key]), after: value(after[key]) });
+                } else if (details.previous && details.next) changes.push({ field: 'Pendência', before: value(details.previous), after: value(details.next) });
                 return { id: row.id, action: row.action, createdAt: row.createdAt.toISOString(), author: row.user.name, changes, reason: typeof details.reason === 'string' ? details.reason : null };
             });
             return { data, total, page, limit };

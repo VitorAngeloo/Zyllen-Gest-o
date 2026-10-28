@@ -1,5 +1,7 @@
 # Backlog Zyllen — Cronograma e Planejamento
 
+**Entrega posterior autorizada em 28/10/2026 — concluída/publicada:** liberar edição dos 240 cards do ZIP e restaurar o quadro Projetos. Dependências: autorização expressa do usuário, preservação da fonte e RBAC atual. Aceite: formulário conforme ZIP; pendências/anotações/auditoria persistidas; controle de concorrência; cancelamento justificado; projetos anteriores e 50 planejamentos ativos importados visíveis no quadro; sem gerar agendamentos/conclusões reais. Uma migration adicional aplicada (28 totais), com ensaio em restauração, 70 cenários API e 48 de navegador aprovados. Matriz ampliada e conversão operacional continuam pendentes. [Detalhes](instrucoes/projetos-e-agenda.md#edição-dos-registros-do-zip-e-retorno-do-quadro-em-28102026).
+
 **Publicação de 28/10/2026:** etapa 6 executada por autorização do usuário. Cinco migrations aplicadas, frontend/API publicados e 240 registros/seis pendências do ZIP carregados como legado somente de consulta. Internos bloqueado; matriz dos demais acessos adiada. [Evidências e limites](instrucoes/projetos-e-agenda.md#publicação-operacional-em-28102026). Os registros de preparação abaixo descrevem o estado anterior quando assim identificados.
 
 **Atualização:** 28/10/2026. Referência: [roadmap e inventário técnico](ROADMAP_ZYLLEN.md). Definições de negócio: [decisões pendentes](DECISOES_PENDENTES.md).

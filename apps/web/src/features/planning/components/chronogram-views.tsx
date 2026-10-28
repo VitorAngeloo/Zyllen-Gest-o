@@ -3,7 +3,7 @@ import { Fragment, useState, type CSSProperties } from 'react';
 import { ACTIVE_STAGES, CHRONOGRAM_PLANNING_STAGES, CHRONOGRAM_STAGES, MONTHS, WEEKDAYS } from '../chronogram.constants';
 import type { ChronogramFilters, ChronogramRecord } from '../types/chronogram.types';
 import { calendarDays, compareByDate, dayKey, displayDay, forecastInPeriod } from '../utils/chronogram-dates';
-import { agendaRecords, isActiveProject, matchesFilters, pendingRows } from '../utils/chronogram-selectors';
+import { agendaRecords, isPlanningProject, matchesFilters, pendingRows } from '../utils/chronogram-selectors';
 import { ChronogramRecordButton } from './chronogram-record-button';
 import styles from './chronogram.module.css';
 
@@ -52,8 +52,8 @@ export function ChronogramCalendar({ records, filters, today, onOpen, onChange }
     </>;
 }
 export function ChronogramProjects({ records, filters, today, onOpen }: Props) {
-    const projects = records.filter(record => isActiveProject(record) && matchesFilters(record, filters));
-    const hasPlanning = records.some(record => record.kind === 'project' && CHRONOGRAM_PLANNING_STAGES.includes(record.stage));
+    const projects = records.filter(record => isPlanningProject(record) && matchesFilters(record, filters));
+    const hasPlanning = records.some(record => ['project', 'legacy'].includes(record.kind) && CHRONOGRAM_PLANNING_STAGES.includes(record.stage));
     const stages = ACTIVE_STAGES.filter(stage => CHRONOGRAM_PLANNING_STAGES.includes(stage) ? hasPlanning : !hasPlanning || projects.some(record => record.stage === stage));
     return <div className={styles.board} aria-label="Quadro de projetos">{stages.map(stage => {
         const entries = projects.filter(record => record.stage === stage).sort(compareByDate);

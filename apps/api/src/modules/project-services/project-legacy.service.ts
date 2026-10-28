@@ -1,12 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { projectLegacyPayloadSchema, type ProjectLegacyRecord } from '@zyllen/shared';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
-const include = { batch: true } as const;
-const record = (row: Prisma.ProjectPlanningLegacyRecordGetPayload<{ include: typeof include }>): ProjectLegacyRecord => ({
-    ...projectLegacyPayloadSchema.parse(row.payload), id: row.id, sourceId: row.sourceId,
-    source: { name: row.batch.sourceName, sha256: row.batch.sourceSha256, importedAt: row.batch.importedAt.toISOString() },
-});
+import { legacyInclude as include, legacyRecord as record } from './project-legacy-record';
 @Injectable()
 export class ProjectLegacyService {
     constructor(private readonly prisma: PrismaService) {}

@@ -1,6 +1,18 @@
-import type { ProjectLegacyRecord } from '@zyllen/shared';
+import type { ProjectLegacyRecord, ProjectLegacyUpdate, ProjectHistoryEntry, ProjectPlanningChange, ProjectObservationsChange, ProjectLegacyCancellation } from '@zyllen/shared';
 import { apiClient, ApiError, type RequestOptions } from '@web/lib/api-client';
+import { projectLegacyCollaborationApi } from './project-collaboration-api';
+const route = (id: string) => `/project-services/legacy/records/${encodeURIComponent(id)}`;
 export const projectLegacyApi = {
+    ...projectLegacyCollaborationApi,
+    async update(id: string, input: ProjectLegacyUpdate, options: RequestOptions) {
+        return (await apiClient.put<{ data: ProjectLegacyRecord }>(route(id), input, options)).data;
+    },
+    history(id: string, page: number, options: RequestOptions) {
+        return apiClient.get<{ data: ProjectHistoryEntry[]; total: number; page: number; limit: number }>(`${route(id)}/history?page=${page}&limit=30`, options);
+    },
+    planning(id: string, input: ProjectPlanningChange, options: RequestOptions) { return apiClient.put(`${route(id)}/planning`, input, options); },
+    observations(id: string, input: ProjectObservationsChange, options: RequestOptions) { return apiClient.put(`${route(id)}/observations`, input, options); },
+    cancel(id: string, input: ProjectLegacyCancellation, options: RequestOptions) { return apiClient.post(`${route(id)}/cancel`, input, options); },
     async detail(id: string, options: RequestOptions) {
         return (await apiClient.get<{ data: ProjectLegacyRecord }>(`/project-services/legacy/records/${encodeURIComponent(id)}`, options)).data;
     },

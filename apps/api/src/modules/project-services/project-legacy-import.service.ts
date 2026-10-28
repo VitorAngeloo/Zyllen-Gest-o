@@ -16,7 +16,7 @@ const canonical = (input: unknown): string => input && typeof input === 'object'
 @Injectable()
 export class ProjectLegacyImportService {
     constructor(private readonly prisma: PrismaService) {}
-    /** Reviewed release CLI only; no HTTP write route exists. */
+    /** Reviewed release CLI only; no HTTP import route exists. */
     async importSnapshot(value: unknown) {
         const input = snapshotSchema.parse(value);
         const rows = input.rows.map(row => ({ ...row, payloadSha256: createHash('sha256').update(canonical({ payload: row.payload, rawSource: row.rawSource })).digest('hex') }));

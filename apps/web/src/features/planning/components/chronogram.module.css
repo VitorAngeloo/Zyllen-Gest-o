@@ -105,13 +105,14 @@
 .extras summary { cursor: pointer; font-size: 12px; color: var(--plan-muted); min-height: 36px; padding: 8px 0; }
 .extrasContent { margin-top: 14px; display: grid; gap: 16px; }
 @media (max-width: 1100px) {
-    .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); } .field:last-child { grid-column: span 4; }
+    .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); } .filters .field:last-child { grid-column: span 4; }
     .main { grid-template-columns: minmax(0, 1fr); } .rail { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 640px) {
     .workspace { gap: 16px; } .workspace[data-theme='light'] { padding: 10px; }
     .period { gap: 5px; } .year { width: 76px; } .month { min-width: 48px; }
-    .filters { grid-template-columns: 1fr 1fr; } .field:last-child { grid-column: span 2; }
+    .filters { grid-template-columns: 1fr 1fr; } .filters .field:last-child { grid-column: span 2; }
+    .legacyForm .technical { grid-template-columns: minmax(0, 1fr); }
     .metrics { grid-template-columns: 1fr 1fr; } .metric { padding: 14px; border-bottom: 1px solid var(--plan-border); }
     .metric:nth-child(2n) { border-right: 0; } .metric:last-child { grid-column: span 2; border-bottom: 0; }
     .metric strong { font-size: 26px; } .rail { grid-template-columns: minmax(0, 1fr); }

@@ -56,7 +56,8 @@ export function legacyToChronogram(record: ProjectLegacyRecord): ChronogramRecor
         category: record.specifications.category, equipment: record.specifications.equipment, technical: record.specifications.room,
         notes: record.notes, people: record.technician ? [record.technician] : [],
         pending: record.pending.map(item => ({ id: item.sourceId, type: item.type, responsible: item.responsible, deadline: item.deadline ?? '', detail: item.detail,
-            open: item.open, resolvedAt: item.resolvedAt, resolvedBy: item.resolvedBy, createdAt: item.createdAt || undefined, createdBy: item.createdBy || undefined })),
+            open: item.open, resolvedAt: item.resolvedAt, resolvedBy: item.resolvedBy, version: item.version ?? 0, createdAt: item.createdAt || undefined, createdBy: item.createdBy || undefined })),
         annotations: record.annotations.map(item => ({ id: item.sourceId, date: item.date, author: item.author, text: item.text })),
-        legacySource: { ...record.source, sourceId: record.sourceId } };
+        legacySource: { ...record.source, sourceId: record.sourceId }, legacy: record, planning: record.planning,
+        collaborationAvailable: record.editingAvailable === true, actionsAvailable: record.editingAvailable === true };
 }

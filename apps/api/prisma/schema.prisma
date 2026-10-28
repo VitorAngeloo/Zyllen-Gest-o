@@ -53,6 +53,7 @@ model InternalUser {
   projectPendingsCreated ProjectServicePending[] @relation("ProjectPendingCreator")
   projectPendingsResolved ProjectServicePending[] @relation("ProjectPendingResolver")
   projectNotes ProjectServiceNote[]
+  projectLegacyEdits ProjectPlanningLegacyEdit[]
   assetEvents         AssetEvent[]
   custodyTransfers    InventoryTransfer[]
   panelMirrors        PanelMirror[]
@@ -937,7 +938,19 @@ model ProjectPlanningLegacyRecord {
   payload Json
   rawSource Json
   batch ProjectPlanningLegacyImport @relation(fields: [importId], references: [id], onDelete: Restrict)
+  edit ProjectPlanningLegacyEdit?
   @@unique([importId, sourceId])
+}
+
+// Current working copy. The imported payload/hash/raw source remain immutable.
+model ProjectPlanningLegacyEdit {
+  recordId String @id
+  payload Json
+  version Int @default(1)
+  updatedAt DateTime @updatedAt
+  updatedById String
+  record ProjectPlanningLegacyRecord @relation(fields: [recordId], references: [id], onDelete: Restrict)
+  updatedBy InternalUser @relation(fields: [updatedById], references: [id], onDelete: Restrict)
 }
 
 model ProjectService {

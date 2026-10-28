@@ -54,7 +54,15 @@ async function main() {
         for (const id of ['project:new-project', 'schedule:standalone', 'trip:trip-1', 'legacy:hidden-project']) assert(visible.some(row => row.id === id));
         assert.equal(rules.chronogramSummary(visible, filters, '2026-10-26').active.length, 1);
         assert.equal(visibleChronogramRecords(input, new Set()).length, input.length);
+        assert.equal(visibleChronogramRecords(input, new Set(['hidden-project']), 'projetos').length, input.length);
         assert.equal(input.length, 5); assert.equal(projects.length, 2);
+    });
+    await run('ZIP active planning cards belong in Projects without becoming completed or operational projects', () => {
+        const active = record({ kind: 'legacy', stage: 'kickoff', operationalStatus: 'UNKNOWN' });
+        assert(rules.isPlanningProject(active)); assert(!rules.isActiveProject(active));
+        assert(!rules.isPlanningProject({ ...active, stage: 'concluido' })); assert(!rules.isPlanningProject({ ...active, stage: 'cancelado' }));
+        const summary = rules.chronogramSummary([active, { ...active, stage: 'concluido' }], filters, '2026-10-26');
+        assert.equal(summary.active.length, 0); assert.equal(summary.installations.length, 0);
     });
     await run('Adapter keeps native status and unknown technical fields despite suggestive names and notes', () => {
         const row = adapter.projectToChronogram(project());

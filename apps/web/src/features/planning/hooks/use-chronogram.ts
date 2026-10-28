@@ -9,8 +9,9 @@ import { projectLegacyApi } from '@web/features/project-services/api/project-leg
 import { dayKey } from '../utils/chronogram-dates';
 import { combineChronogram, legacyToChronogram } from '../utils/chronogram-records';
 import { visibleChronogramRecords } from '../utils/chronogram-visibility';
+import type { ChronogramView } from '../types/chronogram.types';
 
-export function useChronogram() {
+export function useChronogram(view: ChronogramView) {
     const { user, userType, hasPermission } = useAuth();
     const options = useAuthedFetch();
     const [now, setNow] = useState(() => new Date());
@@ -26,8 +27,9 @@ export function useChronogram() {
         }, refetchInterval: 30_000 });
     const legacy = useQuery({ queryKey: ['project-services', 'chronogram-legacy', user?.id], enabled,
         queryFn: ({ signal }) => projectLegacyApi.listAll({ ...options, signal }), refetchInterval: 30_000 });
-    const records = useMemo(() => visibleChronogramRecords([...combineChronogram(projects.data ?? [], schedules.data?.data ?? []), ...(legacy.data ?? []).map(legacyToChronogram)]), [projects.data, schedules.data, legacy.data]);
-    return { projects, schedules, legacy, records, now, today: dayKey(now),
+    const allRecords = useMemo(() => [...combineChronogram(projects.data ?? [], schedules.data?.data ?? []), ...(legacy.data ?? []).map(legacyToChronogram)], [projects.data, schedules.data, legacy.data]);
+    const records = useMemo(() => visibleChronogramRecords(allRecords, undefined, view), [allRecords, view]);
+    return { projects, schedules, legacy, records, allRecords, now, today: dayKey(now),
         loading: projects.isLoading || schedules.isLoading || legacy.isLoading, failed: projects.isError || schedules.isError || legacy.isError,
         ready: !!projects.data && !!schedules.data && !!legacy.data, fetching: projects.isFetching || schedules.isFetching || legacy.isFetching,
         updatedAt: projects.dataUpdatedAt && schedules.dataUpdatedAt && legacy.dataUpdatedAt ? Math.min(projects.dataUpdatedAt, schedules.dataUpdatedAt, legacy.dataUpdatedAt) : 0,

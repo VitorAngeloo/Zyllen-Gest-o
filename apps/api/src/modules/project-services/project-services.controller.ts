@@ -15,6 +15,8 @@ import { ProjectActionsService } from './project-actions.service';
 import { ProjectHistoryService } from './project-history.service';
 import { ProjectPlanningGuard } from './project-planning.guard';
 import { ProjectLegacyService } from './project-legacy.service';
+import { ProjectLegacyEditingService } from './project-legacy-editing.service';
+import { projectLegacyUpdateSchema, projectLegacyCancellationSchema, type ProjectLegacyUpdate } from '@zyllen/shared';
 
 const listSchema = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(50),
     status: z.enum(PROJECT_SERVICE_STATUSES).optional(), type: z.enum(PROJECT_SERVICE_TYPES).optional(), search: z.string().trim().max(200).optional() }).strict();
@@ -22,13 +24,49 @@ const listSchema = z.object({ page: z.coerce.number().int().min(1).default(1), l
 @Controller('project-services')
 @UseGuards(JwtAuthGuard, ProjectPlanningGuard, PermissionsGuard)
 export class ProjectServicesController {
-    constructor(private readonly services: ProjectServicesService, private readonly statistics: ProjectStatisticsService, private readonly collaboration: ProjectCollaborationService, private readonly actions: ProjectActionsService, private readonly history: ProjectHistoryService, private readonly legacy: ProjectLegacyService) {}
+    constructor(private readonly services: ProjectServicesService, private readonly statistics: ProjectStatisticsService, private readonly collaboration: ProjectCollaborationService, private readonly actions: ProjectActionsService, private readonly history: ProjectHistoryService, private readonly legacy: ProjectLegacyService, private readonly legacyEditing: ProjectLegacyEditingService) {}
     @Get('legacy/records') @RequirePermission(PROJECT_PLANNING_ACCESS.view)
     async legacyList(@Query(new ZodValidationPipe(z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(100) }).strict())) query: { page: number; limit: number }) {
         return this.legacy.list(query.page, query.limit);
     }
     @Get('legacy/records/:id') @RequirePermission(PROJECT_PLANNING_ACCESS.view)
     async legacyDetail(@Param('id') id: string) { return { data: await this.legacy.find(id) }; }
+    @Put('legacy/records/:id') @RequirePermission(PROJECT_PLANNING_ACCESS.editProject)
+    async legacyUpdate(@Param('id') id: string, @Body(new ZodValidationPipe(projectLegacyUpdateSchema)) body: ProjectLegacyUpdate, @Request() req: any) {
+        return { data: await this.legacyEditing.update(id, body, req.user.id) };
+    }
+    @Get('legacy/records/:id/history') @RequirePermission(PROJECT_PLANNING_ACCESS.history)
+    async legacyHistory(@Param('id') id: string, @Query(new ZodValidationPipe(z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(30) }).strict())) query: { page: number; limit: number }) {
+        return this.history.list(id, query.page, query.limit, true);
+    }
+    @Put('legacy/records/:id/planning') @RequirePermission(PROJECT_PLANNING_ACCESS.editProject)
+    async legacyPlanning(@Param('id') id: string, @Body(new ZodValidationPipe(projectPlanningChangeSchema)) body: z.infer<typeof projectPlanningChangeSchema>, @Request() req: any) {
+        return { data: await this.legacyEditing.planning(id, body, req.user.id) };
+    }
+    @Put('legacy/records/:id/observations') @RequirePermission(PROJECT_PLANNING_ACCESS.editProject)
+    async legacyObservations(@Param('id') id: string, @Body(new ZodValidationPipe(projectObservationsChangeSchema)) body: z.infer<typeof projectObservationsChangeSchema>, @Request() req: any) {
+        return { data: await this.legacyEditing.observations(id, body, req.user.id) };
+    }
+    @Post('legacy/records/:id/cancel') @RequirePermission(PROJECT_PLANNING_ACCESS.cancel)
+    async legacyCancel(@Param('id') id: string, @Body(new ZodValidationPipe(projectLegacyCancellationSchema)) body: z.infer<typeof projectLegacyCancellationSchema>, @Request() req: any) {
+        return { data: await this.legacyEditing.cancel(id, body, req.user.id) };
+    }
+    @Post('legacy/records/:id/pending') @RequirePermission(PROJECT_PLANNING_ACCESS.createPending)
+    async legacyPending(@Param('id') id: string, @Body(new ZodValidationPipe(projectPendingCreateSchema)) body: ProjectPendingCreate, @Request() req: any) {
+        return { data: await this.legacyEditing.addPending(id, body, req.user.id) };
+    }
+    @Put('legacy/records/:id/pending/:pendingId') @RequirePermission(PROJECT_PLANNING_ACCESS.editPending)
+    async legacyPendingUpdate(@Param('id') id: string, @Param('pendingId') pendingId: string, @Body(new ZodValidationPipe(projectPendingUpdateSchema)) body: ProjectPendingUpdate, @Request() req: any) {
+        return { data: await this.legacyEditing.updatePending(id, pendingId, body, req.user.id) };
+    }
+    @Put('legacy/records/:id/pending/:pendingId/resolve') @RequirePermission(PROJECT_PLANNING_ACCESS.resolvePending)
+    async legacyPendingResolve(@Param('id') id: string, @Param('pendingId') pendingId: string, @Body(new ZodValidationPipe(projectPendingResolveSchema)) body: { expectedVersion: number }, @Request() req: any) {
+        return { data: await this.legacyEditing.resolvePending(id, pendingId, body.expectedVersion, req.user.id) };
+    }
+    @Post('legacy/records/:id/notes') @RequirePermission(PROJECT_PLANNING_ACCESS.annotate)
+    async legacyNote(@Param('id') id: string, @Body(new ZodValidationPipe(projectNoteCreateSchema)) body: ProjectNoteCreate, @Request() req: any) {
+        return { data: await this.legacyEditing.addNote(id, body, req.user.id) };
+    }
     @Get('statistics') @RequirePermission(PROJECT_PLANNING_ACCESS.view)
     async stats(@Query(new ZodValidationPipe(projectStatisticsQuerySchema)) query: ProjectStatisticsQuery) {
         return { data: await this.statistics.get(query) };

@@ -11,6 +11,7 @@ import { ProjectActionsService } from './project-actions.service';
 import { ProjectHistoryService } from './project-history.service';
 import { ProjectPlanningGuard } from './project-planning.guard';
 import { ProjectLegacyService } from './project-legacy.service';
+import { ProjectLegacyEditingService } from './project-legacy-editing.service';
 
-@Module({ imports: [AuthModule, AccessModule, ScheduleModule, StructuresModule], controllers: [ProjectServicesController], providers: [ProjectServicesService, ProjectStatisticsService, ProjectCollaborationService, ProjectActionsService, ProjectHistoryService, ProjectPlanningGuard, ProjectLegacyService], exports: [ProjectStatisticsService] })
+@Module({ imports: [AuthModule, AccessModule, ScheduleModule, StructuresModule], controllers: [ProjectServicesController], providers: [ProjectServicesService, ProjectStatisticsService, ProjectCollaborationService, ProjectActionsService, ProjectHistoryService, ProjectPlanningGuard, ProjectLegacyService, ProjectLegacyEditingService], exports: [ProjectStatisticsService] })
 export class ProjectServicesModule {}

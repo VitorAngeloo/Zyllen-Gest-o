@@ -1,5 +1,7 @@
 # Roadmap Zyllen — Cronograma e Planejamento
 
+**Evolução posterior publicada em 28/10/2026:** cards do ZIP editáveis com fonte preservada, versões/autoria/histórico e mesmas ações de planejamento; projetos anteriores restaurados ao quadro Projetos, que também inclui os 50 registros ativos do ZIP. Uma migration adicional, sem conversão automática em execução operacional. [Estado atual e validação](instrucoes/projetos-e-agenda.md#edição-dos-registros-do-zip-e-retorno-do-quadro-em-28102026). A publicação inicial e a preparação abaixo mantêm sua cronologia.
+
 **Etapa 6 publicada em 28/10/2026:** API/frontend atualizados, cinco migrations aplicadas e ZIP carregado como legado de consulta (240 registros/seis pendências), sem agendamentos ou conclusões reais derivados dele. Internos sem acesso à página; demais acessos serão definidos depois. [Publicação, evidências e limites](instrucoes/projetos-e-agenda.md#publicação-operacional-em-28102026). O diagnóstico e os blocos de preparação abaixo preservam seu contexto anterior à publicação.
 
 **Referência da auditoria:** 26/10/2026, código-base `e6127db`. **Continuidade autorizada:** implementação local na branch `codex/cronograma-planejamento`, com cinco etapas técnicas do MVP antes da sexta (homologação/publicação), conforme [controle no backlog](BACKLOG_ZYLLEN.md#ciclo-autorizado-cinco-etapas-antes-da-homologação). O [guia da área](instrucoes/projetos-e-agenda.md) registra código, verificações e limites. Há **quatro migrations aditivas não aplicadas**; não houve importação operacional ou publicação.

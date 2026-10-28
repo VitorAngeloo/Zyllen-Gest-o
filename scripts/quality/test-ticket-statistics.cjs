@@ -49,11 +49,12 @@ async function main() {
     }
     if (projects) {
         let baseline = fs.readFileSync(ddlSchema, 'utf8');
-        for (const name of ['ProjectPlanningLegacyImport', 'ProjectPlanningLegacyRecord', 'ProjectService', 'ProjectServicePending', 'ProjectServiceNote', 'ProjectServiceMarker', 'ProjectServiceInternal', 'ProjectServiceContractor', 'Trip', 'TripContractor', 'OperationalStructure', 'StructureCycle', 'PanelMirror', 'PanelAttentionClient']) {
+        for (const name of ['ProjectPlanningLegacyImport', 'ProjectPlanningLegacyRecord', 'ProjectPlanningLegacyEdit', 'ProjectService', 'ProjectServicePending', 'ProjectServiceNote', 'ProjectServiceMarker', 'ProjectServiceInternal', 'ProjectServiceContractor', 'Trip', 'TripContractor', 'OperationalStructure', 'StructureCycle', 'PanelMirror', 'PanelAttentionClient']) {
             baseline = baseline.replace(new RegExp(`^model ${name} \\{[\\s\\S]*?^\\}`, 'm'), '');
         }
         baseline = baseline.replace(/^.*(?:projectServiceAssignments|operationalService|projectService ProjectService).*\r?\n/gm, '');
         baseline = baseline.replace(/^.*(?:projectPendingsCreated|projectPendingsResolved|projectNotes\s+ProjectServiceNote).*\r?\n/gm, '');
+        baseline = baseline.replace(/^.*projectLegacyEdits.*\r?\n/gm, '');
         baseline = baseline.replace(/^model Schedule \{[\s\S]*?^\}/m, body => body.split('\n').filter(line => !/\b(startedAt|completedAt|cancelledAt)\s+DateTime\?/.test(line)).join('\n'));
         baseline = baseline.replace(/^.*(?:tripAssignments|\btrip\s+Trip\?).*\r?\n/gm, '');
         baseline = baseline.replace(/^.*operationalStructures.*\r?\n/gm, '');
@@ -240,6 +241,16 @@ async function main() {
         assert.equal((await db.query('SELECT COUNT(*) AS total FROM "Project"')).rows[0].total, before);
         const tables = (await db.query("SELECT relrowsecurity FROM pg_class WHERE relname IN ('ProjectPlanningLegacyImport','ProjectPlanningLegacyRecord')")).rows;
         assert.equal(tables.length, 2); assert(tables.every(row => row.relrowsecurity));
+    });
+    if (projects) await run('Legacy editing migration: private working copies preserve the snapshot and require valid versions and identities', async () => {
+        const before = (await db.query('SELECT COUNT(*) AS total FROM "ProjectPlanningLegacyRecord"')).rows;
+        const sql = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20261028170000_project_legacy_editing/migration.sql'), 'utf8');
+        assert(!/\b(DROP|TRUNCATE)\b|^\s*(DELETE|UPDATE)\b/im.test(sql)); await db.exec(sql);
+        assert.deepEqual((await db.query('SELECT COUNT(*) AS total FROM "ProjectPlanningLegacyRecord"')).rows, before);
+        assert.equal((await db.query("SELECT relrowsecurity FROM pg_class WHERE relname='ProjectPlanningLegacyEdit'")).rows[0].relrowsecurity, true);
+        await db.exec('CREATE ROLE legacy_editor_untrusted NOLOGIN; GRANT USAGE ON SCHEMA public TO legacy_editor_untrusted; GRANT SELECT,INSERT ON "ProjectPlanningLegacyEdit" TO legacy_editor_untrusted; SET ROLE legacy_editor_untrusted');
+        try { assert.deepEqual((await db.query('SELECT * FROM "ProjectPlanningLegacyEdit"')).rows, []); await assert.rejects(() => db.query('INSERT INTO "ProjectPlanningLegacyEdit" ("recordId",payload,"updatedAt","updatedById") VALUES ($1,$2,NOW(),$1)', ['blocked', '{}']), /row-level security/); }
+        finally { await db.exec('RESET ROLE'); }
     });
     socket = new PGLiteSocketServer({ db, port: 0, host: '127.0.0.1' });
     await socket.start();

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { PROJECT_PLANNING_ACCESS, PROJECT_PENDING_TYPES, projectPendingCreateSchema, projectPendingUpdateSchema, projectNoteCreateSchema, type ProjectPlanningAction } from '@zyllen/shared';
 import { useAuth, useAuthedFetch } from '@web/features/auth/context/auth-context';
 import { projectCollaborationApi } from '@web/features/project-services/api/project-collaboration-api';
+import { projectLegacyApi } from '@web/features/project-services/api/project-legacy-api';
 import type { ChronogramPending, ChronogramRecord } from '../types/chronogram.types';
 import { displayDay } from '../utils/chronogram-dates';
 import { needsConfirmation } from '../utils/chronogram-selectors';
@@ -15,7 +16,8 @@ const blankPending = (): Draft => ({ id: crypto.randomUUID(), type: '', responsi
 const timestamp = (value: string) => !value ? 'data não informada' : Number.isNaN(Date.parse(value)) ? value : new Date(value).toLocaleString('pt-BR');
 export function ChronogramCollaboration({ record, today, busy, onBusyChange }: Props) {
     const { hasPermission } = useAuth(), options = useAuthedFetch(), client = useQueryClient();
-    const allowed = (action: ProjectPlanningAction) => record.kind === 'project' && record.collaborationAvailable && hasPermission(PROJECT_PLANNING_ACCESS[action]);
+    const api = record.kind === 'legacy' ? projectLegacyApi : projectCollaborationApi;
+    const allowed = (action: ProjectPlanningAction) => ['project', 'legacy'].includes(record.kind) && record.collaborationAvailable && hasPermission(PROJECT_PLANNING_ACCESS[action]);
     const [draft, setDraft] = useState<Draft | null>(null);
     const [note, setNote] = useState(() => ({ id: crypto.randomUUID(), text: '' }));
     const [working, setWorking] = useState(''), [error, setError] = useState(''), [notice, setNotice] = useState('');
@@ -35,8 +37,8 @@ export function ChronogramCollaboration({ record, today, busy, onBusyChange }: P
         const values = { type: draft.type, responsible: draft.responsible, deadline: draft.deadline || null, detail: draft.detail };
         const parsed = draft.version === undefined ? projectPendingCreateSchema.safeParse({ id: draft.id, ...values }) : projectPendingUpdateSchema.safeParse({ ...values, expectedVersion: draft.version });
         if (!parsed.success) { setError(parsed.error.issues.map(issue => issue.message).join('. ')); return; }
-        void perform(draft.version === undefined ? 'createPending' : 'editPending', 'pending', () => draft.version === undefined ? projectCollaborationApi.addPending(record.sourceId, projectPendingCreateSchema.parse({ id: draft.id, ...values }), options)
-            : projectCollaborationApi.updatePending(record.sourceId, draft.id, projectPendingUpdateSchema.parse({ ...values, expectedVersion: draft.version }), options),
+        void perform(draft.version === undefined ? 'createPending' : 'editPending', 'pending', () => draft.version === undefined ? api.addPending(record.sourceId, projectPendingCreateSchema.parse({ id: draft.id, ...values }), options)
+            : api.updatePending(record.sourceId, draft.id, projectPendingUpdateSchema.parse({ ...values, expectedVersion: draft.version }), options),
         () => setDraft(null), draft.version === undefined ? 'Pendência adicionada.' : 'Pendência atualizada.');
     }
     function edit(pending: ChronogramPending) { setError(''); setDraft({ ...pending, version: pending.version ?? 0 }); }
@@ -47,7 +49,7 @@ export function ChronogramCollaboration({ record, today, busy, onBusyChange }: P
                 <p><strong>{item.type}</strong></p><p className={styles.muted}>{item.responsible || 'Sem responsável'}{item.deadline && ` · Prazo: ${displayDay(item.deadline)}`}</p>
                 {item.detail && <p>{item.detail}</p>}{item.createdAt && <p className={styles.muted}>Criada em {timestamp(item.createdAt)}{item.createdBy && ` por ${item.createdBy}`}</p>}
                 <div className={styles.row}>{allowed('editPending') && <button type="button" disabled={busy || !!working} className={styles.button} onClick={() => edit(item)}>Editar pendência</button>}
-                    {allowed('resolvePending') && <button type="button" disabled={busy || !!working} className={styles.button} onClick={() => { void perform('resolvePending', item.id, () => projectCollaborationApi.resolvePending(record.sourceId, item.id, item.version ?? 0, options), () => { if (draft?.id === item.id) setDraft(null); }, 'Pendência resolvida.'); }}>Resolver pendência</button>}</div>
+                    {allowed('resolvePending') && <button type="button" disabled={busy || !!working} className={styles.button} onClick={() => { void perform('resolvePending', item.id, () => api.resolvePending(record.sourceId, item.id, item.version ?? 0, options), () => { if (draft?.id === item.id) setDraft(null); }, 'Pendência resolvida.'); }}>Resolver pendência</button>}</div>
             </article>)}
             {!needsConfirmation(record, today) && !record.pending.some(item => item.open) && <p className={styles.muted}>Nenhuma ação pendente nos dados deste registro.</p>}
             {record.pending.some(item => !item.open) && <details><summary className={styles.muted}>Ações resolvidas</summary>{record.pending.filter(item => !item.open).map(item => <article key={item.id} className={styles.pendingItem}>
@@ -73,7 +75,7 @@ export function ChronogramCollaboration({ record, today, busy, onBusyChange }: P
             {allowed('annotate') && <form aria-label="Nova anotação" onSubmit={event => {
                 event.preventDefault(); const parsed = projectNoteCreateSchema.safeParse(note);
                 if (!parsed.success) { setError(parsed.error.issues.map(issue => issue.message).join('. ')); return; }
-                void perform('annotate', 'note', () => projectCollaborationApi.addNote(record.sourceId, parsed.data, options), () => setNote({ id: crypto.randomUUID(), text: '' }), 'Anotação adicionada.');
+                void perform('annotate', 'note', () => api.addNote(record.sourceId, parsed.data, options), () => setNote({ id: crypto.randomUUID(), text: '' }), 'Anotação adicionada.');
             }}><fieldset disabled={busy || !!working} className={styles.collaboration}><div className={styles.field}><label htmlFor={`${fieldId}-note`}>Texto da anotação</label><textarea id={`${fieldId}-note`} required maxLength={10000} rows={3} value={note.text} onChange={event => setNote(current => ({ ...current, text: event.target.value }))} /></div>
                 <button className={`${styles.button} ${styles.primary}`} type="submit">{working === 'note' ? 'Salvando…' : 'Adicionar anotação'}</button></fieldset></form>}
         </section>}

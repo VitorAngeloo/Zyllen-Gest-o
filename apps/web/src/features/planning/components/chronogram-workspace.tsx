@@ -12,7 +12,8 @@ import { CHRONOGRAM_VIEWS } from '../chronogram.constants';
 import type { ChronogramFilters, ChronogramRecord, ChronogramSelection, ChronogramView } from '../types/chronogram.types';
 import { useChronogram } from '../hooks/use-chronogram';
 import { defaultFilters } from '../utils/chronogram-dates';
-import { agendaRecords, isActiveProject, matchesFilters, pendingRows } from '../utils/chronogram-selectors';
+import { agendaRecords, isPlanningProject, matchesFilters, pendingRows } from '../utils/chronogram-selectors';
+import { visibleChronogramRecords } from '../utils/chronogram-visibility';
 import { ChronogramFiltersBar } from './chronogram-filters';
 import { ChronogramSummary } from './chronogram-summary';
 import { ChronogramAgenda, ChronogramCalendar, ChronogramPending, ChronogramProjects } from './chronogram-views';
@@ -23,7 +24,7 @@ import styles from './chronogram.module.css';
 
 interface Props { filters: ChronogramFilters; view: ChronogramView; history: boolean; onNavigate: (view: ChronogramView, patch?: Partial<ChronogramFilters>) => void }
 export function ChronogramWorkspace({ filters, view, history, onNavigate }: Props) {
-    const data = useChronogram();
+    const data = useChronogram(view);
     const { hasPermission } = useAuth(), options = useAuthedFetch(), client = useQueryClient();
     const [selected, setSelected] = useState<ChronogramSelection | null>(null);
     const focusOrigin = useRef<HTMLElement | null>(null);
@@ -50,10 +51,11 @@ export function ChronogramWorkspace({ filters, view, history, onNavigate }: Prop
         try { const current = await scheduleApi.detail(record.sourceId, options); setSelected(null); setScheduleEditor(current); }
         catch { setActionError('Não foi possível abrir o agendamento para edição. Tente novamente pelo card.'); }
     };
+    const timelineRecords = visibleChronogramRecords(data.allRecords);
     const counts: Partial<Record<ChronogramView, number>> = data.ready ? {
-        agenda: agendaRecords(data.records, filters).length,
-        projetos: data.records.filter(record => isActiveProject(record) && matchesFilters(record, filters)).length,
-        pendencias: pendingRows(data.records.filter(record => matchesFilters(record, filters)), data.today).length,
+        agenda: agendaRecords(timelineRecords, filters).length,
+        projetos: data.allRecords.filter(record => isPlanningProject(record) && matchesFilters(record, filters)).length,
+        pendencias: pendingRows(timelineRecords.filter(record => matchesFilters(record, filters)), data.today).length,
     } : {};
     const viewProps = { records: data.records, filters, today: data.today, onOpen: open };
     return <div className={styles.workspace} data-theme={theme}>
@@ -66,7 +68,7 @@ export function ChronogramWorkspace({ filters, view, history, onNavigate }: Prop
         {actionError && <p role="alert" className={styles.notice}>{actionError}</p>}
         {data.loading && !data.ready && <p role="status" className={styles.empty}>Carregando projetos e compromissos…</p>}
         {data.ready && <ChronogramSummary records={data.records} filters={filters} today={data.today} onPending={() => onNavigate('pendencias')} />}
-        {!!data.legacy.data?.length && <p className={styles.notice}>{data.legacy.data.length} registros do ZIP disponíveis como histórico legado de consulta. Datas e etapas da origem não geram agendamentos ou conclusões reais; ficam fora dos indicadores operacionais. Registros sem data informada aparecem abaixo.</p>}
+        {!!data.legacy.data?.length && <p className={styles.notice}>{data.legacy.data.length} registros do ZIP disponíveis no cronograma. A edição segue as permissões do seu acesso. Datas e etapas de planejamento não confirmam execução e ficam fora dos indicadores operacionais. Registros sem data informada aparecem abaixo.</p>}
         {!!data.legacy.data?.some(item => !item.start && !item.planning.forecast) && <details className={styles.panel}><summary className={styles.group}>Histórico legado sem data informada</summary><div className={styles.list}>{data.records.filter(item => item.kind === 'legacy' && !item.start && !item.forecast && matchesFilters(item, filters)).map(item => <button key={item.id} type="button" className={styles.button} onClick={() => open(item)}>{item.title} · {item.city || 'Local não informado'}</button>)}</div></details>}
         <div className={styles.main}>
             <section className={styles.panel} aria-label="Visualizações do cronograma"><header className={styles.panelHead}>

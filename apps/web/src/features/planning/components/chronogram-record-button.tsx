@@ -6,7 +6,7 @@ import styles from './chronogram.module.css';
 
 export function ChronogramBadges({ record }: { record: ChronogramRecord }) {
     return <span className={styles.tags}><span className={styles.badge}>{CHRONOGRAM_SERVICES[record.service]}</span>
-        {record.kind === 'legacy' && <span className={styles.badge}>Legado · somente consulta</span>}
+        {record.kind === 'legacy' && <span className={styles.badge}>{record.legacy?.editingAvailable ? 'Importado do ZIP' : 'Legado · somente consulta'}</span>}
         <span className={styles.badge} data-tone={CHRONOGRAM_STAGES[record.stage].tone}>{CHRONOGRAM_PLANNING_STAGES.includes(record.stage) && 'Cronograma: '}{CHRONOGRAM_STAGES[record.stage].label}</span>
         {CHRONOGRAM_PLANNING_STAGES.includes(record.stage) && record.kind !== 'legacy' && <span className={styles.badge} data-tone={CHRONOGRAM_STAGES[record.operationalStatus].tone}>Execução: {CHRONOGRAM_STAGES[record.operationalStatus].label}</span>}
         {record.category && <span className={styles.badge}>{record.category === 'sala' ? record.technical?.roomType || 'Sala' : 'Tela / totem'}</span>}

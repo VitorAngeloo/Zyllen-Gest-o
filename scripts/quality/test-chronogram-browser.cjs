@@ -5,16 +5,18 @@ const crypto = require('node:crypto');
 module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     const runtime = process.env.AUDIT_RUNTIME_ROOT || 'C:/Users/SERVIDOR ZYLLEN/.cache/codex-runtimes/codex-primary-runtime/dependencies';
     const { expect } = require(path.join(runtime, 'node/node_modules/playwright/test'));
-    async function setup({ route = '/dashboard/projetos', readonly = false, denied = false, external = false, mobile = false, many = false, empty = false, failProjects = false, failDetail = false, failOptions = false, specifications = false, planning = false, collaboration = false, actions = false, failSave = false, legacy = false, internos = false, hiddenProject = false } = {}) {
+    async function setup({ route = '/dashboard/projetos', readonly = false, denied = false, external = false, mobile = false, many = false, empty = false, failProjects = false, failDetail = false, failOptions = false, specifications = false, planning = false, collaboration = false, actions = false, failSave = false, legacy = false, internos = false, hiddenProject = false, legacyEditing = false } = {}) {
         const company = { id: crypto.randomUUID(), name: 'Cliente Cronograma QA', address: 'Rua de teste, 10', city: 'Goiânia', state: 'GO' };
         const tech = { id: crypto.randomUUID(), name: 'Técnico Cronograma QA', email: 'qa@example.test', sector: 'Operações', agendaColor: '#2255AA', agendaActive: true, roleName: 'Técnico' };
         const plannedDate = new Date(fixedNow); plannedDate.setDate(Math.min(plannedDate.getDate() + 2, 28)); plannedDate.setHours(12, 0, 0, 0);
         const start = plannedDate.toISOString(), end = new Date(plannedDate.getTime() + 3600000).toISOString();
-        const legacyRecords = !legacy ? [] : Array.from({ length: 105 }, (_, index) => ({ id: crypto.randomUUID(), sourceId: 'legacy-' + index, name: 'Histórico legado QA ' + index,
+        const legacyRecords = !legacy && !legacyEditing ? [] : Array.from({ length: 105 }, (_, index) => ({ id: crypto.randomUUID(), sourceId: 'legacy-' + index, name: 'Histórico legado QA ' + index,
             location: 'Goiânia/GO', service: 'REMOVAL', planning: { stage: 'concluido', forecast: null }, specifications: { category: 'sala', equipment: ['Equipamento legado QA'], room: null },
             start: index ? start.slice(0, 10) : null, end: null, original: null, technician: 'Texto da origem QA', notes: 'Observação da origem QA', annotations: [],
             pending: [{ sourceId: 'p-' + index, type: 'Aguardando contrato', responsible: 'Texto responsável', deadline: null, detail: 'Dado histórico QA', open: true, createdAt: '', createdBy: '', resolvedAt: '', resolvedBy: '' }],
             source: { name: 'source-qa.zip', sha256: 'a'.repeat(64), importedAt: new Date(fixedNow).toISOString() } }));
+        if (legacyEditing) for (const [index, record] of legacyRecords.entries()) Object.assign(record, { editingAvailable: true, version: 0, editedAt: null, editedBy: null, planning: { ...record.planning, stage: index < 2 ? 'kickoff' : 'concluido' } });
+        const legacyHistory = new Map();
         const older = new Date(plannedDate); older.setDate(1);
         const makeProject = extra => ({ id: crypto.randomUUID(), projectId: crypto.randomUUID(), name: 'Projeto sem data QA', company, type: 'INSTALLATION', status: 'PENDING', marker: null,
             urgency: 0, color: '#ABFF10', address: 'Rua de teste, 100', city: 'Goiânia', state: 'GO', mapsUrl: null, notes: 'Orientações do projeto QA', sectors: ['Operações'],
@@ -66,7 +68,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
                 const page = Number(url.searchParams.get('page') || 1);
                 return respond({ data: legacyRecords.slice((page - 1) * 100, page * 100), total: legacyRecords.length, page, limit: 100 });
             }
-            if (url.pathname.startsWith('/project-services/legacy/records/')) return respond({ data: legacyRecords.find(item => item.id === url.pathname.split('/').at(-1)) });
+            if (url.pathname.startsWith('/project-services/legacy/records/')) return require('./test-chronogram-legacy-browser.cjs').respond({ url, request, body, respond, legacyRecords, legacyHistory, fixedNow });
             if (url.pathname === '/project-services') {
                 if (state.failProjects) return respond({ error: { message: 'Falha sintética de projetos' } }, 503);
                 if (body) { const created = makeProject({ ...body, name: body.name }); records.push(created); return respond({ data: created }); }
@@ -401,7 +403,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     await require('./test-chronogram-collaboration-browser.cjs')({ run, setup, tab, panel, row, writes, expect, shots });
     await require('./test-chronogram-actions-browser.cjs')({ run, setup, row, writes, expect });
     // Opt in with the same synthetic ID compiled into NEXT_PUBLIC_PLANNING_HIDDEN_SERVICE_IDS.
-    if (process.env.AUDIT_HIDDEN_PROJECT_SERVICE_ID) await run('Planning visibility: excluded project stays out of every view and complementary agenda without losing legacy or new projects', async () => {
+    if (process.env.AUDIT_HIDDEN_PROJECT_SERVICE_ID) await run('Planning visibility: old projects return to Projects while remaining outside agenda/calendar/pending and complementary agenda', async () => {
         const s = await setup({ legacy: true, collaboration: true, hiddenProject: true }); try {
             await expect(s.page.getByText('105 registros do ZIP', { exact: false })).toBeVisible();
             const hidden = s.records[1];
@@ -411,7 +413,8 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             await expect(s.page.locator(`[data-calendar-record="project:${hidden.id}"]`)).toHaveCount(0);
             await expect(s.page.locator(`[data-calendar-record="schedule:${hidden.schedule.id}"]`)).toHaveCount(0);
             await expect(s.page.locator('[data-calendar-record^="legacy:"]').first()).toBeVisible();
-            await tab(s.page, 'Projetos').click(); await expect(row(s.page, hidden.id)).toHaveCount(0);
+            await tab(s.page, 'Projetos').click(); await expect(row(s.page, hidden.id)).toHaveCount(1);
+            await expect(s.page.locator('[data-chronogram-metric="active"] strong')).toHaveText('3');
             await expect(row(s.page, s.records[0].id)).toHaveCount(1);
             await tab(s.page, 'Pendências').click(); await expect(panel(s.page)).not.toContainText('Primeira pendência QA');
             await expect(panel(s.page)).toContainText('Dado histórico QA');
@@ -425,6 +428,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             assert.deepEqual(writes(s), []); assert.deepEqual(s.errors, []);
         } finally { await s.context.close(); }
     });
+    await require('./test-chronogram-legacy-browser.cjs')({ run, setup, tab, panel, writes, expect, shots });
     await run('Release UI: legacy pages/cards/pending are read-only, undated records stay discoverable and real metrics exclude source completion', async () => {
         const s = await setup({ legacy: true, mobile: true }); try {
             await expect(s.page.getByText('105 registros do ZIP', { exact: false })).toBeVisible();
