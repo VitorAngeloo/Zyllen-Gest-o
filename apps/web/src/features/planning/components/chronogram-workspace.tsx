@@ -20,6 +20,7 @@ import { ChronogramAgenda, ChronogramCalendar, ChronogramPending, ChronogramProj
 import { ChronogramSidebar } from './chronogram-sidebar';
 import { ChronogramRecordDialog } from './chronogram-record-dialog';
 import { ChronogramTools } from './chronogram-tools';
+import { ChronogramOverlay } from './chronogram-overlay';
 import styles from './chronogram.module.css';
 
 interface Props { filters: ChronogramFilters; view: ChronogramView; history: boolean; onNavigate: (view: ChronogramView, patch?: Partial<ChronogramFilters>) => void }
@@ -40,9 +41,10 @@ export function ChronogramWorkspace({ filters, view, history, onNavigate }: Prop
     };
     const updateFilters = useCallback((patch: Partial<ChronogramFilters>) => onNavigate(view, patch), [onNavigate, view]);
     const open = (record: ChronogramRecord) => { focusOrigin.current = document.activeElement as HTMLElement | null; setSelected({ id: record.sourceId, kind: record.kind }); };
-    const closeRecord = useCallback(() => {
-        setSelected(null);
-        window.requestAnimationFrame(() => focusOrigin.current?.focus({ preventScroll: true }));
+    const closeOverlay = useCallback(() => {
+        const origin = focusOrigin.current;
+        setSelected(null); setProjectEditor(null); setScheduleEditor(null); focusOrigin.current = null;
+        window.requestAnimationFrame(() => { if (origin?.isConnected) origin.focus({ preventScroll: true }); });
     }, []);
     const edit = async (record: ChronogramRecord) => {
         if (record.kind === 'legacy' || !hasPermission(PROJECT_PLANNING_ACCESS.editProject)) return;
@@ -78,7 +80,7 @@ export function ChronogramWorkspace({ filters, view, history, onNavigate }: Prop
                         if (next === null) return;
                         event.preventDefault(); document.getElementById(`chronogram-tab-${CHRONOGRAM_VIEWS[next].id}`)?.focus(); onNavigate(CHRONOGRAM_VIEWS[next].id);
                     }}>{item.label}{counts[item.id] !== undefined && <span className={styles.count}>{counts[item.id]}</span>}</button>)}</div>
-                {hasPermission(PROJECT_PLANNING_ACCESS.createProject) && <button type="button" className={`${styles.button} ${styles.primary}`} onClick={() => setProjectEditor({})}>Novo registro</button>}
+                {hasPermission(PROJECT_PLANNING_ACCESS.createProject) && <button type="button" className={`${styles.button} ${styles.primary}`} onClick={() => { focusOrigin.current = document.activeElement as HTMLElement | null; setProjectEditor({}); }}>Novo registro</button>}
             </header>
                 <div role="tabpanel" id={`chronogram-panel-${view}`} aria-labelledby={`chronogram-tab-${view}`} tabIndex={0}>
                     {!data.ready ? !data.loading && !data.failed ? <p className={styles.empty}>Aguardando consulta do cronograma.</p> : null
@@ -89,8 +91,9 @@ export function ChronogramWorkspace({ filters, view, history, onNavigate }: Prop
             {data.ready && <ChronogramSidebar {...viewProps} />}
         </div>
         <ChronogramTools key={String(history)} historyInitiallyOpen={history} />
-        {selected && <ChronogramRecordDialog selection={selected} today={data.today} onClose={closeRecord} onEdit={record => { void edit(record); }} />}
-        {projectEditor && <ProjectServiceDialog id={projectEditor.id} onClose={() => setProjectEditor(null)} />}
-        {scheduleEditor && <ScheduleFormDialog open editingSchedule={scheduleEditor} onOpenChange={open => { if (!open) setScheduleEditor(null); }} fetchOpts={options} onSuccess={() => { void client.invalidateQueries({ queryKey: ['schedules'] }); setScheduleEditor(null); }} />}
+        {(selected || projectEditor || scheduleEditor) && <ChronogramOverlay onClose={closeOverlay}>{close => selected
+            ? <ChronogramRecordDialog selection={selected} today={data.today} onClose={close} onEdit={record => { void edit(record); }} />
+            : projectEditor ? <ProjectServiceDialog id={projectEditor.id} onClose={close} />
+                : scheduleEditor ? <ScheduleFormDialog open editingSchedule={scheduleEditor} onOpenChange={open => { if (!open) close(); }} fetchOpts={options} onSuccess={() => { void client.invalidateQueries({ queryKey: ['schedules'] }); close(); }} /> : null}</ChronogramOverlay>}
     </div>;
 }

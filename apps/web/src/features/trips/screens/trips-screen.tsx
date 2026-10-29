@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '@web/components/ui/button';
 import { Input } from '@web/components/ui/input';
 import { Select, SelectOption } from '@web/components/ui/select';
@@ -12,7 +12,8 @@ import { MapPin } from 'lucide-react';
 import { TripDialog } from '../components/trip-dialog';
 import { useTrips } from '../hooks/use-trips';
 
-export default function TripsScreen() {
+interface Props { renderDialog?: (props: { id?: string; onClose: () => void }) => ReactNode }
+export default function TripsScreen({ renderDialog }: Props = {}) {
     const { isLoading, hasPermission } = useAuth();
     const [page, setPage] = useState(1), [search, setSearch] = useState(''), [status, setStatus] = useState(''), [interstate, setInterstate] = useState('');
     const [dialog, setDialog] = useState<{ id?: string } | null>(null);
@@ -91,6 +92,6 @@ export default function TripsScreen() {
 
         {list.data && list.data.total > 0 && <nav aria-label="Paginação de viagens" className="flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--zyllen-muted)]"><span>{copy.page(page, list.data.total)}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1 || list.isFetching} onClick={() => setPage(current => current - 1)}>{copy.previous}</Button><Button size="sm" variant="outline" disabled={page * 50 >= list.data.total || list.isFetching} onClick={() => setPage(current => current + 1)}>{copy.next}</Button></div></nav>}
 
-        {dialog && <TripDialog id={dialog.id} onClose={() => setDialog(null)} />}
+        {dialog && (renderDialog ? renderDialog({ id: dialog.id, onClose: () => setDialog(null) }) : <TripDialog id={dialog.id} onClose={() => setDialog(null)} />)}
     </div>;
 }

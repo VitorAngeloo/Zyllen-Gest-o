@@ -1,0 +1,59 @@
+.host {
+    --drawer-surface: var(--plan-surface, var(--zyllen-surface));
+    --drawer-text: var(--plan-text, var(--zyllen-white));
+    --drawer-muted: var(--plan-muted, var(--zyllen-muted));
+    --drawer-border: var(--plan-border, var(--zyllen-border));
+    --drawer-soft: var(--plan-soft, var(--zyllen-bg-dark));
+}
+.host :global([data-slot='dialog-backdrop']) {
+    background: rgb(8 12 10 / .28); backdrop-filter: blur(2px); animation: none;
+}
+.host :global([data-slot='dialog-positioner']) {
+    align-items: stretch; justify-content: flex-end; padding: 0; pointer-events: none;
+}
+.host :global([data-slot='dialog-content']) {
+    width: min(580px, 100%); max-width: 580px; height: 100dvh; max-height: 100dvh;
+    border: 0; border-left: 1px solid var(--drawer-border); border-radius: 18px 0 0 18px;
+    color: var(--drawer-text); background: var(--drawer-surface);
+    box-shadow: -16px 0 56px rgb(0 0 0 / .16); pointer-events: auto;
+    display: flex; flex-direction: column; overflow: hidden;
+    animation: none; transform: none; outline: none;
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.host :global([data-slot='dialog-header']) {
+    flex-shrink: 0; z-index: 2; padding: 24px 64px 18px 24px;
+    background: var(--drawer-surface); border-bottom: 1px solid var(--drawer-border);
+}
+.host :global([data-slot='dialog-title']) { color: var(--drawer-text); font-size: 21px; line-height: 1.4; letter-spacing: -.025em; }
+.host :global([data-slot='dialog-content']) > form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.host :global([data-slot='dialog-body']) { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 22px 24px 28px; }
+.host :global([data-slot='dialog-footer']) { flex-shrink: 0; padding: 16px 24px 24px; border-top: 1px solid var(--drawer-border); }
+.host :global([data-slot='dialog-content']) > button[aria-label='Fechar'] {
+    position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: 20px; z-index: 3; border-radius: 12px;
+    color: var(--drawer-muted); background: var(--drawer-soft);
+}
+.host :global(fieldset) { border-radius: 12px; }
+.host :global(.text-white) { color: var(--drawer-text); }
+.host :global([class~='text-white/80']), .host :global([class~='text-white/75']) { color: var(--drawer-text); }
+.host :global([data-slot='button']) { border-color: var(--drawer-border); border-radius: 10px; }
+.host :global([data-slot='button'][class~='bg-[var(--zyllen-highlight)]']) { color: #1b1f1d; }
+.host :global(select) { color-scheme: inherit; }
+.host :global(input:not([type='checkbox']):not([type='radio'])), .host :global(textarea), .host :global(select) {
+    color: var(--drawer-text); background-color: var(--drawer-soft); border-color: var(--drawer-border); border-radius: 10px;
+}
+.host[data-planning-overlay='entering'] :global([data-slot='dialog-content']) { animation: drawer-enter 240ms cubic-bezier(.22, 1, .36, 1) both; }
+.host[data-planning-overlay='entering'] :global([data-slot='dialog-backdrop']) { animation: backdrop-enter 200ms ease-out both; }
+.host[data-planning-overlay='closing'] :global([data-slot='dialog-content']) { animation: drawer-exit 180ms ease-in both; pointer-events: none; }
+.host[data-planning-overlay='closing'] :global([data-slot='dialog-backdrop']) { animation: backdrop-exit 180ms ease-in both; }
+@keyframes drawer-enter { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes drawer-exit { from { transform: translateX(0); } to { transform: translateX(100%); } }
+@keyframes backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes backdrop-exit { from { opacity: 1; } to { opacity: 0; } }
+@media (max-width: 640px) {
+    .host :global([data-slot='dialog-content']) { width: 100%; border-radius: 0; border-left: 0; }
+    .host :global([data-slot='dialog-header']) { padding: 20px 60px 16px 20px; }
+    .host :global([data-slot='dialog-body']) { padding: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .host[data-planning-overlay] :global([data-slot='dialog-content']), .host[data-planning-overlay] :global([data-slot='dialog-backdrop']) { animation: none; }
+}

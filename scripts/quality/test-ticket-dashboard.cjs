@@ -46,6 +46,7 @@ function fixtures() {
     ];
 }
 async function run(name, work) {
+    if (process.env.AUDIT_CASE_FILTER && !new RegExp(process.env.AUDIT_CASE_FILTER).test(name)) return;
     try { await work(); cases.push({ name, passed: true }); console.log('PASS ' + name); }
     catch (error) { cases.push({ name, passed: false, error: error.message }); console.error('FAIL ' + name + ': ' + error.message); }
 }

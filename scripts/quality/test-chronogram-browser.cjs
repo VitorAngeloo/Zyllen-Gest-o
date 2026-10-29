@@ -5,7 +5,7 @@ const crypto = require('node:crypto');
 module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     const runtime = process.env.AUDIT_RUNTIME_ROOT || 'C:/Users/SERVIDOR ZYLLEN/.cache/codex-runtimes/codex-primary-runtime/dependencies';
     const { expect } = require(path.join(runtime, 'node/node_modules/playwright/test'));
-    async function setup({ route = '/dashboard/projetos', readonly = false, denied = false, external = false, mobile = false, many = false, empty = false, failProjects = false, failDetail = false, failOptions = false, specifications = false, planning = false, collaboration = false, actions = false, failSave = false, legacy = false, internos = false, hiddenProject = false, legacyEditing = false } = {}) {
+    async function setup({ route = '/dashboard/projetos', readonly = false, denied = false, external = false, mobile = false, many = false, empty = false, failProjects = false, failDetail = false, failOptions = false, specifications = false, planning = false, collaboration = false, actions = false, failSave = false, legacy = false, internos = false, hiddenProject = false, legacyEditing = false, reducedMotion = false } = {}) {
         const company = { id: crypto.randomUUID(), name: 'Cliente Cronograma QA', address: 'Rua de teste, 10', city: 'Goiânia', state: 'GO' };
         const tech = { id: crypto.randomUUID(), name: 'Técnico Cronograma QA', email: 'qa@example.test', sector: 'Operações', agendaColor: '#2255AA', agendaActive: true, roleName: 'Técnico' };
         const plannedDate = new Date(fixedNow); plannedDate.setDate(Math.min(plannedDate.getDate() + 2, 28)); plannedDate.setHours(12, 0, 0, 0);
@@ -48,7 +48,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             address: record.address, notes: record.notes, companyId: company.id, projectId: record.projectId, companyName: company.name, projectName: record.name,
             parentScheduleId: null, createdByName: null, installers: [tech], projectService: { id: record.id, projectId: record.projectId, marker: null, color: record.color, urgency: 0, requiresTravel: false, contractors: [] } })), ...extras];
         const requests = [], errors = [], state = { failProjects, failDetail, failOptions, failSave, saveDelayMs: 0 };
-        const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 }, timezoneId: 'America/Sao_Paulo' });
+        const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1100 }, timezoneId: 'America/Sao_Paulo', reducedMotion: reducedMotion ? 'reduce' : 'no-preference' });
         await context.addInitScript(() => { localStorage.setItem('accessToken', 'synthetic-chronogram-qa'); localStorage.setItem('userType', 'internal'); });
         await context.route('**/*', async interception => {
             const request = interception.request(), url = new URL(request.url());
@@ -429,6 +429,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         } finally { await s.context.close(); }
     });
     await require('./test-chronogram-legacy-browser.cjs')({ run, setup, tab, panel, writes, expect, shots });
+    await require('./test-chronogram-drawer-browser.cjs')({ run, setup, tab, panel, row, writes, expect, shots });
     await run('Release UI: legacy pages/cards/pending are read-only, undated records stay discoverable and real metrics exclude source completion', async () => {
         const s = await setup({ legacy: true, mobile: true }); try {
             await expect(s.page.getByText('105 registros do ZIP', { exact: false })).toBeVisible();

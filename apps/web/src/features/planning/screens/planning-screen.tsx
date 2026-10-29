@@ -9,6 +9,9 @@ import { Skeleton } from '@web/components/ui/skeleton';
 import { PROJECTS_AGENDA_COPY as copy, PROJECT_SERVICE_COPY } from '@web/lib/brand-voice';
 import TripsScreen from '@web/features/trips/screens/trips-screen';
 import { ChronogramWorkspace } from '../components/chronogram-workspace';
+import { ChronogramOverlay } from '../components/chronogram-overlay';
+import { TripDialog } from '@web/features/trips/components/trip-dialog';
+import styles from '../components/chronogram.module.css';
 import type { ChronogramFilters, ChronogramView } from '../types/chronogram.types';
 import { chronogramUrl, readChronogramLocation } from '../utils/chronogram-navigation';
 
@@ -28,9 +31,9 @@ function PlanningWorkspace() {
     const sections = [{ id: 'cronograma', label: 'Cronograma', icon: CalendarDays }, { id: 'viagens', label: 'Viagens', icon: MapPin }];
     return <div className="min-w-0 space-y-5">
         <PageHeader eyebrow="Operação" title={copy.title} description={copy.description} />
-        <div role="tablist" aria-label="Seções de cronograma e planejamento" className="flex gap-6 border-b border-[var(--zyllen-border)]">
+        <div role="tablist" aria-label="Seções de cronograma e planejamento" className={styles.sections}>
             {sections.map((section, index) => <button type="button" role="tab" key={section.id} id={`planning-tab-${section.id}`} aria-controls={`planning-panel-${section.id}`} aria-selected={location.section === section.id}
-                tabIndex={location.section === section.id ? 0 : -1} className={`flex min-h-11 items-center gap-2 border-b-2 px-1 text-sm ${location.section === section.id ? 'border-[var(--zyllen-highlight)] text-white' : 'border-transparent text-[var(--zyllen-muted)]'}`}
+                tabIndex={location.section === section.id ? 0 : -1} className={styles.sectionTab}
                 onClick={() => router.push(chronogramUrl(section.id, location.view, location.filters, location.history), { scroll: false })} onKeyDown={event => {
                     const next = event.key === 'Home' ? 0 : event.key === 'End' ? 1 : ['ArrowLeft', 'ArrowRight'].includes(event.key) ? (index + 1) % 2 : null;
                     if (next === null) return;
@@ -38,7 +41,7 @@ function PlanningWorkspace() {
                 }}><section.icon size={16} />{section.label}</button>)}
         </div>
         <section role="tabpanel" id={`planning-panel-${location.section}`} aria-labelledby={`planning-tab-${location.section}`} tabIndex={0}>
-            {location.section === 'viagens' ? <TripsScreen /> : <ChronogramWorkspace key={user.id} filters={location.filters} view={location.view} history={location.history} onNavigate={navigate} />}
+            {location.section === 'viagens' ? <TripsScreen renderDialog={props => <ChronogramOverlay onClose={props.onClose}>{close => <TripDialog {...props} onClose={close} />}</ChronogramOverlay>} /> : <ChronogramWorkspace key={user.id} filters={location.filters} view={location.view} history={location.history} onNavigate={navigate} />}
         </section>
     </div>;
 }

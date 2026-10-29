@@ -27,6 +27,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             if (!['127.0.0.1', 'localhost'].includes(url.hostname) && !['data:', 'blob:'].includes(url.protocol)) return routing.abort();
             if (url.port !== '3999') return routing.continue();
             const respond = (data, status = 200) => routing.fulfill({ status, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': base, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Authorization,Content-Type', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS' }, body: JSON.stringify(data) });
+            if (url.pathname === '/project-services/legacy/records') return respond({ data: [], total: 0, page: Number(url.searchParams.get('page') || 1), limit: 100 });
             if (request.method() === 'OPTIONS') return respond({});
             const body = request.postData() ? request.postDataJSON() : undefined;
             requests.push({ path: url.pathname, params: Object.fromEntries(url.searchParams), method: request.method(), body });
@@ -87,10 +88,11 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         try {
             await expect(cards(data.page)).toHaveCount(2); await expect(cards(data.page).first()).toContainText('São Paulo/SP → Rio de Janeiro/RJ');
             await expect(cards(data.page).first()).toContainText('1 serviço(s) vinculado(s)'); await expect(cards(data.page).first()).toContainText(tech.name);
+            const listUrl = data.page.url();
             await cards(data.page).first().getByRole('button', { name: 'Ver viagem' }).click();
             await expect(dialog(data.page).getByLabel('Observações da viagem')).toHaveValue('Orientações completas da viagem QA'); await expect(dialog(data.page).getByLabel('Instalação vinculada QA', { exact: false })).toBeChecked();
             await expect(dialog(data.page)).toContainText('Saída real'); await expect(dialog(data.page)).toContainText('Ainda não registrada');
-            await data.page.keyboard.press('Escape'); await expect(dialog(data.page)).toHaveCount(0); await expect(data.page).toHaveURL(base + '/dashboard/projetos?aba=viagens');
+            await data.page.keyboard.press('Escape'); await expect(dialog(data.page)).toHaveCount(0); await expect(data.page).toHaveURL(listUrl);
             await data.page.screenshot({ path: path.join(shots, 'trips-desktop.png'), fullPage: true, animations: 'disabled' }); assert.deepEqual(data.errors, []);
         } finally { await data.context.close(); }
     });
@@ -98,6 +100,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
         const data = await setup({ route: '/dashboard/agenda' });
         try {
             await expect(data.page.getByRole('button', { name: 'Nova viagem', exact: true })).toHaveCount(0);
+            await data.page.getByText('Compromissos avulsos e recorrências', { exact: true }).click();
             await data.page.getByRole('button', { name: 'Calendário', exact: true }).click();
             const event = data.page.locator('.fc-event').filter({ hasText: 'Viagem para cliente QA' }).first();
             await expect(event).toContainText('Viagem'); await event.click();
@@ -142,19 +145,18 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
             await dialog(data.page).getByRole('button', { name: 'Fechar', exact: true }).focus(); await data.page.keyboard.press('Tab'); assert(await dialog(data.page).evaluate(element => element.contains(document.activeElement)));
             assert(await dialog(data.page).evaluate(element => element.getBoundingClientRect().right <= innerWidth && element.getBoundingClientRect().left >= 0 && element.scrollWidth <= element.clientWidth));
             await data.page.screenshot({ path: path.join(shots, 'trip-mobile-details.png'), animations: 'disabled' }); await data.page.keyboard.press('Escape'); await expect(dialog(data.page)).toHaveCount(0); await expect(trigger).toBeFocused();
-            await data.page.goto(base + '/dashboard/agenda'); await data.page.getByRole('button', { name: 'Calendário', exact: true }).click(); await expect(data.page.locator('.fc-event').first()).toBeVisible(); await expect(data.page.locator('.fc-event-draggable')).toHaveCount(0);
+            await data.page.goto(base + '/dashboard/agenda'); await data.page.getByText('Compromissos avulsos e recorrências', { exact: true }).click(); await data.page.getByRole('button', { name: 'Calendário', exact: true }).click(); await expect(data.page.locator('.fc-event').first()).toBeVisible(); await expect(data.page.locator('.fc-event-draggable')).toHaveCount(0);
             await data.page.locator('.fc-event').first().click(); await expect(dialog(data.page).getByLabel('Cidade de origem')).toBeDisabled();
             assert(data.requests.every(value => value.method === 'GET')); assert.deepEqual(data.errors, []);
         } finally { await data.context.close(); }
     });
-    await run('Travel UI: calendar includes travel beyond the first hundred events without creating a second calendar', async () => {
+    await run('Travel UI: chronogram calendar includes travel beyond the first hundred events without creating a second calendar', async () => {
         const data = await setup({ route: '/dashboard/agenda', agendaMany: true, readonly: true });
         try {
-            await data.page.getByRole('button', { name: 'Calendário', exact: true }).click();
-            await expect(data.page.locator('.fc-event').first()).toBeVisible();
-            await data.page.locator('.zyllen-calendar').getByRole('button', { name: /lista/i }).click();
-            const event = data.page.locator('.fc-event').filter({ hasText: 'Viagem regional QA 100' }).first();
-            if (!await event.count()) await data.page.locator('.zyllen-calendar .fc-next-button').click();
+            await data.page.getByRole('tab', { name: 'Calendário', exact: true }).click();
+            const day = data.page.locator(`[data-calendar-day="${start.slice(0, 10)}"]`);
+            await day.getByRole('button', { name: /Ver mais/ }).click();
+            const event = day.locator(`[data-calendar-record="trip:${data.records[100].id}"]`);
             await expect(event).toBeVisible(); await event.click();
             await expect(dialog(data.page).getByLabel('Nome da viagem')).toHaveValue('Viagem regional QA 100'); assert(data.requests.some(value => value.path === '/schedule' && value.params.page === '2'));
             assert(!data.requests.some(value => value.path === '/trips' && value.method === 'POST'));

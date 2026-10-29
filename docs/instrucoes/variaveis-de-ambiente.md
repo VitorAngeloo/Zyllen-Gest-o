@@ -49,6 +49,8 @@ Backfill/reconciliação: `BACKFILL_DRY_RUN`, `BACKFILL_BATCH_SIZE`, `RECONCILE_
 
 Auditoria/regressão: `AUDIT_RUNTIME_ROOT` e `AUDIT_CHROME_PATH`, descritas no [índice da auditoria](auditoria-de-seguranca.md) e na [remediação](seguranca.md). Secrets do workflow Vercel: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`; configuração em [implantação](implantacao.md).
 
+O executor `scripts/quality/test-ticket-dashboard.cjs` aceita `AUDIT_CASE_FILTER` como expressão regular opcional para repetir cenários pelo nome. Sem essa variável executa todos os cenários selecionados pelos argumentos; remover o filtro antes de registrar a validação completa.
+
 As flags históricas `FF_LEDGER_UNIFIED_WRITE`/`FF_LEDGER_UNIFIED_READ` não são consumidas pelo código atual; não usá-las para alterar fluxo ou rollback.
 
 ## CPF e rotação de chaves

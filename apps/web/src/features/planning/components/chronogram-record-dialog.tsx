@@ -1,5 +1,5 @@
 "use client";
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { PROJECT_PLANNING_ACCESS } from '@zyllen/shared';
 import { useAuth, useAuthedFetch } from '@web/features/auth/context/auth-context';
@@ -25,10 +25,19 @@ function RecordDialog({ selection, today, onClose, onEdit }: Props) {
     const options = useAuthedFetch();
     const ref = useRef<HTMLDivElement>(null), titleId = useId();
     const [busy, setBusy] = useState(false);
+    const busyRef = useRef(false);
+    useLayoutEffect(() => {
+        busyRef.current = busy;
+        if (!busy && ref.current && !ref.current.contains(document.activeElement)) ref.current.focus({ preventScroll: true });
+    }, [busy]);
+    const closeWhenReady = useCallback(() => { if (!busyRef.current) onClose(); }, [onClose]);
     const [editingLegacy, setEditingLegacy] = useState(false);
-    useLayoutEffect(() => { if (ref.current) ref.current.scrollTop = 0; }, [editingLegacy]);
+    useLayoutEffect(() => {
+        if (ref.current) ref.current.scrollTop = 0;
+        const body = ref.current?.querySelector('[data-slot="dialog-body"]'); if (body) body.scrollTop = 0;
+    }, [editingLegacy]);
     function showLegacyEditor(open: boolean) { setEditingLegacy(open); ref.current?.focus({ preventScroll: true }); }
-    useDialogFocus(ref, onClose, busy);
+    useDialogFocus(ref, closeWhenReady);
     const canView = !!user && userType === 'internal' && hasPermission(PROJECT_PLANNING_ACCESS.view);
     const query = useQuery({ queryKey: [['project', 'legacy'].includes(selection.kind) ? 'project-services' : 'schedules', 'chronogram-detail', user?.id, selection.kind, selection.id], enabled: canView,
         queryFn: async ({ signal }) => selection.kind === 'project' ? projectToChronogram(await projectServiceApi.detail(selection.id, { ...options, signal }))

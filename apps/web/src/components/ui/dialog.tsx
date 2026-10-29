@@ -22,14 +22,15 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-50">
+        <div data-slot="dialog-root" className="fixed inset-0 z-50">
             {/* Overlay */}
             <div
+                data-slot="dialog-backdrop"
                 className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in-0"
                 onClick={() => onOpenChange(false)}
             />
             {/* Content wrapper */}
-            <div className="fixed inset-0 flex items-center justify-center p-4">
+            <div data-slot="dialog-positioner" className="fixed inset-0 flex items-center justify-center p-4">
                 {children}
             </div>
         </div>
