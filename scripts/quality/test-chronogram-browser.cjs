@@ -430,6 +430,7 @@ module.exports = async ({ run, browser, base, shots, fixedNow }) => {
     });
     await require('./test-chronogram-legacy-browser.cjs')({ run, setup, tab, panel, writes, expect, shots });
     await require('./test-chronogram-drawer-browser.cjs')({ run, setup, tab, panel, row, writes, expect, shots });
+    await require('./test-chronogram-colors-browser.cjs')({ run, setup, tab, panel, writes, expect, shots });
     await run('Release UI: legacy pages/cards/pending are read-only, undated records stay discoverable and real metrics exclude source completion', async () => {
         const s = await setup({ legacy: true, mobile: true }); try {
             await expect(s.page.getByText('105 registros do ZIP', { exact: false })).toBeVisible();

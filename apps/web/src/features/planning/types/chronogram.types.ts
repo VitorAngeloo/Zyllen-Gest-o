@@ -16,6 +16,8 @@ export interface ChronogramRecord {
     id: string;
     sourceId: string;
     kind: 'project' | 'schedule' | 'trip' | 'legacy';
+    /** Explicit relationship key used only for calendar accents. */
+    calendarGroup?: string;
     legacySource?: { name: string; sha256: string; importedAt: string; sourceId: string };
     legacy?: ProjectLegacyRecord;
     title: string; company: string; city: string; state: string; address: string;

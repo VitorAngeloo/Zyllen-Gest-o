@@ -88,9 +88,12 @@
 .outside { background: var(--plan-soft); }
 .dayNumber { display: inline-grid; place-items: center; width: 25px; height: 25px; font-size: 11px; margin-bottom: 3px; color: var(--plan-muted); }
 .day[data-today='true'] .dayNumber { background: var(--plan-accent); color: var(--plan-accent-ink); border-radius: 50%; font-weight: 700; }
-.event { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 27px; margin-bottom: 4px; border-radius: 7px; border: 1px solid var(--plan-border); padding: 4px 5px; background: var(--plan-soft); color: var(--plan-text); text-align: left; }
+.event { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 27px; margin-bottom: 4px; border-radius: 7px; border: 1px solid color-mix(in srgb, var(--event-color) 28%, var(--plan-border)); padding: 4px 5px; background: color-mix(in srgb, var(--event-color) 10%, var(--plan-surface)); color: var(--plan-text); text-align: left; }
+.event:hover { border-color: color-mix(in srgb, var(--event-color) 60%, var(--plan-border)); background: color-mix(in srgb, var(--event-color) 18%, var(--plan-surface)); }
 .event i { width: 4px; height: 12px; border-radius: 2px; background: var(--event-color, var(--plan-accent)); flex-shrink: 0; }
 .event span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.forecastEvent { width: auto; max-width: 100%; min-height: 40px; margin-bottom: 0; padding: 8px 12px; gap: 8px; }
+.forecastEvent span { font-size: 12px; }
 .tentative { border-style: dashed; }
 .more { font-size: 10px; color: var(--plan-muted); min-height: 26px; width: 100%; cursor: pointer; }
 .board { display: flex; overflow-x: auto; gap: 12px; padding: 14px; align-items: start; }

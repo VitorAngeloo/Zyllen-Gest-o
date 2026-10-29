@@ -1,5 +1,15 @@
 # Cronograma e Planejamento
 
+## Cores por projeto no calendário em 29/10/2026
+
+O calendário usa uma paleta suave de 12 cores, com marcador, fundo e contorno discretamente coloridos. `features/planning/utils/chronogram-colors.ts` escolhe a cor de forma determinística: filtros, ordem de carregamento, mês, tema, datas e status não redistribuem as cores. Projetos distintos podem repetir uma cor. A paleta vale somente para os compromissos e previsões mensais dessa visualização; cores cadastradas, status e demais páginas mantêm seus contratos.
+
+Nos dados operacionais, o agrupamento visual respeita o ID de projeto e o ciclo explícito compartilhado entre instalação/desinstalação; compromissos complementares do mesmo projeto e recorrências sem projeto também compartilham seus respectivos realces. Nos registros do ZIP, que não têm IDs de projeto, nomes e Cidade/UF equivalentes, normalizados por acentos, caixa e espaços, recebem o mesmo realce. Essa correspondência é exclusivamente visual: não cria vínculos, mistura registros nem confirma execução. Renomear ou mudar a localização de um legado pode mudar seu realce. O contorno tracejado continua identificando previsão/data legada, e os nomes permanecem legíveis nos dois temas.
+
+Validação com dados sintéticos: 25 verificações de domínio/adaptação e 53 cenários de navegador aprovados, além de arquitetura, tipos e build isolado. O cenário de cores cobre vínculos explícitos, nome/local do legado, variedade da paleta, filtros, temas, recarga e abertura do card em desktop/celular. Capturas nos dois temas foram inspecionadas. A API e o banco não recebem alterações nesta entrega.
+
+Publicado no localhost e em `skylineti.com/dashboard/projetos`, deployment `dpl_EHogGH2SviSkyNhZvTc8eqdMtDP4`, preparado sem trocar domínio e promovido após build aprovado. Os arquivos JS/CSS servidos pelos dois ambientes confirmaram a paleta e os realces novos. Saúde local/pública da API `200`, preservando o processo PID 17260.
+
 ## Interface suave e painel lateral em 29/10/2026
 
 Por solicitação do usuário, **somente esta página** adota uma apresentação mais suave inspirada no ZIP, mantendo as cores do Zyllen. Indicadores e cards passam a ter cantos arredondados, separação por espaço, bordas discretas, marcadores em cápsula e realces leves. Navegação, filtros, menus, permissões e dados continuam com os mesmos contratos. Essa direção não estabelece um novo padrão visual para as demais páginas do sistema.

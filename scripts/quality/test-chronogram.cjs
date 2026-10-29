@@ -28,6 +28,7 @@ function load(file) {
 }
 const dates = load('utils/chronogram-dates');
 const adapter = load('utils/chronogram-records');
+const { chronogramCalendarColor: calendarColor } = load('utils/chronogram-colors');
 const rules = load('utils/chronogram-selectors');
 const { visibleChronogramRecords } = load('utils/chronogram-visibility');
 const navigation = load('utils/chronogram-navigation');
@@ -42,6 +43,31 @@ const record = extra => ({ ...adapter.projectToChronogram(project()), ...extra }
 const cases = [];
 async function run(name, test) { try { await test(); cases.push({ name, passed: true }); console.log('PASS ' + name); } catch (error) { cases.push({ name, passed: false }); console.error('FAIL ' + name + ': ' + error.message); } }
 async function main() {
+    await run('Calendar accents follow explicit project/cycle links and recurring schedules without changing stored colors', () => {
+        const cycle = { id: 'cycle-1', structureId: 'structure-1', installationId: 'installation-1', structureName: 'Sala QA' };
+        const projects = [project({ id: 'installation-1', structureCycle: cycle }), project({ id: 'removal-1', projectId: 'identity-2', type: 'REMOVAL', structureCycle: cycle })];
+        const schedule = { id: 'extra-1', projectId: 'identity-2', title: 'Visita QA', type: 'OTHER', status: 'SCHEDULED', startDate: '2026-10-28T12:00:00Z', endDate: '2026-10-28T13:00:00Z', installers: [] };
+        const rows = adapter.combineChronogram(projects, [schedule]);
+        assert(rows.every(row => calendarColor(row) === calendarColor(rows[0])));
+        const sameProject = adapter.projectToChronogram(project({ id: 'another-service' }));
+        assert.equal(calendarColor(sameProject), calendarColor(adapter.scheduleToChronogram({ ...schedule, projectId: 'identity-1' })));
+        assert.equal(calendarColor(adapter.scheduleToChronogram({ ...schedule, projectId: null })), calendarColor(adapter.scheduleToChronogram({ ...schedule, id: 'child', projectId: null, parentScheduleId: schedule.id })));
+        assert(projects.every(row => row.color === '#ABFF10')); assert.equal(rows.length, 3);
+    });
+    await run('Calendar uses a varied stable palette independent of order, filters, dates and project status', () => {
+        const rows = Array.from({ length: 36 }, (_, index) => adapter.projectToChronogram(project({ projectId: 'identity-' + index })));
+        assert(new Set(rows.map(calendarColor)).size >= 8);
+        const before = new Map(rows.map(row => [row.calendarGroup, calendarColor(row)]));
+        for (const row of [...rows].reverse().filter((_, index) => index % 2)) assert.equal(calendarColor(row), before.get(row.calendarGroup));
+        assert.equal(calendarColor(rows[7]), calendarColor({ ...rows[7], title: 'Renomeado', stage: 'DONE', start: '2027-01-01', color: '#ff0000' }));
+    });
+    await run('Legacy calendar matches normalized project/location labels visually without inferring operational links', () => {
+        const legacy = record({ kind: 'legacy', calendarGroup: undefined, title: 'Projeto Árvore', city: 'Goiânia', state: 'GO', operationalStatus: 'UNKNOWN' });
+        const related = { ...legacy, id: 'legacy:another', sourceId: 'another', title: '  projeto arvore  ', city: 'GOIANIA', service: 'REMOVAL' };
+        assert.equal(calendarColor(legacy), calendarColor(related));
+        assert(new Set(Array.from({ length: 24 }, (_, index) => calendarColor({ ...legacy, city: 'Cidade ' + index }))).size >= 6);
+        assert.equal(legacy.operationalStatus, 'UNKNOWN'); assert.equal(related.sourceId, 'another');
+    });
     await run('Planning visibility excludes only selected project identities and their linked calendar events, preserving source history and new work', () => {
         const linked = { id: 'hidden-schedule', title: 'Same name', type: 'INSTALLATION', status: 'SCHEDULED', startDate: '2026-10-28T12:00:00Z', endDate: '2026-10-28T13:00:00Z', installers: [] };
         const projects = [project({ id: 'hidden-project', name: 'Same name', schedule: linked }), project({ id: 'new-project', name: 'Same name' })];

@@ -16,6 +16,7 @@ const operationalStatusOf = (value: string): ChronogramRecord['operationalStatus
 /** Only explicit API fields are adapted. Names/markers/notes never infer technical data or stages. */
 export function projectToChronogram(record: ProjectServiceRecord): ChronogramRecord {
     return { ...baseRecord(), id: `project:${record.id}`, sourceId: record.id, kind: 'project', title: record.name,
+        calendarGroup: record.structureCycle ? `cycle:${record.structureCycle.id}` : `project:${record.projectId}`,
         company: record.company.name, city: record.city ?? '', state: record.state ?? '', address: record.address ?? '',
         service: serviceOf(record.type), stage: stageOf(record.planning?.stage ?? record.status), operationalStatus: operationalStatusOf(record.status),
         forecast: record.planning?.forecast ?? '', start: localDay(record.schedule?.startDate), end: record.schedule ? intervalLastDay(record.schedule.endDate, record.schedule.startDate) : '',
@@ -32,6 +33,7 @@ export function projectToChronogram(record: ProjectServiceRecord): ChronogramRec
 export function scheduleToChronogram(record: Schedule): ChronogramRecord {
     return { ...baseRecord(), id: `${record.trip ? 'trip' : 'schedule'}:${record.trip?.id ?? record.id}`,
         sourceId: record.trip?.id ?? record.id, kind: record.trip ? 'trip' : 'schedule', title: record.title,
+        calendarGroup: record.trip ? `trip:${record.trip.id}` : record.projectId ? `project:${record.projectId}` : `schedule:${record.parentScheduleId ?? record.id}`,
         company: record.companyName ?? '', address: record.address ?? '', service: record.trip ? 'TRIP' : serviceOf(record.type), stage: stageOf(record.status),
         operationalStatus: operationalStatusOf(record.status),
         start: localDay(record.startDate), end: intervalLastDay(record.endDate, record.startDate), notes: record.notes ?? '',
@@ -40,9 +42,12 @@ export function scheduleToChronogram(record: Schedule): ChronogramRecord {
 export function combineChronogram(projects: ProjectServiceRecord[], schedules: Schedule[]) {
     const scheduledProjects = new Set(projects.flatMap(project => project.schedule ? [project.schedule.id] : []));
     const records = projects.map(projectToChronogram);
+    const projectGroups = new Map(projects.map((project, index) => [project.projectId, records[index].calendarGroup]));
     for (const schedule of schedules) {
         if (schedule.projectService || scheduledProjects.has(schedule.id)) continue;
-        records.push(scheduleToChronogram(schedule));
+        const record = scheduleToChronogram(schedule);
+        if (!schedule.trip && schedule.projectId) record.calendarGroup = projectGroups.get(schedule.projectId) ?? record.calendarGroup;
+        records.push(record);
     }
     return records;
 }

@@ -3,6 +3,7 @@ import { Fragment, useState, type CSSProperties } from 'react';
 import { ACTIVE_STAGES, CHRONOGRAM_PLANNING_STAGES, CHRONOGRAM_STAGES, MONTHS, WEEKDAYS } from '../chronogram.constants';
 import type { ChronogramFilters, ChronogramRecord } from '../types/chronogram.types';
 import { calendarDays, compareByDate, dayKey, displayDay, forecastInPeriod } from '../utils/chronogram-dates';
+import { chronogramCalendarColor } from '../utils/chronogram-colors';
 import { agendaRecords, isPlanningProject, matchesFilters, pendingRows } from '../utils/chronogram-selectors';
 import { ChronogramRecordButton } from './chronogram-record-button';
 import styles from './chronogram.module.css';
@@ -42,13 +43,13 @@ export function ChronogramCalendar({ records, filters, today, onOpen, onChange }
                     <span className={styles.dayNumber}>{date.getDate()}</span>
                     {(expanded === key ? entries : entries.slice(0, 4)).map(record => <button key={record.id} type="button" data-calendar-record={record.id}
                         title={`${record.title} · ${CHRONOGRAM_STAGES[record.stage].label}`} aria-label={`Abrir card: ${record.title}`}
-                        className={`${styles.event} ${!record.start || record.kind === 'legacy' ? styles.tentative : ''}`} style={{ '--event-color': record.color } as CSSProperties} onClick={() => onOpen(record)}><i /><span>{record.kind === 'legacy' ? 'Legado · ' : ''}{record.title}</span></button>)}
+                        className={`${styles.event} ${!record.start || record.kind === 'legacy' ? styles.tentative : ''}`} style={{ '--event-color': chronogramCalendarColor(record) } as CSSProperties} onClick={() => onOpen(record)}><i /><span>{record.kind === 'legacy' ? 'Legado · ' : ''}{record.title}</span></button>)}
                     {entries.length > 4 && <button type="button" className={styles.more} aria-expanded={expanded === key} onClick={() => setExpanded(expanded === key ? '' : key)}>{expanded === key ? 'Recolher' : `+${entries.length - 4} · Ver mais`}</button>}
                 </div>;
             })}
         </div>
         <p className={`${styles.muted} ${styles.group}`}>Clique em um compromisso para abrir o card. Contorno tracejado indica previsão ou data informada no legado, sem confirmação de agendamento.</p>
-        {monthlyForecasts.length > 0 && <div className={styles.pending}><h3>Previstos para {MONTHS[month].toLowerCase()}, sem dia definido</h3><div className={styles.row}>{monthlyForecasts.map(record => <button type="button" key={record.id} className={styles.button} onClick={() => onOpen(record)}>{record.title}</button>)}</div></div>}
+        {monthlyForecasts.length > 0 && <div className={styles.pending}><h3>Previstos para {MONTHS[month].toLowerCase()}, sem dia definido</h3><div className={styles.row}>{monthlyForecasts.map(record => <button type="button" key={record.id} className={`${styles.event} ${styles.tentative} ${styles.forecastEvent}`} style={{ '--event-color': chronogramCalendarColor(record) } as CSSProperties} onClick={() => onOpen(record)}><i /><span>{record.title}</span></button>)}</div></div>}
     </>;
 }
 export function ChronogramProjects({ records, filters, today, onOpen }: Props) {
