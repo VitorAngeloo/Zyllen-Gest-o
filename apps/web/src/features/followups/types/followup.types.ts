@@ -1,6 +1,8 @@
 
 
 
+import type { FollowupChecklistEntry } from "@zyllen/shared";
+
 export type Tab = "list" | "new" | "detail";
 
 export interface Company {
@@ -20,7 +22,7 @@ export interface FollowupBlock {
     content?: string;
     order: number;
     attachments: { id: string; fileName: string; filePath: string; mimeType?: string }[];
-    checklistItems: { id: string; text: string; details?: string | null; checked: boolean; order: number }[];
+    checklistItems: FollowupChecklistEntry[];
     comments: { id: string; text: string; createdAt: string; author: { id: string; name: string } }[];
 }
 

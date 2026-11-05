@@ -335,53 +335,6 @@ export class FollowupsService {
         return att;
     }
 
-    // ── Checklist Items ──
-
-    async addChecklistItem(followupId: string, blockId: string, data: { text: string; details?: string; order?: number }) {
-        const block = await this.prisma.followupBlock.findFirst({
-            where: { id: blockId, followupId },
-        });
-        if (!block) throw new NotFoundException('Bloco não encontrado');
-        if (block.type !== 'CHECKLIST') throw new BadRequestException('Bloco não é do tipo CHECKLIST');
-
-        const maxOrder = await this.prisma.followupChecklistItem.aggregate({
-            where: { blockId },
-            _max: { order: true },
-        });
-        const order = data.order ?? (maxOrder._max.order ?? -1) + 1;
-
-        return this.prisma.followupChecklistItem.create({
-            data: { blockId, text: data.text, details: data.details ?? null, order },
-        });
-    }
-
-    async updateChecklistItem(followupId: string, blockId: string, itemId: string, data: { text?: string; details?: string; checked?: boolean; order?: number }) {
-        const item = await this.prisma.followupChecklistItem.findFirst({
-            where: { id: itemId, blockId, block: { followupId } },
-        });
-        if (!item) throw new NotFoundException('Item não encontrado');
-
-        return this.prisma.followupChecklistItem.update({
-            where: { id: itemId },
-            data: {
-                ...(data.text !== undefined ? { text: data.text } : {}),
-                ...(data.details !== undefined ? { details: data.details } : {}),
-                ...(data.checked !== undefined ? { checked: data.checked } : {}),
-                ...(data.order !== undefined ? { order: data.order } : {}),
-            },
-        });
-    }
-
-    async removeChecklistItem(followupId: string, blockId: string, itemId: string) {
-        const item = await this.prisma.followupChecklistItem.findFirst({
-            where: { id: itemId, blockId, block: { followupId } },
-        });
-        if (!item) throw new NotFoundException('Item não encontrado');
-
-        await this.prisma.followupChecklistItem.delete({ where: { id: itemId } });
-        return item;
-    }
-
     // ── Comments ──
 
     async addComment(followupId: string, blockId: string, userId: string, text: string) {

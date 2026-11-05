@@ -2,6 +2,8 @@
 // Zyllen Gestão — Acompanhamento PDF Generator (print-based)
 // ============================================
 
+import type { FollowupChecklistEntry } from "@zyllen/shared";
+
 export interface FollowupPdfBlock {
     id: string;
     type: "TEXT" | "MEDIA" | "CHECKLIST";
@@ -9,7 +11,7 @@ export interface FollowupPdfBlock {
     content?: string | null;
     order: number;
     attachments: { id: string; fileName: string; mimeType?: string | null }[];
-    checklistItems: { id: string; text: string; checked: boolean; order: number }[];
+    checklistItems: FollowupChecklistEntry[];
     comments: { text: string; createdAt: string; author: { name: string } }[];
 }
 
@@ -99,7 +101,10 @@ function buildBlocksHtml(data: FollowupPdfData): string {
             for (const item of [...block.checklistItems].sort((a, b) => a.order - b.order)) {
                 const marker = item.checked ? "☑" : "☐";
                 const text = item.checked ? `<s>${esc(item.text)}</s>` : esc(item.text);
-                contentHtml += `<span class="att-file">${marker} ${text}</span>`;
+                contentHtml += `<span class="att-file">${marker} ${text}${item.quantity != null ? ` — Qtd.: ${item.quantity}` : ""}</span>`;
+                if (item.components?.length) {
+                    contentHtml += `<ul style="margin:4px 0 8px 24px">${item.components.map(part => `<li>${esc(part.text)} — Qtd.: ${part.quantity}</li>`).join("")}</ul>`;
+                }
             }
             contentHtml += `</div>`;
         }

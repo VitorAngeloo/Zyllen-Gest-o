@@ -15,6 +15,36 @@ Aplicação Next.js 16 / React 19 do workspace `@zyllen/web`, publicada no Verce
 
 Telas, formulários e utilitários de negócio estão em `src/features/`. `src/app/` contém entradas de rotas e layouts; `src/components/` reúne UI comum, identidade e layouts; `src/lib/` contém transporte HTTP, providers e utilitários gerais. Consultar os guias de [OS](ordens-de-servico.md) e [etiquetas](etiquetas-e-impressao.md) para as regras específicas.
 
+## Acompanhamentos e catálogo de checklist
+
+Atualização preparada localmente em **05/11/2026** para `/dashboard/acompanhamento`. Cada bloco Checklist oferece **Selecionar itens do catálogo**: busca por nome, carregamento de mais opções, seleção múltipla e quantidade inteira positiva por item. A seleção permanece ao pesquisar outras opções; **Adicionar selecionados** inclui até 100 itens em uma transação. O botão continua disponível depois da primeira inclusão, permitindo complementar listas existentes.
+
+**Cadastrar e selecionar** registra um nome no catálogo e o coloca na seleção com quantidade inicial 1, editável antes de confirmar. O cadastro é persistido independentemente da inclusão: cancelar a seleção não apaga o nome cadastrado. Nomes equivalentes por caixa/espaços reutilizam a opção existente. Itens já incluídos são cópias independentes: editar seu nome, detalhes, quantidade ou conclusão não altera outras listas. Selecionar novamente um nome que já consta na checklist acrescenta outra linha.
+
+A migration aditiva `20261105120000_followup_checklist_catalog` acrescenta quantidade opcional ao item e cria o catálogo privado com RLS. Importa os nomes de **todas as listas existentes**, incluindo acompanhamentos concluídos, reunindo diferenças de maiúsculas/espaços. Preserva textos, detalhes, conclusão e ordem originais. Quantidades históricas continuam nulas; números já escritos no nome não são interpretados nem removidos automaticamente.
+
+A continuidade de **05/11/2026** permite selecionar itens com componentes, como Computador. `FollowupChecklistCatalogService` reúne as peças escritas nos detalhes das listas antigas, carregando a composição mais recente como seleção inicial e oferecendo as demais peças históricas como alternativas. Reconhece variações numeradas de Computador e o sufixo “e seus componentes”, preservando as descrições originais. Listas com marcadores ou várias linhas geram opções; notas isoladas como “Só tem 2” não viram componentes. Prefixos claros de quantidade, como “3-coolers”, são separados de nomes; especificações como “SSD 1TB”, “RTX 5060 TI 16gb” e “32gb RAM” são preservadas. Linhas legadas que juntam RAM e “Fonte 850w” são separadas nesses dois componentes.
+
+Na seleção, os componentes aparecem abaixo do item. É possível desmarcar peças, escolher alternativas, incluir novos nomes e ajustar cada quantidade antes de adicionar. As quantidades de componentes são **totais independentes**, sem multiplicação automática pela quantidade de computadores. A migration aditiva `20261105140000_followup_checklist_components` acrescenta JSON opcional ao catálogo e ao item da checklist. A consulta histórica não altera listas antigas; na confirmação, a composição escolhida é salva como cópia própria da linha e suas opções são lembradas no catálogo. As opções continuam disponíveis mesmo que a lista de origem seja removida. Alterações posteriores usam **Salvar componentes** e preservam os outros acompanhamentos. Componentes e quantidades também aparecem no portal do cliente e na impressão.
+
+O mesmo fluxo atende **Suporte de projetor**: bases, cálices, arruelas, parafusos e demais acessórios são recuperados dos detalhes anteriores e recebem quantidades próprias. Variações genéricas como “Kits Suporte de projetor”, “Kit Suporte para projetor” e “Kit suporte projetor” compartilham o histórico, inclusive com prefixos numéricos. Nomes que incluem marca/modelo, como Epson, mantêm sua composição específica. Não há multiplicação automática pela quantidade de kits. As regressões da API e do navegador incluem a seleção e gravação desses acessórios.
+
+O catálogo é compartilhado entre os editores internos de acompanhamentos. Consulta/cadastro e inclusão em lote exigem `followups.edit`; o portal do cliente continua restrito aos próprios acompanhamentos e somente leitura. O detalhe interno e a exportação para impressão incluem quantidades; clientes também veem as quantidades informadas. A tela mantém os blocos de acompanhamentos concluídos em leitura.
+
+Contratos ficam em `shared/src/followups`. `FollowupChecklistService` concentra alterações de itens, auditoria e inclusão transacional; `FollowupChecklistCatalogService` resolve as composições históricas e os cadastros. As rotas estáticas `/followups/checklist-catalog` precedem `:id`. `POST /followups/:id/blocks/:blockId/checklist/batch` recebe `requestId` UUID e `items: [{ catalogItemId, quantity, components?: [{ text, quantity }] }]`. Omitir componentes usa a composição padrão; enviar `[]` retira todos explicitamente. Há até 100 componentes distintos por item, com quantidade inteira positiva. A repetição do mesmo envio não duplica itens; reutilizar a identificação com outro conteúdo retorna conflito. O cliente preserva a seleção após falhas e oferece verificar o mesmo envio quando a resposta é incerta.
+
+Verificação isolada, sem acesso ao banco compartilhado:
+
+```powershell
+pnpm validate:isolated --artifact-dir tmp/followup-checklist-validation
+$env:AUDIT_ARTIFACT_DIR = 'tmp/followup-checklist-validation'
+pnpm test:followups:checklist
+pnpm test:followups:checklist:browser
+pnpm check:architecture
+```
+
+A suíte de API aplica as migrations sobre listas sintéticas no PGlite e verifica preservação, RLS, autorização, quantidades, componentes históricos, configurações alternativas, cópias independentes, adição posterior, repetição e rollback de itens/catálogo. A de navegador verifica busca/paginação, seleção, cadastro, quantidades, componentes, erros, impressão, permissões, teclado e celular; inclui a regressão de busca de empresa na criação. A continuação usa `tmp/followup-checklist-components-validation` nos mesmos comandos; `AUDIT_WEB_PORT` permite testar em outra porta quando a prévia estiver aberta. Artefatos ficam na pasta isolada; requisitos de dependências em [desenvolvimento](desenvolvimento.md) e [segurança](seguranca.md). **Publicação pendente**: conferir migrations pendentes, gerar o client com API parada e publicar API/web de forma coordenada conforme [banco](banco-de-dados.md) e [implantação](implantacao.md).
+
 ## Sistema visual compartilhado
 
 As páginas principais usam `components/ui/page-header.tsx` para apresentar contexto, título, descrição e ação primária. O cabeçalho cria uma entrada previsível para cada tarefa e evita que cada módulo invente uma composição diferente. A sidebar organiza os destinos por rotina; os portais mantêm uma navegação própria, com o mesmo vocabulário visual.

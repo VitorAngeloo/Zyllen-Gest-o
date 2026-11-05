@@ -14,6 +14,7 @@ import type { Followup } from "../types/followup.types";
 import { STATUS_CONFIG } from "../followup.constants";
 import { API_URL } from "../followup.constants";
 import { BlockCard } from "./followup-block-card";
+import { useAuth } from "@web/features/auth/context/auth-context";
 
 export function FollowupDetail({ followup, loading, fetchOpts, qc, onBack }: {
     followup: Followup;
@@ -23,6 +24,7 @@ export function FollowupDetail({ followup, loading, fetchOpts, qc, onBack }: {
     user?: any;  // reserved for permission checks
     onBack: () => void;
 }) {
+    const { hasPermission } = useAuth();
     const [editingData, setEditingData] = useState(false);
     const [respName, setRespName] = useState(followup.responsibleName ?? "");
     const [respContact, setRespContact] = useState(followup.responsibleContact ?? "");
@@ -391,7 +393,7 @@ export function FollowupDetail({ followup, loading, fetchOpts, qc, onBack }: {
                                 index={idx}
                                 fetchOpts={fetchOpts}
                                 qc={qc}
-                                readOnly={followup.status === "COMPLETED"}
+                                readOnly={followup.status === "COMPLETED" || !hasPermission("followups.edit")}
                             />
                         ))}
                     </div>

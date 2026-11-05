@@ -1,16 +1,17 @@
 "use client";
 import { followupsApi } from "@web/features/followups/api/followups-api";
 import { ShareAttachment } from '@web/components/media/share-attachment';
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 
 import { Card, CardContent } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { toast } from "sonner";
-import { ClipboardList, Plus, Trash2, Edit, MessageSquare, Image, FileText, Send, X, ChevronDown, Upload, FileArchive, PenLine, Download } from "lucide-react";
+import { ClipboardList, Trash2, Edit, MessageSquare, Image, FileText, Send, X, ChevronDown, Upload, FileArchive, PenLine, Download } from "lucide-react";
 import type { FollowupBlock } from "../types/followup.types";
 import { API_URL } from "../followup.constants";
 import { AttachmentImage } from "./attachment-image";
+import { FollowupChecklist } from "./followup-checklist";
 
 export function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }: {
     block: FollowupBlock;
@@ -25,26 +26,15 @@ export function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }:
     const [content, setContent] = useState(block.content ?? "");
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState("");
-    const [newChecklistItem, setNewChecklistItem] = useState("");
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const pdfFileInputRef = useRef<HTMLInputElement>(null);
-    const [draftItemTexts, setDraftItemTexts] = useState<Record<string, string>>({});
-    const [draftItemDetails, setDraftItemDetails] = useState<Record<string, string>>({});
-    const [expandedChecklistItems, setExpandedChecklistItems] = useState<Record<string, boolean>>({});
 
     // Signature canvas state
     const sigCanvasRef = useRef<HTMLCanvasElement>(null);
     const [sigDrawing, setSigDrawing] = useState(false);
     const sigLastPos = useRef<{ x: number; y: number } | null>(null);
     const [savingSig, setSavingSig] = useState(false);
-
-    useEffect(() => {
-        const drafts = Object.fromEntries((block.checklistItems ?? []).map((item) => [item.id, item.text]));
-        setDraftItemTexts(drafts);
-        const detailsDrafts = Object.fromEntries((block.checklistItems ?? []).map((item) => [item.id, item.details ?? ""]));
-        setDraftItemDetails(detailsDrafts);
-    }, [block.checklistItems]);
 
     const updateBlock = useMutation({
         mutationFn: (body: any) => followupsApi.updateBlock(followupId, block.id, body, fetchOpts),
@@ -79,34 +69,6 @@ export function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }:
         mutationFn: (attId: string) => followupsApi.deleteAttachment(followupId, block.id, attId, fetchOpts),
         onSuccess: () => {
             toast.success("Arquivo removido");
-            qc.invalidateQueries({ queryKey: ["followup", followupId] });
-        },
-        onError: (e: any) => toast.error(e.message),
-    });
-
-    const addChecklistItem = useMutation({
-        mutationFn: (text: string) => followupsApi.createChecklistItem(followupId, block.id, { text }, fetchOpts),
-        onSuccess: () => {
-            toast.success("Item adicionado");
-            qc.invalidateQueries({ queryKey: ["followup", followupId] });
-            setNewChecklistItem("");
-        },
-        onError: (e: any) => toast.error(e.message),
-    });
-
-    const updateChecklistItem = useMutation({
-        mutationFn: ({ itemId, body }: { itemId: string; body: { text?: string; details?: string; checked?: boolean } }) =>
-            followupsApi.updateChecklistItem(followupId, block.id, itemId, body, fetchOpts),
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ["followup", followupId] });
-        },
-        onError: (e: any) => toast.error(e.message),
-    });
-
-    const removeChecklistItem = useMutation({
-        mutationFn: (itemId: string) => followupsApi.deleteChecklistItem(followupId, block.id, itemId, fetchOpts),
-        onSuccess: () => {
-            toast.success("Item removido");
             qc.invalidateQueries({ queryKey: ["followup", followupId] });
         },
         onError: (e: any) => toast.error(e.message),
@@ -413,115 +375,7 @@ export function BlockCard({ block, followupId, index, fetchOpts, qc, readOnly }:
 
                 {/* Checklist */}
                 {isChecklist && (
-                    <div className="space-y-3">
-                        {block.checklistItems.length > 0 ? (
-                            <div className="space-y-2">
-                                {block.checklistItems.map((item) => (
-                                    <div key={item.id} className="rounded-md border border-[var(--zyllen-border)] bg-[var(--zyllen-bg-dark)]/60 px-2 py-2 space-y-2">
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="checkbox"
-                                                checked={item.checked}
-                                                disabled={readOnly}
-                                                onChange={(e) => updateChecklistItem.mutate({ itemId: item.id, body: { checked: e.target.checked } })}
-                                                className="size-4 accent-[var(--zyllen-highlight)]"
-                                            />
-                                            {readOnly ? (
-                                                <span className={`text-sm flex-1 ${item.checked ? "line-through text-[var(--zyllen-muted)]" : "text-white"}`}>
-                                                    {item.text}
-                                                </span>
-                                            ) : (
-                                                <input
-                                                    value={draftItemTexts[item.id] ?? item.text}
-                                                    onChange={(e) => setDraftItemTexts((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                                                    onBlur={() => {
-                                                        const nextText = (draftItemTexts[item.id] ?? "").trim();
-                                                        if (!nextText || nextText === item.text) return;
-                                                        updateChecklistItem.mutate({ itemId: item.id, body: { text: nextText } });
-                                                    }}
-                                                    className={`flex-1 h-8 px-2 rounded bg-[var(--zyllen-bg)] border border-[var(--zyllen-border)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/30 ${item.checked ? "line-through text-[var(--zyllen-muted)]" : "text-white"}`}
-                                                />
-                                            )}
-                                            <button
-                                                onClick={() => setExpandedChecklistItems((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
-                                                className="relative text-[var(--zyllen-muted)] hover:text-white"
-                                                title={item.details ? "Ver detalhes" : "Adicionar detalhes"}
-                                            >
-                                                <ChevronDown size={14} className={`transition-transform ${expandedChecklistItems[item.id] ? "rotate-180" : ""}`} />
-                                                {item.details && !expandedChecklistItems[item.id] && (
-                                                    <span className="absolute -top-1 -right-1 size-2 rounded-full bg-[var(--zyllen-highlight)]" />
-                                                )}
-                                            </button>
-                                            {!readOnly && (
-                                                <button
-                                                    onClick={() => removeChecklistItem.mutate(item.id)}
-                                                    className="text-[var(--zyllen-error)] hover:text-white"
-                                                >
-                                                    <X size={12} />
-                                                </button>
-                                            )}
-                                        </div>
-
-                                        {expandedChecklistItems[item.id] && (
-                                            <div className="pl-6">
-                                                {readOnly ? (
-                                                    item.details ? (
-                                                        <p className="text-xs text-[var(--zyllen-muted)] whitespace-pre-wrap">{item.details}</p>
-                                                    ) : (
-                                                        <p className="text-xs text-[var(--zyllen-muted)] italic">Sem detalhes</p>
-                                                    )
-                                                ) : (
-                                                    <textarea
-                                                        value={draftItemDetails[item.id] ?? ""}
-                                                        onChange={(e) => setDraftItemDetails((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                                                        onBlur={() => {
-                                                            const nextDetails = (draftItemDetails[item.id] ?? "").trim();
-                                                            const currentDetails = (item.details ?? "").trim();
-                                                            if (nextDetails === currentDetails) return;
-                                                            updateChecklistItem.mutate({ itemId: item.id, body: { details: nextDetails } });
-                                                        }}
-                                                        rows={3}
-                                                        placeholder="Detalhes ocultos deste item..."
-                                                        className="w-full px-2 py-2 rounded bg-[var(--zyllen-bg)] border border-[var(--zyllen-border)] text-xs text-white placeholder:text-[var(--zyllen-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/30 resize-y"
-                                                    />
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-sm text-[var(--zyllen-muted)] italic">
-                                Nenhum item na checklist.
-                            </div>
-                        )}
-
-                        {!readOnly && (
-                            <div className="flex items-center gap-2">
-                                <input
-                                    value={newChecklistItem}
-                                    onChange={(e) => setNewChecklistItem(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter" && newChecklistItem.trim()) {
-                                            addChecklistItem.mutate(newChecklistItem.trim());
-                                        }
-                                    }}
-                                    placeholder="Adicionar novo item"
-                                    className="flex-1 h-9 px-3 rounded-md bg-[var(--zyllen-bg-dark)] border border-[var(--zyllen-border)] text-white text-sm placeholder:text-[var(--zyllen-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--zyllen-highlight)]/30"
-                                />
-                                <Button
-                                    size="sm"
-                                    onClick={() => {
-                                        if (newChecklistItem.trim()) addChecklistItem.mutate(newChecklistItem.trim());
-                                    }}
-                                    disabled={!newChecklistItem.trim()}
-                                    className="h-9"
-                                >
-                                    <Plus size={14} />
-                                </Button>
-                            </div>
-                        )}
-                    </div>
+                    <FollowupChecklist items={block.checklistItems} followupId={followupId} blockId={block.id} fetchOpts={fetchOpts} readOnly={readOnly} />
                 )}
 
                 {/* PDF block */}

@@ -10,6 +10,7 @@ const trips = process.argv.includes('--trips');
 const structures = process.argv.includes('--structures');
 const panels = process.argv.includes('--panels');
 const vehicles = process.argv.includes('--vehicles');
+const followupChecklist = process.argv.includes('--followup-checklist');
 const custody = process.argv.includes('--custody');
 const inventoryStatistics = process.argv.includes('--inventory-statistics');
 const projects = process.argv.includes('--projects') || process.argv.includes('--project-statistics') || trips || structures || panels;
@@ -40,6 +41,13 @@ async function main() {
         const baseline = fs.readFileSync(ddlSchema, 'utf8').replace(/^model StockMinimum \{[\s\S]*?^\}/m, '').replace(/^.*stockMinimums.*\r?\n/gm, '');
         ddlSchema = path.join(artifacts, 'baseline-schema.prisma'); fs.writeFileSync(ddlSchema, baseline);
     }
+    if (followupChecklist) {
+        const baseline = fs.readFileSync(ddlSchema, 'utf8')
+            .replace(/^model FollowupChecklistCatalogItem \{[\s\S]*?^\}/m, '')
+            .replace(/^model FollowupChecklistItem \{[\s\S]*?^\}/m, body => body.replace(/^\s*(?:quantity\s+Int\?|components\s+Json\?)\r?\n/gm, ''));
+        ddlSchema = path.join(artifacts, 'baseline-schema.prisma');
+        fs.writeFileSync(ddlSchema, baseline);
+    }
     if (custody) {
         let baseline = fs.readFileSync(ddlSchema, 'utf8');
         for (const name of ['InventoryTransfer', 'InventoryTransferItem']) baseline = baseline.replace(new RegExp(`^model ${name} \\{[\\s\\S]*?^\\}`, 'm'), '');
@@ -68,6 +76,7 @@ async function main() {
         env: { ...process.env, DATABASE_URL: 'postgresql://test@127.0.0.1:1/test', DIRECT_URL: 'postgresql://test@127.0.0.1:1/test' },
     });
     await db.exec(ddl);
+    if (followupChecklist) await require('./test-followup-checklist-migration.cjs')({ run, db, root });
     if (vehicles) await run('Vehicles migration: additive private tables preserve existing records and reject invalid periods', async () => {
         const before = (await db.query('SELECT COUNT(*) AS total FROM "InternalUser"')).rows;
         const migration = fs.readFileSync(path.join(root, 'apps/api/prisma/migrations/20260918100000_vehicle_reservations/migration.sql'), 'utf8');
@@ -430,6 +439,7 @@ async function main() {
     });
     if (panels) await require('./test-personal-panels-api.cjs')({ run, prisma, origin, admin, tech, unprivileged, client, thirdParty, company, internal });
     if (vehicles) await require('./test-vehicles.cjs')({ run, prisma, origin, admin, unprivileged, client, thirdParty, internal });
+    if (followupChecklist) await require('./test-followup-checklist.cjs')({ run, prisma, origin, admin, unprivileged, client, thirdParty, company, internal });
     if (projects && !panels) await require('./test-project-services.cjs')({ run, prisma, origin, admin, tech, unprivileged, client, thirdParty, contractor, company, internal });
     if (structures) await require('./test-structures.cjs')({ run, prisma, origin, admin, tech, unprivileged, client, thirdParty, company, internal });
     if (process.argv.includes('--project-statistics') || trips) await require('./test-project-statistics.cjs')({ run, prisma, origin, admin, unprivileged, client, thirdParty, contractor, company, internal });

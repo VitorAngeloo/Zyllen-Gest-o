@@ -35,6 +35,7 @@ Toda alteração de código ou documentação deve seguir a [regra de organizaç
 | Identificar salas/totens e consultar seus ciclos de instalação/desinstalação | [Estruturas e ciclos](estruturas-e-ciclos.md) |
 | Trabalhar com saldo, ledger, custódia por cliente, envios e devoluções | [Estoque e patrimônio](estoque-e-patrimonio.md) |
 | Indicadores da dashboard e espelho de leitura sem login | [Painel de acompanhamento](painel-de-acompanhamento.md) |
+| Listas dos acompanhamentos, catálogo de itens e quantidades | [Acompanhamentos no frontend](frontend.md#acompanhamentos-e-catálogo-de-checklist) |
 | Trabalhar com templates e Zebra | [Etiquetas e impressão](etiquetas-e-impressao.md) |
 | Entender solicitação e aprovação de clientes | [Cadastro de clientes](cadastro-clientes.md) |
 | Entender as proteções aplicadas e reproduzir regressões | [Segurança](seguranca.md) |

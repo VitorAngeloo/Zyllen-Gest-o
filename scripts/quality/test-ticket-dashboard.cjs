@@ -424,6 +424,7 @@ async function main() {
     if (process.argv.includes('--chronogram')) await require('./test-chronogram-browser.cjs')({ run, browser, base, shots, fixedNow });
     if (process.argv.includes('--structures')) await require('./test-structures-browser.cjs')({ run, browser, base, shots, fixedNow });
     if (process.argv.includes('--followup-search')) await require('./test-followup-company-search-browser.cjs')({ run, browser, base });
+    if (process.argv.includes('--followup-checklist')) await require('./test-followup-checklist-browser.cjs')({ run, browser, base, shots });
     if (process.argv.includes('--maintenance')) await require('./test-maintenance-list-browser.cjs')({ run, browser, base, fixedNow });
 }
 main().catch(error => { console.error(error); cases.push({ name: 'Harness startup', passed: false, error: error.message }); }).finally(async () => {

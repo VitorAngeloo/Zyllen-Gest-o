@@ -77,6 +77,8 @@ Estruturas e ciclos usam `pnpm test:structures` e `pnpm test:structures:browser`
 
 ## Verificações adicionais de estoque e painéis
 
+O catálogo de checklist dos acompanhamentos usa `pnpm test:followups:checklist` (migration/API/PGlite descartável) e `pnpm test:followups:checklist:browser` (seleção múltipla, quantidade individual, cadastro e recuperação no navegador). Executar o build isolado antes e selecionar a mesma pasta por `AUDIT_ARTIFACT_DIR`; comandos, cenários e publicação pendente no [guia do frontend](frontend.md#acompanhamentos-e-catálogo-de-checklist).
+
 As entregas de estoque por cliente, reposição e painel pessoal possuem validações adicionais descartáveis, após o build isolado:
 
 ```powershell

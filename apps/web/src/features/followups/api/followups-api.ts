@@ -1,9 +1,27 @@
 import { apiClient, type RequestOptions } from "@web/lib/api-client";
+import type { AddChecklistItemsInput, FollowupChecklistCatalogItem } from "@zyllen/shared";
 
 type PathValue = string | number | null | undefined;
 type QueryValue = PathValue | URLSearchParams;
 
 export const followupsApi = {
+    listChecklistCatalog(search: string, page: number, options?: RequestOptions) {
+        const query = new URLSearchParams({ search, page: String(page), limit: "50" });
+        return apiClient.get<{ data: FollowupChecklistCatalogItem[]; total: number; page: number; limit: number }>(
+            "/followups/checklist-catalog?" + query, options,
+        );
+    },
+
+    saveChecklistCatalogItem(text: string, options?: RequestOptions) {
+        return apiClient.post<{ data: FollowupChecklistCatalogItem }>("/followups/checklist-catalog", { text }, options);
+    },
+
+    addChecklistItems(followupId: string, blockId: string, body: AddChecklistItemsInput, options?: RequestOptions) {
+        return apiClient.post<{ data: { addedCount: number; replayed: boolean } }>(
+            "/followups/" + followupId + "/blocks/" + blockId + "/checklist/batch", body, options,
+        );
+    },
+
     deleteFollowup<T = unknown>(id: PathValue, options?: RequestOptions) {
         return apiClient.delete<T>(`/followups/${id}`, options);
     },

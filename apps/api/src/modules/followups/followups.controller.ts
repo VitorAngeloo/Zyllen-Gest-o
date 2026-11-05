@@ -10,6 +10,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../access/permissions.guard';
 import { RequirePermission } from '../access/permissions.decorator';
 import { FollowupsService } from './followups.service';
+import { FollowupChecklistService } from './followup-checklist.service';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
     createFollowupSchema,
@@ -19,6 +20,13 @@ import {
     createFollowupCommentSchema,
     createChecklistItemSchema,
     updateChecklistItemSchema,
+    addChecklistItemsSchema,
+    checklistCatalogQuerySchema,
+    createChecklistCatalogItemSchema,
+    type AddChecklistItemsInput,
+    type ChecklistCatalogQuery,
+    type CreateChecklistItemInput,
+    type UpdateChecklistItemInput,
 } from '@zyllen/shared';
 
 // Ensure uploads directory exists
@@ -33,7 +41,25 @@ const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|bmp)|video\/(mp4|webm|quicktim
 @Controller('followups')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class FollowupsController {
-    constructor(private readonly followupsService: FollowupsService) { }
+    constructor(
+        private readonly followupsService: FollowupsService,
+        private readonly checklistService: FollowupChecklistService,
+    ) { }
+
+    @Get('checklist-catalog')
+    @RequirePermission('followups.edit')
+    async listChecklistCatalog(@Query(new ZodValidationPipe(checklistCatalogQuerySchema)) query: ChecklistCatalogQuery) {
+        return this.checklistService.listCatalog(query);
+    }
+
+    @Post('checklist-catalog')
+    @RequirePermission('followups.edit')
+    async saveChecklistCatalogItem(
+        @Request() req: any,
+        @Body(new ZodValidationPipe(createChecklistCatalogItemSchema)) body: { text: string },
+    ) {
+        return { data: await this.checklistService.saveCatalogItem(body.text, req.user.id) };
+    }
 
     // ── CRUD Followup ──
 
@@ -187,14 +213,27 @@ export class FollowupsController {
 
     // ── Checklist Items ──
 
+    @Post(':id/blocks/:blockId/checklist/batch')
+    @RequirePermission('followups.edit')
+    async addChecklistItems(
+        @Param('id') id: string,
+        @Param('blockId') blockId: string,
+        @Request() req: any,
+        @Body(new ZodValidationPipe(addChecklistItemsSchema)) body: AddChecklistItemsInput,
+    ) {
+        const data = await this.checklistService.addItems(id, blockId, req.user.id, body);
+        return { data, message: 'Itens adicionados' };
+    }
+
     @Post(':id/blocks/:blockId/checklist')
     @RequirePermission('followups.edit')
     async addChecklistItem(
         @Param('id') id: string,
         @Param('blockId') blockId: string,
-        @Body(new ZodValidationPipe(createChecklistItemSchema)) body: { text: string; details?: string; order?: number },
+        @Request() req: any,
+        @Body(new ZodValidationPipe(createChecklistItemSchema)) body: CreateChecklistItemInput,
     ) {
-        const data = await this.followupsService.addChecklistItem(id, blockId, body);
+        const data = await this.checklistService.addChecklistItem(id, blockId, req.user.id, body);
         return { data, message: 'Item adicionado' };
     }
 
@@ -204,9 +243,10 @@ export class FollowupsController {
         @Param('id') id: string,
         @Param('blockId') blockId: string,
         @Param('itemId') itemId: string,
-        @Body(new ZodValidationPipe(updateChecklistItemSchema)) body: { text?: string; details?: string; checked?: boolean; order?: number },
+        @Request() req: any,
+        @Body(new ZodValidationPipe(updateChecklistItemSchema)) body: UpdateChecklistItemInput,
     ) {
-        const data = await this.followupsService.updateChecklistItem(id, blockId, itemId, body);
+        const data = await this.checklistService.updateChecklistItem(id, blockId, itemId, req.user.id, body);
         return { data, message: 'Item atualizado' };
     }
 
@@ -216,8 +256,9 @@ export class FollowupsController {
         @Param('id') id: string,
         @Param('blockId') blockId: string,
         @Param('itemId') itemId: string,
+        @Request() req: any,
     ) {
-        await this.followupsService.removeChecklistItem(id, blockId, itemId);
+        await this.checklistService.removeChecklistItem(id, blockId, itemId, req.user.id);
         return { message: 'Item removido' };
     }
 

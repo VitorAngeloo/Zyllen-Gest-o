@@ -166,7 +166,7 @@ features/schedule/
 └── schedule.constants.ts
 ```
 
-Estoque mantém o estado e os fluxos em `hooks/use-inventory-controller.ts`, com seções visuais independentes em `components/`. Acompanhamento separa criação, detalhe, blocos e visualização de anexos. Chamadas de agenda, estoque, acompanhamento e OS são nomeadas nos respectivos arquivos `api/`; o transporte, refresh e erros continuam em `lib/api-client.ts`.
+Estoque mantém o estado e os fluxos em `hooks/use-inventory-controller.ts`, com seções visuais independentes em `components/`. Acompanhamento separa criação, detalhe, blocos e visualização de anexos. `FollowupChecklist` compõe os itens editáveis e o `ChecklistItemPicker`, que mantém busca, seleção e quantidades antes da inclusão em lote. `FollowupChecklistService` concentra itens e auditoria; `FollowupChecklistCatalogService` resolve as composições históricas e opções persistidas, com parsing em `followup-checklist-components.ts`. `ChecklistComponentSelection` é reutilizado na seleção e edição posterior da composição. Contratos únicos ficam em `shared/src/followups`. As migrations aditivas preservam as linhas existentes. Regras, testes e estado de publicação no [guia do frontend](frontend.md#acompanhamentos-e-catálogo-de-checklist). Chamadas de agenda, estoque, acompanhamento e OS são nomeadas nos respectivos arquivos `api/`; o transporte, refresh e erros continuam em `lib/api-client.ts`.
 
 Na API, `InventoryService` preserva a interface pública das movimentações e delega leituras a `InventoryQueriesService` e cadastros de tipos/motivos a `InventorySettingsService`. As transações de movimentação e bloqueio de OS permanecem nos serviços de negócio. Validação de formulário e geração de número de OS ficam em `modules/maintenance/utils/`.
 

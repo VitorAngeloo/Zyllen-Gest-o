@@ -164,13 +164,17 @@ export default function ClientFollowupsPage() {
                                         <div className="space-y-1">
                                             {block.checklistItems?.length > 0 ? (
                                                 block.checklistItems.map((item: any) => (
-                                                    <div key={item.id} className="flex items-center gap-2">
+                                                    <div key={item.id} className="flex flex-wrap items-center gap-2">
                                                         <div className={`size-4 rounded shrink-0 flex items-center justify-center border ${item.checked ? "bg-[var(--zyllen-success)] border-[var(--zyllen-success)]" : "border-[var(--zyllen-border)]"}`}>
                                                             {item.checked && <span className="text-white text-[10px]">✓</span>}
                                                         </div>
                                                         <span className={`text-sm ${item.checked ? "text-[var(--zyllen-muted)] line-through" : "text-white"}`}>
                                                             {item.text}
+                                                            {item.quantity != null && <span className="ml-2 text-xs text-[var(--zyllen-muted)]">Qtd.: {item.quantity}</span>}
                                                         </span>
+                                                        {!!item.components?.length && <ul className="w-full space-y-1 pl-6 text-xs text-[var(--zyllen-muted)]">
+                                                            {item.components.map((part: { text: string; quantity: number }) => <li key={part.text}>{part.text} — Qtd.: {part.quantity}</li>)}
+                                                        </ul>}
                                                     </div>
                                                 ))
                                             ) : (

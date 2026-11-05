@@ -5,3 +5,29 @@ export enum FollowupStatus {
     PENDING = 'PENDING',
     COMPLETED = 'COMPLETED',
 }
+
+export interface FollowupChecklistCatalogItem {
+    id: string;
+    text: string;
+    components?: FollowupChecklistComponentTemplate[];
+}
+
+export interface FollowupChecklistComponent {
+    text: string;
+    quantity: number;
+}
+
+export interface FollowupChecklistComponentTemplate extends FollowupChecklistComponent {
+    selectedByDefault: boolean;
+}
+
+export interface FollowupChecklistEntry {
+    id: string;
+    text: string;
+    details?: string | null;
+    /** Historical entries have no inferred quantity. */
+    quantity?: number | null;
+    components?: FollowupChecklistComponent[] | null;
+    checked: boolean;
+    order: number;
+}
