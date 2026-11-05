@@ -27,7 +27,7 @@ export function ChecklistComponentSelection({ parentName, options = [], value, o
         setError("");
         onChange([...value, { text, quantity }]);
     };
-    if (!expanded) return (
+    if (!expanded && !options.length && !value.length) return (
         <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => setExpanded(true)}>
             <Plus size={14} /> Adicionar componentes a {parentName}
         </Button>

@@ -103,7 +103,7 @@ function buildBlocksHtml(data: FollowupPdfData): string {
                 const text = item.checked ? `<s>${esc(item.text)}</s>` : esc(item.text);
                 contentHtml += `<span class="att-file">${marker} ${text}${item.quantity != null ? ` — Qtd.: ${item.quantity}` : ""}</span>`;
                 if (item.components?.length) {
-                    contentHtml += `<ul style="margin:4px 0 8px 24px">${item.components.map(part => `<li>${esc(part.text)} — Qtd.: ${part.quantity}</li>`).join("")}</ul>`;
+                    contentHtml += `<ul style="margin:4px 0 8px 24px">${item.components.map(part => `<li>${part.checked ? "☑" : "☐"} ${part.checked ? `<s>${esc(part.text)}</s>` : esc(part.text)} — Qtd.: ${part.quantity}</li>`).join("")}</ul>`;
                 }
             }
             contentHtml += `</div>`;

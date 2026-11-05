@@ -15,9 +15,10 @@ export interface FollowupChecklistCatalogItem {
 export interface FollowupChecklistComponent {
     text: string;
     quantity: number;
+    checked?: boolean;
 }
 
-export interface FollowupChecklistComponentTemplate extends FollowupChecklistComponent {
+export interface FollowupChecklistComponentTemplate extends Pick<FollowupChecklistComponent, 'text' | 'quantity'> {
     selectedByDefault: boolean;
 }
 

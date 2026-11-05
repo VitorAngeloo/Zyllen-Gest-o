@@ -173,7 +173,11 @@ export default function ClientFollowupsPage() {
                                                             {item.quantity != null && <span className="ml-2 text-xs text-[var(--zyllen-muted)]">Qtd.: {item.quantity}</span>}
                                                         </span>
                                                         {!!item.components?.length && <ul className="w-full space-y-1 pl-6 text-xs text-[var(--zyllen-muted)]">
-                                                            {item.components.map((part: { text: string; quantity: number }) => <li key={part.text}>{part.text} — Qtd.: {part.quantity}</li>)}
+                                                            {item.components.map((part: { text: string; quantity: number; checked?: boolean }) => <li key={part.text} className="flex items-center gap-2">
+                                                                <input type="checkbox" checked={part.checked ?? false} disabled aria-label={"OK: " + part.text} className="size-4 accent-[var(--zyllen-highlight)]" />
+                                                                <span className={part.checked ? "line-through" : ""}>{part.text}</span>
+                                                                <span>Qtd.: {part.quantity}</span>
+                                                            </li>)}
                                                         </ul>}
                                                     </div>
                                                 ))

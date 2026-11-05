@@ -139,9 +139,9 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         assert.equal(ok(await http(base + '/batch', 'POST', input), 201).replayed, true);
         savedComputer = await prisma.followupChecklistItem.findFirst({ where: { blockId: block.id, text: 'Computador' }, orderBy: { createdAt: 'desc' } });
         assert.equal(savedComputer.quantity, 2);
-        assert.deepEqual(savedComputer.components, input.items[0].components);
+        assert.deepEqual(savedComputer.components, input.items[0].components.map(part => ({ ...part, checked: false })));
         const external = ok(await http('/client/followups/' + followup.id, 'GET', undefined, client));
-        assert.deepEqual(external.blocks.find(row => row.id === block.id).checklistItems.find(row => row.id === savedComputer.id).components, input.items[0].components);
+        assert.deepEqual(external.blocks.find(row => row.id === block.id).checklistItems.find(row => row.id === savedComputer.id).components, input.items[0].components.map(part => ({ ...part, checked: false })));
         const inputChanged = { ...input, items: [{ ...input.items[0], components: [{ text: 'GPU atual', quantity: 99 }] }] };
         assert.equal((await http(base + '/batch', 'POST', inputChanged)).status, 409);
         const refreshed = ok(await http(catalog + '?search=Computador'))[0];
@@ -154,11 +154,11 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         }
         assert.equal(await prisma.followupChecklistItem.count({ where: { blockId: block.id } }), before);
         const updated = ok(await http(base + '/' + savedComputer.id, 'PUT', { components: [{ text: 'Peça nova', quantity: 10 }] }));
-        assert.deepEqual(updated.components, [{ text: 'Peça nova', quantity: 10 }]); assert.equal(updated.quantity, 2);
+        assert.deepEqual(updated.components, [{ text: 'Peça nova', quantity: 10, checked: false }]); assert.equal(updated.quantity, 2);
         assert.equal((await prisma.followupChecklistItem.findUnique({ where: { id: latestHistorical.id } })).details, latestHistorical.details);
         ok(await http(base + '/batch', 'POST', batch([{ catalogItemId: computer.id, quantity: 1 }])), 201);
         const newest = await prisma.followupChecklistItem.findFirst({ where: { blockId: block.id, text: 'Computador', id: { not: savedComputer.id } }, orderBy: { createdAt: 'desc' } });
-        assert.deepEqual(newest.components, [{ text: 'Peça nova', quantity: 10 }]);
+        assert.deepEqual(newest.components, [{ text: 'Peça nova', quantity: 10, checked: false }]);
         await prisma.followupChecklistItem.deleteMany({ where: { OR: [{ blockId: historyBlock.id },{ text: 'Computador' }] } });
         const retained = ok(await http(catalog + '?search=Computador'))[0];
         assert(retained.components.some(part => part.text === 'GPU antiga'));
@@ -201,10 +201,10 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         const components = [{ text: 'bases para teto', quantity: 4 },{ text: 'bases para projetor', quantity: 4 },{ text: 'parafusos para fixação do projetor na base', quantity: 12 }];
         ok(await http(base + '/batch', 'POST', batch([{ catalogItemId: support.id, quantity: 4, components }])), 201);
         const saved = await prisma.followupChecklistItem.findFirst({ where: { blockId: block.id, text: 'Suporte de projetor' } });
-        assert.deepEqual(saved.components, components);
+        assert.deepEqual(saved.components, components.map(part => ({ ...part, checked: false })));
         assert.equal((await prisma.followupChecklistItem.findUnique({ where: { id: oldKit.id } })).details, oldParts);
         const updated = ok(await http(base + '/' + saved.id, 'PUT', { components: [{ text: 'bases para teto', quantity: 5 }] }));
-        assert.deepEqual(updated.components, [{ text: 'bases para teto', quantity: 5 }]);
+        assert.deepEqual(updated.components, [{ text: 'bases para teto', quantity: 5, checked: false }]);
     });
     await run('Curated materials: exact 45-item replacement, 12 computer parts and 8 support parts; historical lists remain intact', async () => {
         const { parseMaterials, replaceCatalog } = require('../../apps/api/scripts/replace-followup-checklist-catalog.cjs');
@@ -261,6 +261,44 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
             assert.equal(digest((await db.query(query)).rows),before);
         }
         } finally { await prisma.$connect(); }
+    });
+    await run('Component OK: selection starts unchecked; checking and unchecking preserve all quantities and catalog defaults', async () => {
+        const pc = ok(await http(catalog+'?search=Computador')) .find(item=>item.text==='Computador (e seus componentes)');
+        const input = batch([{catalogItemId:pc.id,quantity:2,components:[{text:'SSD 1TB',quantity:4,checked:true},{text:'Fonte 850w',quantity:2}]}]);
+        ok(await http(base+'/batch','POST',input),201);
+        const item = await prisma.followupChecklistItem.findFirst({where:{blockId:block.id,text:pc.text},orderBy:{createdAt:'desc'}});
+        assert.deepEqual(item.components,[{text:'SSD 1TB',quantity:4,checked:false},{text:'Fonte 850w',quantity:2,checked:false}]);
+        const catalogBefore = await prisma.followupChecklistCatalogItem.findUnique({where:{id:pc.id}});
+        const checked = ok(await http(base+'/'+item.id,'PUT',{componentCheck:{text:'SSD 1TB',checked:true}}));
+        assert.deepEqual(checked.components,[{text:'SSD 1TB',quantity:4,checked:true},{text:'Fonte 850w',quantity:2,checked:false}]);
+        const unchecked = ok(await http(base+'/'+item.id,'PUT',{componentCheck:{text:'SSD 1TB',checked:false}}));
+        assert.deepEqual(unchecked.components,item.components);
+        assert.equal(unchecked.quantity,2);
+        assert.deepEqual((await prisma.followupChecklistCatalogItem.findUnique({where:{id:pc.id}})).components,catalogBefore.components);
+        assert.equal((await http(base+'/'+item.id,'PUT',{componentCheck:{text:'SSD 1TB',checked:'sim'}})).status,400);
+        assert.equal((await http(base+'/'+item.id,'PUT',{componentCheck:{text:'Outro item',checked:true}})).status,404);
+        assert.equal((await http(base+'/'+item.id,'PUT',{componentCheck:{text:'SSD 1TB',checked:true},components:[]})).status,400);
+        assert.equal((await http(base+'/'+item.id,'PUT',{componentCheck:{text:'SSD 1TB',checked:true}},viewer)).status,403);
+        ok(await http(base+'/'+item.id,'PUT',{componentCheck:{text:'SSD 1TB',checked:true}}));
+        const edited = ok(await http(base+'/'+item.id,'PUT',{quantity:3,components:[{text:'SSD 1TB',quantity:7},{text:'Fonte 850w',quantity:2},{text:'Peça extra',quantity:1}]}));
+        assert.deepEqual(edited.components,[{text:'SSD 1TB',quantity:7,checked:true},{text:'Fonte 850w',quantity:2,checked:false},{text:'Peça extra',quantity:1,checked:false}]);
+        const external = ok(await http('/client/followups/'+followup.id,'GET',undefined,client));
+        assert.deepEqual(external.blocks.find(row=>row.id===block.id).checklistItems.find(row=>row.id===item.id).components,edited.components);
+    });
+    await run('Component OK: projector support completion is independent and concurrent marks keep other parts intact', async () => {
+        const support = ok(await http(catalog+'?search=Suporte')) .find(item=>item.text==='Suporte de projetor (mais acessórios)');
+        ok(await http(base+'/batch','POST',batch([{catalogItemId:support.id,quantity:4,components:[{text:'bases para teto',quantity:4},{text:'parafusos para fixação do projetor na base',quantity:12}]}])),201);
+        const item = await prisma.followupChecklistItem.findFirst({where:{blockId:block.id,text:support.text},orderBy:{createdAt:'desc'}});
+        const responses = await Promise.all([
+            http(base+'/'+item.id,'PUT',{componentCheck:{text:'bases para teto',checked:true}}),
+            http(base+'/'+item.id,'PUT',{componentCheck:{text:'parafusos para fixação do projetor na base',checked:true}}),
+        ]);
+        responses.forEach(result=>ok(result));
+        const saved = await prisma.followupChecklistItem.findUnique({where:{id:item.id}});
+        assert.deepEqual(saved.components,[{text:'bases para teto',quantity:4,checked:true},{text:'parafusos para fixação do projetor na base',quantity:12,checked:true}]);
+        assert.equal(saved.checked,false);
+        const unchecked = ok(await http(base+'/'+item.id,'PUT',{componentCheck:{text:'parafusos para fixação do projetor na base',checked:false}}));
+        assert.equal(unchecked.components[1].quantity,12);assert.equal(unchecked.components.length,2);assert.equal(unchecked.components[0].checked,true);
     });
 };
 if (require.main === module) {

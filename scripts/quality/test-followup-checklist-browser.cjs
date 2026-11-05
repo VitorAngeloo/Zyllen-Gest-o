@@ -55,7 +55,7 @@ module.exports = async ({ run, browser, base, shots }) => {
                 if (!applied.has(body.requestId)) {
                     for (const selected of body.items) {
                         const item = catalog.find(row => row.id === selected.catalogItemId);
-                        block.checklistItems.push({ id: crypto.randomUUID(), text: item.text, quantity: selected.quantity, components: selected.components ?? [], checked: false, details: null, order: block.checklistItems.length });
+                        block.checklistItems.push({ id: crypto.randomUUID(), text: item.text, quantity: selected.quantity, components: (selected.components ?? []).map(part=>({...part,checked:false})), checked: false, details: null, order: block.checklistItems.length });
                     }
                     applied.add(body.requestId);
                 }
@@ -64,7 +64,13 @@ module.exports = async ({ run, browser, base, shots }) => {
             }
             if (url.pathname.includes('/checklist/') && request.method() === 'PUT') {
                 const item = block.checklistItems.find(row => row.id === url.pathname.split('/').at(-1));
-                Object.assign(item, body);
+                if (body.componentCheck) {
+                    const part = item.components.find(part=>part.text===body.componentCheck.text);
+                    part.checked = body.componentCheck.checked;
+                } else {
+                    const previous = new Map((item.components ?? []).map(part=>[part.text,part.checked??false]));
+                    Object.assign(item,body,...(body.components ? [{components:body.components.map(part=>({...part,checked:previous.get(part.text)??false}))}] : []));
+                }
                 return respond({ data: item });
             }
             return respond({ error: { message: 'Rota fora do cenário QA' } }, 403);
@@ -104,7 +110,7 @@ module.exports = async ({ run, browser, base, shots }) => {
             await page.screenshot({ path: path.join(shots, 'followup-checklist-selection.png') });
             await dialog.getByRole('button', { name: 'Adicionar selecionados (3)', exact: true }).click();
             await expect(dialog).toHaveCount(0);
-            await expect(page.getByRole('spinbutton', { name: 'Quantidade de Cabo HDMI', exact: true })).toHaveValue('2');
+            await expect(page.locator('span[aria-label="Quantidade de Cabo HDMI"]')).toHaveText('Qtd.: 2');
             assert.deepEqual(data.block.checklistItems.map(item => item.quantity), [null,4,2,3]);
             await open(page);
             await expect(page.getByRole('dialog').getByRole('checkbox', { name: 'Adaptador USB', exact: true })).toBeVisible();
@@ -112,9 +118,12 @@ module.exports = async ({ run, browser, base, shots }) => {
             await page.getByRole('dialog').getByRole('spinbutton', { name: 'Quantidade de Cabo HDMI', exact: true }).fill('9');
             await page.getByRole('button', { name: 'Adicionar selecionados (1)', exact: true }).click();
             await expect(page.getByRole('dialog')).toHaveCount(0);
-            await expect(page.getByRole('spinbutton', { name: 'Quantidade de Cabo HDMI', exact: true })).toHaveCount(2);
-            const quantity = page.getByRole('spinbutton', { name: 'Quantidade de Adaptador USB', exact: true });
-            await quantity.fill('8'); await quantity.press('Tab');
+            await expect(page.locator('span[aria-label="Quantidade de Cabo HDMI"]')).toHaveCount(2);
+            await page.getByRole('button', { name: 'Selecionar itens e quantidades de Adaptador USB', exact: true }).click();
+            const editor = page.getByRole('dialog');
+            await editor.getByRole('spinbutton', { name: 'Quantidade de Adaptador USB', exact: true }).fill('8');
+            await editor.getByRole('button', { name: 'Salvar itens e quantidades', exact: true }).click();
+            await expect(editor).toHaveCount(0);
             await expect.poll(() => data.block.checklistItems.find(row => row.text === 'Adaptador USB').quantity).toBe(8);
             assert.equal(data.block.checklistItems[0].details, 'Detalhes preservados');
             const [print] = await Promise.all([
@@ -209,12 +218,30 @@ module.exports = async ({ run, browser, base, shots }) => {
             await expect(dialog).toHaveCount(0);
             const saved = data.block.checklistItems.find(item => item.text === 'Computador');
             assert.equal(saved.quantity, 2);
-            assert.deepEqual(saved.components, [{ text: 'SSD 1TB', quantity: 1 },{ text: 'RAM 32GB', quantity: 4 },{ text: 'GPU antiga', quantity: 3 },{ text: 'Fonte 850W', quantity: 5 }]);
-            const savedParts = page.getByRole('group', { name: 'Componentes de Computador', exact: true });
-            await expect(savedParts.getByRole('spinbutton', { name: 'Quantidade de RAM 32GB em Computador', exact: true })).toHaveValue('4');
-            await savedParts.getByRole('spinbutton', { name: 'Quantidade de Fonte 850W em Computador', exact: true }).fill('8');
-            await page.getByRole('button', { name: 'Salvar componentes', exact: true }).click();
+            assert.deepEqual(saved.components, [{ text: 'SSD 1TB', quantity: 1,checked:false },{ text: 'RAM 32GB', quantity: 4,checked:false },{ text: 'GPU antiga', quantity: 3,checked:false },{ text: 'Fonte 850W', quantity: 5,checked:false }]);
+            const savedParts = page.getByRole('group', { name: 'Conferência dos componentes de Computador', exact: true });
+            await expect(savedParts.locator('span[aria-label="Quantidade de RAM 32GB em Computador"]')).toHaveText('Qtd.: 4');
+            await expect(savedParts.getByRole('checkbox', {name:'OK: Fonte 850W em Computador',exact:true})).not.toBeChecked();
+            await savedParts.getByRole('checkbox', {name:'OK: Fonte 850W em Computador',exact:true}).click();
+            await expect(savedParts.getByRole('checkbox', {name:'OK: Fonte 850W em Computador',exact:true})).toBeChecked();
+            await savedParts.getByRole('checkbox', {name:'OK: Fonte 850W em Computador',exact:true}).click();
+            await expect(savedParts.getByRole('checkbox', {name:'OK: Fonte 850W em Computador',exact:true})).not.toBeChecked();
+            await expect(savedParts.locator('span[aria-label="Quantidade de Fonte 850W em Computador"]')).toHaveText('Qtd.: 5');
+            assert.equal(data.block.checklistItems.find(item=>item.text==='Computador').components.length,4);
+            const checks = data.requests.filter(row=>row.method==='PUT'&&row.body?.componentCheck);
+            assert.equal(checks.length,2);assert.deepEqual(checks[1].body,{componentCheck:{text:'Fonte 850W',checked:false}});
+            await expect(page.getByRole('spinbutton')).toHaveCount(0);
+            await page.getByRole('button', {name:'Selecionar itens e quantidades de Computador',exact:true}).click();
+            const edit = page.getByRole('dialog');
+            await edit.getByRole('spinbutton', { name: 'Quantidade de Fonte 850W em Computador', exact: true }).fill('8');
+            await edit.getByRole('button', {name:'Salvar itens e quantidades',exact:true}).click();
+            await expect(edit).toHaveCount(0);
             await expect.poll(() => data.block.checklistItems.find(item => item.text === 'Computador').components.find(part => part.text === 'Fonte 850W').quantity).toBe(8);
+            await page.reload();
+            await page.getByText('AC-CHECKLIST-QA',{exact:true}).click();
+            await expect(page.getByRole('checkbox',{name:'OK: Fonte 850W em Computador',exact:true})).not.toBeChecked();
+            await expect(page.locator('span[aria-label="Quantidade de Fonte 850W em Computador"]')).toHaveText('Qtd.: 8');
+            await page.screenshot({path:path.join(shots,'followup-component-ok.png'),animations:'disabled'});
             const [print] = await Promise.all([page.waitForEvent('popup'),page.getByRole('button', { name: 'Exportar PDF', exact: true }).click()]);
             await expect(print.locator('body')).toContainText('Fonte 850W — Qtd.: 8'); await print.close();
             assert.deepEqual(data.errors, []);
@@ -233,6 +260,14 @@ module.exports = async ({ run, browser, base, shots }) => {
             await dialog.getByRole('button', { name: 'Adicionar selecionados (1)', exact: true }).click();
             await expect(dialog).toHaveCount(0);
             assert.equal(data.block.checklistItems.find(item => item.text === 'Computador').components.find(part => part.text === 'RAM 32GB').quantity, 6);
+            const savedParts = data.page.getByRole('group',{name:'Conferência dos componentes de Computador',exact:true});
+            const ok = savedParts.getByRole('checkbox',{name:'OK: RAM 32GB em Computador',exact:true});
+            await expect(ok).not.toBeChecked();
+            await ok.click(); await expect(ok).toBeChecked();
+            await ok.click(); await expect(ok).not.toBeChecked();
+            await expect(savedParts.locator('span[aria-label="Quantidade de RAM 32GB em Computador"]')).toHaveText('Qtd.: 6');
+            assert(await savedParts.evaluate(node=>node.scrollWidth<=node.clientWidth+1));
+            await data.page.screenshot({path:path.join(shots,'followup-component-ok-mobile.png'),animations:'disabled'});
             assert.deepEqual(data.errors, []);
         } finally { await data.context.close(); }
     });
@@ -251,7 +286,13 @@ module.exports = async ({ run, browser, base, shots }) => {
             await dialog.getByRole('button', { name: 'Adicionar selecionados (1)', exact: true }).click();
             await expect(dialog).toHaveCount(0);
             const saved = data.block.checklistItems.find(item => item.text === 'Suporte de projetor');
-            assert.deepEqual(saved.components, [{ text: 'Bases para teto', quantity: 4 },{ text: 'Bases para projetor', quantity: 3 },{ text: 'Parafusos para fixação', quantity: 12 }]);
+            assert.deepEqual(saved.components, [{ text: 'Bases para teto', quantity: 4,checked:false },{ text: 'Bases para projetor', quantity: 3,checked:false },{ text: 'Parafusos para fixação', quantity: 12,checked:false }]);
+            const confirmed = data.page.getByRole('checkbox',{name:'OK: Parafusos para fixação em Suporte de projetor',exact:true});
+            await expect(confirmed).not.toBeChecked();
+            await confirmed.click();await expect(confirmed).toBeChecked();
+            await confirmed.click();await expect(confirmed).not.toBeChecked();
+            await expect(data.page.locator('span[aria-label="Quantidade de Parafusos para fixação em Suporte de projetor"]')).toHaveText('Qtd.: 12');
+            assert.equal(data.block.checklistItems.find(item=>item.text==='Suporte de projetor').components.length,3);
             assert.deepEqual(data.errors, []);
         } finally { await data.context.close(); }
     });

@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'crypto';
 import type { AddChecklistItemsInput, ChecklistCatalogQuery, CreateChecklistItemInput, UpdateChecklistItemInput } from '@zyllen/shared';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { FollowupChecklistCatalogService } from './followup-checklist-catalog.service';
+import { componentKey, storedChecklistComponents } from './followup-checklist-components';
 
 @Injectable()
 export class FollowupChecklistService {
@@ -52,8 +53,8 @@ export class FollowupChecklistService {
             const last = await tx.followupChecklistItem.aggregate({ where: { blockId }, _max: { order: true } });
             const items = input.items.map((item, index) => {
                 const option = options.get(item.catalogItemId)!;
-                const components = item.components ?? (option.components ?? []).filter(part => part.selectedByDefault)
-                    .map(({ text, quantity }) => ({ text, quantity }));
+                const components = (item.components ?? (option.components ?? []).filter(part => part.selectedByDefault))
+                    .map(({ text, quantity }) => ({ text, quantity, checked: false }));
                 return { id: randomUUID(), blockId, text: option.text, components,
                     quantity: item.quantity, order: (last._max.order ?? -1) + index + 1 };
             });
@@ -77,7 +78,8 @@ export class FollowupChecklistService {
             await this.lockChecklist(tx, followupId, blockId);
             const last = await tx.followupChecklistItem.aggregate({ where: { blockId }, _max: { order: true } });
             const item = await tx.followupChecklistItem.create({ data: {
-                blockId, text: data.text, details: data.details ?? null, quantity: data.quantity, components: data.components,
+                blockId, text: data.text, details: data.details ?? null, quantity: data.quantity,
+                components: data.components?.map(({ text, quantity }) => ({ text, quantity, checked: false })),
                 order: data.order ?? (last._max.order ?? -1) + 1,
             } });
             if (data.components !== undefined) await this.catalog.remember(tx, data.text, data.components);
@@ -94,8 +96,18 @@ export class FollowupChecklistService {
             await this.lockChecklist(tx, followupId, blockId);
             const item = await tx.followupChecklistItem.findFirst({ where: { id: itemId, blockId } });
             if (!item) throw new NotFoundException('Item não encontrado');
-            const updated = await tx.followupChecklistItem.update({ where: { id: itemId }, data });
-            if (data.components !== undefined) await this.catalog.remember(tx, data.text ?? item.text, data.components);
+            const { componentCheck, ...changes } = data;
+            const current = storedChecklistComponents(item.components) ?? [];
+            if (componentCheck) {
+                const index = current.findIndex(part => componentKey(part.text) === componentKey(componentCheck.text));
+                if (index === -1) throw new NotFoundException('Componente não encontrado nesta checklist');
+                changes.components = current.map((part, position) => position === index ? { ...part, checked: componentCheck.checked } : part);
+            } else if (changes.components !== undefined) {
+                const previous = new Map(current.map(part => [componentKey(part.text), part.checked ?? false]));
+                changes.components = changes.components.map(part => ({ ...part, checked: previous.get(componentKey(part.text)) ?? false }));
+            }
+            const updated = await tx.followupChecklistItem.update({ where: { id: itemId }, data: changes });
+            if (data.components !== undefined) await this.catalog.remember(tx, data.text ?? item.text, changes.components!);
             await tx.auditLog.create({ data: {
                 action: 'FOLLOWUP_CHECKLIST_ITEM_UPDATED', entityType: 'Followup', entityId: followupId, userId,
                 details: { blockId, itemId, changes: data },

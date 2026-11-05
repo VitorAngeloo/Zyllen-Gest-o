@@ -33,12 +33,13 @@ export const checklistQuantitySchema = z.number().int().min(1).max(2147483647);
 export const checklistComponentSchema = z.object({
     text: z.string().trim().min(1).max(500),
     quantity: checklistQuantitySchema,
+    checked: z.boolean().optional(),
 });
 export const checklistComponentsSchema = z.array(checklistComponentSchema).max(100).refine(
     items => new Set(items.map(item => item.text.trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-BR'))).size === items.length,
     'Cada componente deve aparecer apenas uma vez',
 );
-export const checklistComponentTemplatesSchema = z.array(checklistComponentSchema.extend({
+export const checklistComponentTemplatesSchema = z.array(checklistComponentSchema.omit({ checked: true }).extend({
     selectedByDefault: z.boolean(),
 })).max(100);
 
@@ -56,8 +57,13 @@ export const updateChecklistItemSchema = z.object({
     quantity: checklistQuantitySchema.optional(),
     components: checklistComponentsSchema.optional(),
     checked: z.boolean().optional(),
+    componentCheck: z.object({
+        text: z.string().trim().min(1).max(500),
+        checked: z.boolean(),
+    }).optional(),
     order: z.number().int().optional(),
-});
+}).refine(data => data.components === undefined || data.componentCheck === undefined,
+    'Altere a composição ou a conferência do componente em envios separados');
 
 export const createChecklistCatalogItemSchema = z.object({
     text: z.string().trim().min(1, 'Nome do item é obrigatório').max(500),
