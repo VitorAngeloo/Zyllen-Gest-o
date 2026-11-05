@@ -4,7 +4,6 @@ import { createHash, randomUUID } from 'crypto';
 import type { AddChecklistItemsInput, ChecklistCatalogQuery, CreateChecklistItemInput, UpdateChecklistItemInput } from '@zyllen/shared';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { FollowupChecklistCatalogService } from './followup-checklist-catalog.service';
-import { storedChecklistComponents } from './followup-checklist-components';
 
 @Injectable()
 export class FollowupChecklistService {
@@ -12,11 +11,6 @@ export class FollowupChecklistService {
         private readonly prisma: PrismaService,
         private readonly catalog: FollowupChecklistCatalogService,
     ) {}
-
-    private catalogText(text: string) {
-        const label = text.trim().replace(/\s+/g, ' ');
-        return { text: label, normalizedText: label.toLocaleLowerCase('pt-BR') };
-    }
 
     async listCatalog(query: ChecklistCatalogQuery) {
         return this.catalog.list(query);
@@ -81,10 +75,6 @@ export class FollowupChecklistService {
     async addChecklistItem(followupId: string, blockId: string, userId: string, data: CreateChecklistItemInput) {
         return this.prisma.$transaction(async tx => {
             await this.lockChecklist(tx, followupId, blockId);
-            const label = this.catalogText(data.text);
-            await tx.followupChecklistCatalogItem.upsert({
-                where: { normalizedText: label.normalizedText }, update: {}, create: label,
-            });
             const last = await tx.followupChecklistItem.aggregate({ where: { blockId }, _max: { order: true } });
             const item = await tx.followupChecklistItem.create({ data: {
                 blockId, text: data.text, details: data.details ?? null, quantity: data.quantity, components: data.components,
@@ -104,17 +94,8 @@ export class FollowupChecklistService {
             await this.lockChecklist(tx, followupId, blockId);
             const item = await tx.followupChecklistItem.findFirst({ where: { id: itemId, blockId } });
             if (!item) throw new NotFoundException('Item não encontrado');
-            if (data.text !== undefined) {
-                const label = this.catalogText(data.text);
-                await tx.followupChecklistCatalogItem.upsert({
-                    where: { normalizedText: label.normalizedText }, update: {}, create: label,
-                });
-            }
             const updated = await tx.followupChecklistItem.update({ where: { id: itemId }, data });
-            if (data.components !== undefined || data.text !== undefined) {
-                const components = data.components ?? storedChecklistComponents(item.components);
-                if (components !== null) await this.catalog.remember(tx, data.text ?? item.text, components);
-            }
+            if (data.components !== undefined) await this.catalog.remember(tx, data.text ?? item.text, data.components);
             await tx.auditLog.create({ data: {
                 action: 'FOLLOWUP_CHECKLIST_ITEM_UPDATED', entityType: 'Followup', entityId: followupId, userId,
                 details: { blockId, itemId, changes: data },

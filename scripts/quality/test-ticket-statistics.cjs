@@ -439,7 +439,7 @@ async function main() {
     });
     if (panels) await require('./test-personal-panels-api.cjs')({ run, prisma, origin, admin, tech, unprivileged, client, thirdParty, company, internal });
     if (vehicles) await require('./test-vehicles.cjs')({ run, prisma, origin, admin, unprivileged, client, thirdParty, internal });
-    if (followupChecklist) await require('./test-followup-checklist.cjs')({ run, prisma, origin, admin, unprivileged, client, thirdParty, company, internal });
+    if (followupChecklist) await require('./test-followup-checklist.cjs')({ run, prisma, origin, admin, unprivileged, client, thirdParty, company, internal, db });
     if (projects && !panels) await require('./test-project-services.cjs')({ run, prisma, origin, admin, tech, unprivileged, client, thirdParty, contractor, company, internal });
     if (structures) await require('./test-structures.cjs')({ run, prisma, origin, admin, tech, unprivileged, client, thirdParty, company, internal });
     if (process.argv.includes('--project-statistics') || trips) await require('./test-project-statistics.cjs')({ run, prisma, origin, admin, unprivileged, client, thirdParty, contractor, company, internal });

@@ -1,7 +1,7 @@
 /* Real Nest guards, contracts, migration, Prisma and transactions; disposable DB only. */
 const assert = require('node:assert/strict'), crypto = require('node:crypto'), path = require('node:path');
 const { spawnSync } = require('node:child_process');
-module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thirdParty, company, internal }) => {
+module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thirdParty, company, internal, db: database }) => {
     assert.match(process.env.DATABASE_URL, /@127\.0\.0\.1:\d+\//);
     const editor = await internal('Checklist editor QA', ['followups.view', 'followups.edit']);
     const viewer = await internal('Checklist reader QA', ['followups.view']);
@@ -75,6 +75,8 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         assert.equal((await http(base + '/' + legacy.id, 'PUT', { quantity: 0 })).status, 400);
         assert.equal((await http('/followups/' + followup.id + '/blocks/' + textBlock.id + '/checklist/' + legacy.id, 'PUT', { quantity: 2 })).status, 400);
         ok(await http(base + '/' + legacy.id, 'DELETE'));
+        assert.equal(ok(await http(catalog + '?search=Novo%20item%20manual')).length, 0);
+        ok(await http(catalog, 'POST', { text: 'Novo item manual' }), 201);
         assert.equal(ok(await http(catalog + '?search=Novo%20item%20manual')).length, 1);
         assert.equal(await prisma.followupChecklistItem.count({ where: { blockId: block.id } }), 3);
     });
@@ -121,7 +123,8 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
             details: '• GPU antiga\n• SSD 1TB\n• 3 coolers', createdAt: new Date('2025-01-01T12:00:00Z') } });
         latestHistorical = await prisma.followupChecklistItem.create({ data: { blockId: historyBlock.id, text: '2 computadores',
             details: '• GPU atual\n• SSD 1TB\n• 2 pentes RAM', createdAt: new Date('2026-01-01T12:00:00Z') } });
-        computer = ok(await http(catalog, 'POST', { text: 'Computador' }), 201);
+        await prisma.followupChecklistCatalogItem.create({ data: { text: 'Computador', normalizedText: 'computador' } });
+        computer = ok(await http(catalog + '?search=Computador'))[0];
         assert.deepEqual(computer.components.filter(part => part.selectedByDefault).map(part => [part.text, part.quantity]), [['GPU atual',1],['SSD 1TB',1],['pentes RAM',2]]);
         assert(computer.components.some(part => part.text === 'GPU antiga' && !part.selectedByDefault));
         assert(computer.components.some(part => part.text === 'coolers' && part.quantity === 3 && !part.selectedByDefault));
@@ -189,7 +192,8 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
             blockId: sourceBlock.id, text: '3-Suporte de projetor Epson', createdAt: new Date('2026-02-01T12:00:00Z'),
             details: '• Peça específica Epson\n• 9 parafusos Epson',
         } });
-        const support = ok(await http(catalog, 'POST', { text: 'Suporte de projetor' }), 201);
+        await prisma.followupChecklistCatalogItem.create({ data: { text: 'Suporte de projetor', normalizedText: 'suporte de projetor' } });
+        const support = ok(await http(catalog + '?search=Suporte%20de%20projetor'))[0];
         assert.deepEqual(support.components.filter(part => part.selectedByDefault).map(part => [part.text,part.quantity]), [
             ['bases para teto',3],['bases para projetor',3],['cálices',3],['parafusos para fixação do projetor na base',9],['grampo de cálice',3],
         ]);
@@ -201,6 +205,62 @@ module.exports = async ({ run, prisma, origin, admin, unprivileged, client, thir
         assert.equal((await prisma.followupChecklistItem.findUnique({ where: { id: oldKit.id } })).details, oldParts);
         const updated = ok(await http(base + '/' + saved.id, 'PUT', { components: [{ text: 'bases para teto', quantity: 5 }] }));
         assert.deepEqual(updated.components, [{ text: 'bases para teto', quantity: 5 }]);
+    });
+    await run('Curated materials: exact 45-item replacement, 12 computer parts and 8 support parts; historical lists remain intact', async () => {
+        const { parseMaterials, replaceCatalog } = require('../../apps/api/scripts/replace-followup-checklist-catalog.cjs');
+        const input = require('../../apps/api/scripts/data/followup-materials-20261105.json');
+        const items = parseMaterials(input);
+        assert.equal(items.length, 45);
+        const db = database;
+        {
+            const before = await prisma.followupChecklistItem.findMany({ orderBy: { id: 'asc' } });
+            await prisma.$disconnect();
+            let result;
+            try { result = await replaceCatalog(db,items,{actorId:admin.id}); }
+            finally { await prisma.$connect(); }
+            assert.equal(result.afterCount, 45); assert.equal(result.componentCount, 20);
+            assert.deepEqual(await prisma.followupChecklistItem.findMany({ orderBy: { id: 'asc' } }),before);
+            const response = await http(catalog + '?limit=100');
+            assert.equal(response.body.total, 45);
+            const rows = ok(response);
+            assert.deepEqual(rows.map(item=>item.text).sort(),input.items.map(item=>item.text).sort());
+            const pc = rows.find(item=>item.text==='Computador (e seus componentes)');
+            const support = rows.find(item=>item.text==='Suporte de projetor (mais acessórios)');
+            assert.equal(pc.components.length,12); assert.equal(support.components.length,8);
+            assert(pc.components.some(item=>item.text==='32gb RAM 2 pentes de 16gb'));
+            assert(pc.components.some(item=>item.text==='Fonte 850w'));
+            assert(!rows.some(item=>/^\d/.test(item.text)));
+            assert(!pc.components.some(item=>item.text==='GPU antiga'));
+            assert.equal(await prisma.auditLog.count({where:{action:'FOLLOWUP_CHECKLIST_CATALOG_REPLACED'}}),1);
+        }
+    });
+    await run('Curated materials: old checklist edits cannot recreate removed options; explicit new registrations stay available', async () => {
+        const before = await prisma.followupChecklistCatalogItem.count();
+        const item = ok(await http(base,'POST',{text:'123 item histórico removido',details:'• Peça antiga\n• Outra peça antiga'}),201);
+        ok(await http(base+'/'+item.id,'PUT',{text:'Computador antigo removido',components:[{text:'Peça antiga',quantity:5}]}));
+        assert.equal(await prisma.followupChecklistCatalogItem.count(),before);
+        const pc = ok(await http(catalog+'?search=Computador'))[0];
+        assert.equal(pc.text,'Computador (e seus componentes)');
+        assert.equal(pc.components.length,12);
+        const added = ok(await http(catalog,'POST',{text:'Computador'}),201);
+        assert.deepEqual(added.components,[]);
+        assert.equal(await prisma.followupChecklistCatalogItem.count(),before+1);
+    });
+    await run('Curated materials: stale review or audit failure rolls back the entire catalog replacement', async () => {
+        const {parseMaterials,replaceCatalog,digest} = require('../../apps/api/scripts/replace-followup-checklist-catalog.cjs');
+        const items = parseMaterials(require('../../apps/api/scripts/data/followup-materials-20261105.json'));
+        const db = database;
+        await prisma.$disconnect();
+        try {
+        {
+            const query = 'SELECT id,text,"normalizedText",components,"createdAt","updatedAt" FROM "FollowupChecklistCatalogItem" ORDER BY id';
+            const before = digest((await db.query(query)).rows);
+            await assert.rejects(()=>replaceCatalog(db,items,{actorId:admin.id,expectedHash:'stale-review'}),/changed after review/);
+            assert.equal(digest((await db.query(query)).rows),before);
+            await assert.rejects(()=>replaceCatalog(db,items,{actorId:crypto.randomUUID(),expectedHash:before}),/foreign key/);
+            assert.equal(digest((await db.query(query)).rows),before);
+        }
+        } finally { await prisma.$connect(); }
     });
 };
 if (require.main === module) {

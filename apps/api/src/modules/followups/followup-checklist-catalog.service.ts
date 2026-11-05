@@ -21,12 +21,14 @@ export class FollowupChecklistCatalogService {
 
     async enrich(rows: CatalogRow[], tx: Prisma.TransactionClient): Promise<FollowupChecklistCatalogItem[]> {
         if (!rows.length) return [];
-        const keys = new Set(rows.map(row => checklistGroupKey(row.text)));
-        const history = await tx.followupChecklistItem.findMany({
+        const explicit = new Map(rows.map(row => [row.id, checklistComponentTemplatesSchema.safeParse(row.components)]));
+        const inheritedRows = rows.filter(row => !explicit.get(row.id)!.success);
+        const keys = new Set(inheritedRows.map(row => checklistGroupKey(row.text)));
+        const history = keys.size ? await tx.followupChecklistItem.findMany({
             where: { OR: [{ details: { not: null } }, { components: { not: Prisma.DbNull } }] },
             select: { text: true, details: true, components: true },
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        });
+        }) : [];
         const groups = new Map<string, { defaults: FollowupChecklistComponent[]; options: Map<string, FollowupChecklistComponent> }>();
         for (const item of history) {
             const key = checklistGroupKey(item.text);
@@ -42,12 +44,11 @@ export class FollowupChecklistCatalogService {
             }
         }
         return rows.map(row => {
-            const stored = checklistComponentTemplatesSchema.safeParse(row.components);
-            const templates = stored.success ? stored.data : [];
+            const stored = explicit.get(row.id)!;
+            if (stored.success) return { id: row.id, text: row.text, components: stored.data };
             const group = groups.get(checklistGroupKey(row.text));
-            const defaults = new Map((group?.defaults ?? templates.filter(item => item.selectedByDefault)).map(item => [componentKey(item.text), item]));
+            const defaults = new Map((group?.defaults ?? []).map(item => [componentKey(item.text), item]));
             const options = new Map(group?.options ?? []);
-            for (const component of templates) if (!options.has(componentKey(component.text))) options.set(componentKey(component.text), component);
             const components = [...options].slice(0, 100).map(([key, component]) => ({
                 text: component.text, quantity: defaults.get(key)?.quantity ?? component.quantity, selectedByDefault: defaults.has(key),
             }));
@@ -72,7 +73,7 @@ export class FollowupChecklistCatalogService {
         const label = this.label(text);
         return this.prisma.$transaction(async tx => {
             const item = await tx.followupChecklistCatalogItem.upsert({
-                where: { normalizedText: label.normalizedText }, update: {}, create: label,
+                where: { normalizedText: label.normalizedText }, update: {}, create: { ...label, components: [] },
                 select: { id: true, text: true, components: true },
             });
             await tx.auditLog.create({ data: {
@@ -86,6 +87,7 @@ export class FollowupChecklistCatalogService {
     async remember(tx: Prisma.TransactionClient, text: string, selected: FollowupChecklistComponent[], available: FollowupChecklistComponentTemplate[] = []) {
         const label = this.label(text);
         const previous = await tx.followupChecklistCatalogItem.findUnique({ where: { normalizedText: label.normalizedText } });
+        if (!previous) return;
         const parsed = checklistComponentTemplatesSchema.safeParse(previous?.components);
         const options = new Map(selected.map(item => [componentKey(item.text), item]));
         for (const component of [...available, ...(parsed.success ? parsed.data : [])]) {
@@ -95,9 +97,6 @@ export class FollowupChecklistCatalogService {
         const components = [...options].slice(0, 100).map(([key, item]) => ({
             text: item.text, quantity: chosen.get(key)?.quantity ?? item.quantity, selectedByDefault: chosen.has(key),
         }));
-        await tx.followupChecklistCatalogItem.upsert({
-            where: { normalizedText: label.normalizedText }, update: { components },
-            create: { ...label, components },
-        });
+        await tx.followupChecklistCatalogItem.update({ where: { id: previous.id }, data: { components } });
     }
 }
